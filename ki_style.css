@@ -86,6 +86,43 @@ body.resizing{cursor:col-resize;user-select:none}
 .btn:hover{border-color:#6e8fb3;background:#edf5fd}
 .btn.primary{background:linear-gradient(#4f84c0,#2e67a8);color:#fff;border-color:#24578f}
 
+/* 등록 폼 */
+.form{margin:7px;border:1px solid #a9b6c3;background:#f7f9fb;flex:0 0 auto}
+.form-row{display:grid;grid-template-columns:100px minmax(110px,1fr) 100px minmax(110px,1fr) 100px minmax(110px,1fr) 100px minmax(110px,1fr);
+  border-bottom:1px solid #d6dde4}
+.form-row:last-child{border-bottom:0}
+.form-lb{display:flex;align-items:center;padding:5px 7px;background:#edf2f6;border-right:1px solid #d1d9e0;
+  color:#526171;font-weight:700}
+.form-lb.req::after{content:'*';color:#c0392b;margin-left:3px}
+.form-fd{padding:4px 6px;border-right:1px solid #e0e5ea;display:flex;align-items:center;gap:5px}
+.form-fd:last-child{border-right:0}
+.form-fd input,.form-fd select{height:24px;width:100%;border:1px solid #aeb9c4;background:#fff;padding:0 6px;color:#42515f}
+.form-fd input[readonly]{background:#eef2f6;color:#68757f}
+.form-fd .calc{width:100%;height:24px;display:flex;align-items:center;padding:0 6px;font-weight:800;
+  color:#1d568c;background:#e9f2fc;border:1px solid #bcd0e4}
+.form-bar{display:flex;align-items:center;gap:5px;padding:6px 7px;background:#eef2f6;border-top:1px solid #d1d9e0}
+.form-bar .st{margin-left:auto;font-size:11px;font-weight:700}
+.form-bar .st.ok{color:#15803d}.form-bar .st.err{color:#b91c1c}
+.btn.danger{background:linear-gradient(#fff,#fdecec);border-color:#daa;color:#b23030}
+.btn.danger:hover{background:#fbe0e0}
+
+/* 하단 참조 영역 */
+.ref{display:grid;grid-template-columns:1fr 1.3fr;gap:7px;margin:0 7px 7px;flex:0 0 auto}
+@media(max-width:1100px){.ref{grid-template-columns:1fr}}
+.ref-box{border:1px solid #a9b6c3;background:#fff;display:flex;flex-direction:column;min-height:0}
+.ref-box h4{margin:0;height:26px;display:flex;align-items:center;gap:6px;padding:0 8px;font-size:11px;color:#41556a;
+  background:linear-gradient(#f4f7fa,#e5ebf1);border-bottom:1px solid #b3bfca}
+.ref-box h4 .r{margin-left:auto;color:#8b98a5;font-weight:400;font-size:10px}
+.ref-bd{max-height:190px;overflow:auto}
+.ref-note{padding:8px 10px;border-bottom:1px solid #e3e8ed;background:#f2f7fc;color:#1d568c;
+  font-family:Consolas,"맑은 고딕",monospace;font-size:11px;line-height:1.8}
+.ref-add{display:flex;gap:4px;padding:5px 6px;border-top:1px solid #e3e8ed;background:#f7f9fb}
+.ref-add input{height:22px;border:1px solid #aeb9c4;padding:0 5px;min-width:0;flex:1}
+.ref-add input.w80{flex:0 0 80px}
+.ref-add button{height:22px;padding:0 8px;border:1px solid #9aa8b6;background:linear-gradient(#fff,#e6ebf0);color:#43536a}
+.ref-x{border:0;background:transparent;color:#b0868c;padding:0 4px}
+.ref-x:hover{color:#b23030}
+
 /* 안내 배너 */
 .note{margin:7px 7px 0;padding:8px 11px;border:1px solid #bcd0e4;border-left:3px solid #2e77bd;
   background:#f2f7fc;color:#3d5063;line-height:1.7;flex:0 0 auto}

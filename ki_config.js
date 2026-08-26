@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v6.3',
+  VER      : 'v6.4',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -118,10 +118,8 @@ const MENU = [
   { key:'base', name:'기준정보', second:[
     { key:'b-prod', name:'생산기준', icon:'▦', groups:[
       { name:'설비 / 금형', items:[
-        {id:'mold-spec', f:'mold_spec.html', n:'금형정보',     d:'금형제번 · 소재 · 피치 · 매핑품번'},
-        {id:'mold-type', f:'mold_type.html', n:'금형타입',     d:'금형 타입 기준정보'},
-        {id:'material',  f:'material.html',  n:'소재 비중정보', d:'소재별 비중 · 중량 계산식'},
-        {id:'machine',   f:'machine.html',   n:'호기설정',     d:'호기번호 · 호기명'}
+        {id:'mold-spec', f:'mold_spec.html', n:'금형정보', d:'금형 등록·수정·삭제 / 타입·비중 참조'},
+        {id:'machine',   f:'machine.html',   n:'호기설정', d:'호기번호 · 호기명'}
       ]}
     ]},
     { key:'b-chk', name:'점검기준', icon:'🔧', groups:[
@@ -329,31 +327,6 @@ const VIEWS = {
         ['구역',80,'center','zone_code'],['알람',80,'center','alert_type','st'],
         ['측정값',86,'num','value'],['임계값',86,'num','threshold'],
         ['상태',80,'center','status','st'],['조치',0,'','action']]
-},
-'mold-spec':{
-  table:OBJ.moldSpec, order:'mold_no.asc',
-  note:'소재 중량(g) = 두께(cm) × 폭(cm) × 피치(cm) × 비중 · <b>소재중량</b> 컬럼은 자동 계산됩니다.',
-  search:[['금형제번','text','mold_no'],['금형타입','text','mold_type_name'],['소재재질','text','material_name'],
-          ['매핑품번','text','part_no'],['자산처','text','asset_owner']],
-  cols:[['금형제번',100,'','mold_no'],['금형타입코드',86,'center','mold_type_code'],['금형타입',130,'','mold_type_name'],
-        ['소재재질',170,'','material_name'],['소재두께(mm)',96,'num','thickness_mm'],
-        ['소재폭(mm)',92,'num','width_mm'],['피치(mm)',86,'num','pitch_mm'],['비중',66,'num','density'],
-        ['소재중량(g)',100,'num','unit_weight_g','w2'],
-        ['매핑품번',120,'','part_no'],['자산처',110,'','asset_owner'],['비고',0,'','remark']]
-},
-'mold-type':{
-  table:OBJ.moldType, order:'sort_order.asc',
-  search:[['금형타입코드','text','mold_type_code'],['금형타입명','text','mold_type_name']],
-  cols:[['No',50,'center','_i'],['금형타입코드',120,'center','mold_type_code'],
-        ['금형타입명',220,'','mold_type_name'],['순서',60,'num','sort_order'],['비고',0,'','remark']]
-},
-'material':{
-  table:OBJ.material, order:'sort_order.asc',
-  note:'<b>소재 중량(g) = 부피(cm³) × 비중 = 두께(cm) × 폭(cm) × 피치(cm) × 비중</b>',
-  search:[['소재코드','text','material_code'],['소재명','text','material_name']],
-  cols:[['No',50,'center','_i'],['소재코드',110,'center','material_code'],
-        ['소재명',260,'','material_name'],['비중',90,'num','density','w2'],
-        ['순서',60,'num','sort_order'],['비고',0,'','remark']]
 },
 'machine':{
   table:OBJ.machine, order:'sort_order.asc',

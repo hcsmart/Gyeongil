@@ -17,6 +17,25 @@ async function get(path){
   if(!r.ok) throw new Error('조회 실패 ('+r.status+')');
   return await r.json();
 }
+async function ins(table,body){
+  const r=await fetch(C.SUPABASE_URL+'/rest/v1/'+table,{method:'POST',
+    headers:Object.assign({'Content-Type':'application/json',Prefer:'return=representation'},HDR),
+    body:JSON.stringify(body)});
+  if(!r.ok) throw new Error('등록 실패 ('+r.status+') '+(await r.text()).slice(0,120));
+  return await r.json();
+}
+async function upd(table,filter,body){
+  const r=await fetch(C.SUPABASE_URL+'/rest/v1/'+table+'?'+filter,{method:'PATCH',
+    headers:Object.assign({'Content-Type':'application/json',Prefer:'return=representation'},HDR),
+    body:JSON.stringify(body)});
+  if(!r.ok) throw new Error('수정 실패 ('+r.status+') '+(await r.text()).slice(0,120));
+  return await r.json();
+}
+async function del(table,filter){
+  const r=await fetch(C.SUPABASE_URL+'/rest/v1/'+table+'?'+filter,{method:'DELETE',headers:HDR});
+  if(!r.ok) throw new Error('삭제 실패 ('+r.status+')');
+  return true;
+}
 async function upsert(table,body){
   const r=await fetch(C.SUPABASE_URL+'/rest/v1/'+table,{method:'POST',
     headers:Object.assign({'Content-Type':'application/json',Prefer:'resolution=merge-duplicates,return=representation'},HDR),
@@ -433,7 +452,7 @@ function csv(cur,def,rows){
   a.download=cur.n+'_'+new Date().toISOString().slice(0,10)+'.csv'; a.click(); URL.revokeObjectURL(a.href);
 }
 
-return {CFG:C, $:$, el:el, esc:esc, get:get, upsert:upsert, sha256:sha256,
+return {CFG:C, $:$, el:el, esc:esc, get:get, upsert:upsert, ins:ins, upd:upd, del:del, sha256:sha256,
         session:session, setSession:setSession, logout:logout, loadPins:loadPins, savePin:savePin,
         isDefaultPin:isDefaultPin, guard:guard, header:header, chrome:chrome, page:page,
         masters:masters, M:M, msg:msg,
