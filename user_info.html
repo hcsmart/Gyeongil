@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  if(!KI.guard())return;
+  const $=KI.$, el=KI.el, esc=KI.esc;
+  const cur=KI.chrome('user-info');
+  const T_EMP='ki_employee', T_PERM='ki_permission';
+  const ADMIN = (KI.session()||{}).role==='admin';
+
+  let USERS=[], PERMS={}, key=null, dirtyPerm=false;
+
+  const ui=KI.page(cur,[]);
+  const w=el('div','ui-wrap');
+  w.innerHTML=
+    /* ---------- 좌측 : 사용자 목록 ---------- */
+    '<div class="ui-left"><div class="pane-h">사용자 목록</div>'+
+      '<div class="ui-find">'+
+        '<span style="color:#526171;font-weight:700">사용자</span><input type="text" id="q_name">'+
+        '<span style="color:#526171;font-weight:700">공장</span><select id="q_fac"></select>'+
+        '<label><input type="checkbox" id="q_all"> 전체</label>'+
+      '</div>'+
+      '<div class="ui-list" id="list"></div>'+
+    '</div>'+
+    /* ---------- 우측 ---------- */
+    '<div class="ui-right">'+
+      '<div class="ui-form"><div class="pane-h">사용자정보</div>'+
+        '<div class="ui-grid">'+
+          '<div class="lb">공장</div><div class="fd"><select id="f_fac"></select></div>'+
+          '<div class="lb">등록일</div><div class="fd"><input type="date" id="f_reg"></div>'+
+          '<div class="lb req">아이디</div><div class="fd"><input type="text" id="f_id" maxlength="30"></div>'+
+
+          '<div class="lb req">성명</div><div class="fd"><input type="text" id="f_name" maxlength="30"></div>'+
+          '<div class="lb">성명(영문)</div><div class="fd"><input type="text" id="f_en" maxlength="40"></div>'+
+          '<div class="lb">비밀번호</div><div class="fd"><input type="password" id="f_pw" maxlength="30" autocomplete="new-password"></div>'+
+
+          '<div class="lb">사용자그룹</div><div class="fd"><select id="f_grp"><option></option><option>관리자</option><option>사무</option><option>현장</option></select></div>'+
+          '<div class="lb">공정그룹</div><div class="fd"><input type="text" id="f_proc" maxlength="30"></div>'+
+          '<div class="lb">부서</div><div class="fd"><input type="text" id="f_dept" maxlength="30"></div>'+
+
+          '<div class="lb">사업부</div><div class="fd"><input type="text" id="f_biz" maxlength="30"></div>'+
+          '<div class="lb">휴대폰번호</div><div class="fd"><input type="text" id="f_mob" maxlength="20"></div>'+
+          '<div class="lb">직급</div><div class="fd"><input type="text" id="f_pos" maxlength="20"></div>'+
+
+          '<div class="lb">전화번호</div><div class="fd"><input type="text" id="f_tel" maxlength="20"></div>'+
+          '<div class="lb">이메일</div><div class="fd"><input type="text" id="f_mail" maxlength="60"></div>'+
+          '<div class="lb req">사원번호</div><div class="fd"><input type="text" id="f_no" maxlength="20" placeholder="예: E005"></div>'+
+
+          '<div class="lb">사용여부</div><div class="fd"><input type="checkbox" id="f_use" checked style="width:15px;height:15px"></div>'+
+          '<div class="lb">비고</div><div class="fd"><input type="text" id="f_rem" maxlength="120"></div>'+
+          '<div class="lb">로그인메일</div><div class="fd"><input type="text" id="f_lmail" maxlength="60"></div>'+
+
+          '<div class="lb">권한역할</div><div class="fd"><select id="f_role"><option value="사용자">user</option><option value="관리자">master</option></select></div>'+
+          '<div class="lb"></div><div class="fd"></div><div class="lb"></div><div class="fd"></div>'+
+        '</div>'+
+        '<div class="ui-btns">'+
+          '<button class="btn" id="bRe">⟳ 새로고침</button>'+
+          '<button class="btn primary" id="bSave">▣ 저장</button>'+
+          '<button class="btn danger" id="bDel">✕ 삭제</button>'+
+          '<button class="btn" id="bNew">＋ 신규 사용자 등록</button>'+
+          '<button class="btn" id="bPwRe">🔑 비밀번호 재설정</button>'+
+          '<button class="btn" id="bPwShow">👁 비밀번호 보기 (마스터)</button>'+
+          '<span class="st" id="fMsg"></span>'+
+        '</div>'+
+      '</div>'+
+      '<div class="ui-perm">'+
+        '<div class="pm-head">권한'+
+          '<button class="btn" id="bOpen" style="margin-left:10px">⊞ 전체펼침</button>'+
+          '<button class="btn" id="bFold">⊟ 접기</button>'+
+          '<button class="btn primary" id="bPermSave">🔒 권한저장</button>'+
+          '<button class="btn" id="bPermCopy">⧉ 권한복사</button>'+
+          '<span class="all">'+
+            '<label><input type="checkbox" data-a="v"> 조회</label>'+
+            '<label><input type="checkbox" data-a="s"> 저장</label>'+
+            '<label><input type="checkbox" data-a="e"> 수정</label>'+
+            '<label><input type="checkbox" data-a="d"> 삭제</label>'+
+          '</span>'+
+        '</div>'+
+        '<div class="pm-body" id="pm"></div>'+
+      '</div>'+
+    '</div>';
+  ui.pg.appendChild(w);
+
+  /* ---------- 권한 매트릭스 (MENU 기반) ---------- */
+  const MODS = MENU.map(m=>({key:m.key,name:m.name,
+    items:m.second.flatMap(s2=>s2.groups.flatMap(g=>g.items))}));
+  function ckRow(id){
+    return '<span class="pm-cks">'+['v','s','e','d'].map((a,i)=>
+      '<label><input type="checkbox" data-id="'+id+'" data-a="'+a+'"> '+['조회','저장','수정','삭제'][i]+'</label>').join('')+'</span>';
+  }
+  function buildMatrix(){
+    $('#pm').innerHTML = MODS.map(m=>
+      '<div class="pm-mod" data-mod="'+m.key+'"><span class="nm">'+esc(m.name)+'</span>'+ckRow('mod:'+m.key)+'</div>'+
+      m.items.map(it=>'<div class="pm-item" data-parent="'+m.key+'" data-id="'+it.id+'">'+
+        '<span class="nm">'+esc(it.n)+'</span>'+ckRow(it.id)+'</div>').join('')
+    ).join('');
+    /* 접기/펼치기 */
+    $('#pm').querySelectorAll('.pm-mod .nm').forEach(n=>n.addEventListener('click',()=>{
+      const mod=n.parentElement, k=mod.dataset.mod, fold=!mod.classList.contains('fold');
+      mod.classList.toggle('fold',fold);
+      $('#pm').querySelectorAll('[data-parent="'+k+'"]').forEach(r=>r.style.display=fold?'none':'');
+    }));
+    /* 체크 이벤트 */
+    $('#pm').querySelectorAll('input[type=checkbox]').forEach(c=>c.addEventListener('change',()=>{
+      dirtyPerm=true;
+      const id=c.dataset.id, a=c.dataset.a;
+      if(id.startsWith('mod:')){
+        const k=id.slice(4);
+        MODS.find(m=>m.key===k).items.forEach(it=>{
+          const t=$('#pm').querySelector('input[data-id="'+it.id+'"][data-a="'+a+'"]'); if(t)t.checked=c.checked;
+        });
+      } else syncMod();
+    }));
+  }
+  function syncMod(){
+    MODS.forEach(m=>['v','s','e','d'].forEach(a=>{
+      const kids=m.items.map(it=>$('#pm').querySelector('input[data-id="'+it.id+'"][data-a="'+a+'"]')).filter(Boolean);
+      const head=$('#pm').querySelector('input[data-id="mod:'+m.key+'"][data-a="'+a+'"]');
+      if(head) head.checked = kids.length>0 && kids.every(k=>k.checked);
+    }));
+  }
+  function setMatrix(rows){
+    $('#pm').querySelectorAll('input[data-id]:not([data-id^="mod:"])').forEach(c=>c.checked=false);
+    (rows||[]).forEach(r=>{
+      [['v','can_view'],['s','can_save'],['e','can_edit'],['d','can_delete']].forEach(([a,f])=>{
+        const c=$('#pm').querySelector('input[data-id="'+r.menu_id+'"][data-a="'+a+'"]');
+        if(c) c.checked = r[f]===true;
+      });
+    });
+    syncMod(); dirtyPerm=false;
+  }
+  function readMatrix(){
+    const out={};
+    $('#pm').querySelectorAll('input[data-id]:not([data-id^="mod:"])').forEach(c=>{
+      const o=out[c.dataset.id]||(out[c.dataset.id]={v:false,s:false,e:false,d:false});
+      o[c.dataset.a]=c.checked;
+    });
+    return out;
+  }
+  $('#bOpen').addEventListener('click',()=>{ $('#pm').querySelectorAll('.pm-mod').forEach(m=>m.classList.remove('fold'));
+    $('#pm').querySelectorAll('.pm-item').forEach(r=>r.style.display=''); });
+  $('#bFold').addEventListener('click',()=>{ $('#pm').querySelectorAll('.pm-mod').forEach(m=>m.classList.add('fold'));
+    $('#pm').querySelectorAll('.pm-item').forEach(r=>r.style.display='none'); });
+  /* 헤더 전체 체크 */
+  document.querySelectorAll('.pm-head .all input').forEach(c=>c.addEventListener('change',()=>{
+    dirtyPerm=true;
+    $('#pm').querySelectorAll('input[data-a="'+c.dataset.a+'"]').forEach(t=>t.checked=c.checked);
+  }));
+
+  /* ---------- 폼 ---------- */
+  const V=id=>$('#'+id).value.trim();
+  function msg(t,ok){ const m=$('#fMsg'); m.className='st '+(ok?'ok':'err'); m.textContent=t; KI.msg(t); }
+  function clearForm(){
+    key=null;
+    ['f_id','f_name','f_en','f_pw','f_proc','f_dept','f_biz','f_mob','f_pos','f_tel','f_mail','f_no','f_rem','f_lmail'].forEach(i=>$('#'+i).value='');
+    $('#f_grp').value=''; $('#f_role').value='사용자'; $('#f_use').checked=true;
+    $('#f_fac').selectedIndex=0; $('#f_reg').value=new Date().toISOString().slice(0,10);
+    $('#f_no').readOnly=false;
+    setMatrix([]);
+    w.querySelectorAll('.ui-row.sel').forEach(x=>x.classList.remove('sel'));
+    msg('신규 사용자 등록 모드입니다.',true); $('#f_no').focus();
+  }
+  function fill(u){
+    key=u.emp_no;
+    $('#f_no').value=u.emp_no; $('#f_no').readOnly=true;
+    $('#f_id').value=u.user_id||''; $('#f_name').value=u.emp_name||''; $('#f_en').value=u.name_en||'';
+    $('#f_pw').type='password'; $('#f_pw').value=u.pw||'';
+    $('#f_grp').value=u.user_group||''; $('#f_proc').value=u.proc_group||'';
+    $('#f_dept').value=u.dept||''; $('#f_biz').value=u.biz_div||'';
+    $('#f_mob').value=u.mobile||''; $('#f_pos').value=u.position||'';
+    $('#f_tel').value=u.phone||''; $('#f_mail').value=u.email||'';
+    $('#f_rem').value=u.remark||''; $('#f_lmail').value=u.login_email||'';
+    $('#f_fac').value=u.factory||''; $('#f_reg').value=u.reg_date||'';
+    $('#f_role').value=u.role||'사용자'; $('#f_use').checked=u.is_active!==false;
+    loadPerm(u.emp_no);
+    msg(u.emp_name+' ('+u.emp_no+') 선택 — 수정 모드',true);
+  }
+  function body(){
+    return { user_id:V('f_id')||null, emp_name:V('f_name')||null, name_en:V('f_en')||null,
+      pw:$('#f_pw').value||null, user_group:V('f_grp')||null, proc_group:V('f_proc')||null,
+      dept:V('f_dept')||null, biz_div:V('f_biz')||null, mobile:V('f_mob')||null,
+      position:V('f_pos')||null, phone:V('f_tel')||null, email:V('f_mail')||null,
+      remark:V('f_rem')||null, login_email:V('f_lmail')||null,
+      factory:V('f_fac')||null, reg_date:V('f_reg')||null,
+      role:$('#f_role').value, is_active:$('#f_use').checked,
+      updated_at:new Date().toISOString() };
+  }
+  async function save(){
+    const no=V('f_no');
+    if(!no) return msg('사원번호를 입력하세요.');
+    if(!V('f_id')) return msg('아이디를 입력하세요.');
+    if(!V('f_name')) return msg('성명을 입력하세요.');
+    try{
+      const b=body();
+      if(key){ await KI.upd(T_EMP,'emp_no=eq.'+encodeURIComponent(key),b); msg('✓ '+no+' 저장되었습니다.',true); }
+      else{
+        if(USERS.find(u=>u.emp_no===no)) return msg('이미 등록된 사원번호입니다.');
+        b.emp_no=no; await KI.ins(T_EMP,[b]); key=no; $('#f_no').readOnly=true;
+        msg('✓ '+no+' 등록되었습니다. 하단에서 권한을 지정한 뒤 [권한저장]을 누르세요.',true);
+      }
+      await loadUsers();
+    }catch(e){ msg('❌ '+e.message); }
+  }
+  async function removeUser(){
+    if(!key) return msg('삭제할 사용자를 목록에서 선택하세요.');
+    if(!confirm(key+' 사용자와 권한을 모두 삭제하시겠습니까?'))return;
+    try{
+      await KI.del(T_PERM,'emp_no=eq.'+encodeURIComponent(key));
+      await KI.del(T_EMP,'emp_no=eq.'+encodeURIComponent(key));
+      msg('✓ 삭제되었습니다.',true); clearForm(); await loadUsers();
+    }catch(e){ msg('❌ '+e.message); }
+  }
+  async function pwReset(){
+    if(!key) return msg('사용자를 먼저 선택하세요.');
+    if(!confirm(key+' 비밀번호를 123456 으로 재설정할까요?'))return;
+    try{ await KI.upd(T_EMP,'emp_no=eq.'+encodeURIComponent(key),{pw:'123456'});
+      $('#f_pw').value='123456'; msg('✓ 비밀번호가 재설정되었습니다.',true); await loadUsers(); }
+    catch(e){ msg('❌ '+e.message); }
+  }
+  async function pwShow(){
+    if(!key) return msg('사용자를 먼저 선택하세요.');
+    const inp=$('#f_pw');
+    if(inp.type==='text'){ inp.type='password'; return; }
+    const pin=prompt('마스터 PIN을 입력하세요');
+    if(pin==null)return;
+    try{
+      const p=await KI.loadPins();
+      if(await KI.sha256(pin)!==p.pin_master) return msg('마스터 PIN이 일치하지 않습니다.');
+      inp.type='text'; msg('비밀번호 표시 중 — 다시 누르면 숨김',true);
+    }catch(e){ msg('❌ '+e.message); }
+  }
+
+  /* ---------- 권한 저장/복사 ---------- */
+  async function loadPerm(no){
+    try{ const rows=await KI.get(T_PERM+'?select=*&emp_no=eq.'+encodeURIComponent(no)); setMatrix(rows); }
+    catch(e){ setMatrix([]); }
+  }
+  async function savePerm(){
+    if(!key) return msg('사용자를 먼저 선택(또는 저장)하세요.');
+    const m=readMatrix();
+    const NAMES={}; MODS.forEach(x=>x.items.forEach(it=>NAMES[it.id]=it.n));
+    const rows=Object.keys(m).map(id=>({emp_no:key,menu_id:id,menu_name:NAMES[id]||id,
+      can_view:m[id].v,can_save:m[id].s,can_edit:m[id].e,can_delete:m[id].d,
+      updated_at:new Date().toISOString()}));
+    try{
+      await KI.upsert(T_PERM+'?on_conflict=emp_no,menu_id',rows);
+      dirtyPerm=false; msg('✓ 권한 '+rows.length+'건이 저장되었습니다.',true);
+    }catch(e){ msg('❌ '+e.message); }
+  }
+  async function copyPerm(){
+    if(!key) return msg('대상 사용자를 먼저 선택하세요.');
+    const src=prompt('권한을 복사해 올 사원번호를 입력하세요\n'+
+      USERS.filter(u=>u.emp_no!==key).map(u=>u.emp_no+' '+u.emp_name).join('\n'));
+    if(!src)return;
+    const su=USERS.find(u=>u.emp_no===src.trim());
+    if(!su) return msg('해당 사원번호가 없습니다: '+src);
+    try{
+      const rows=await KI.get(T_PERM+'?select=*&emp_no=eq.'+encodeURIComponent(su.emp_no));
+      setMatrix(rows); dirtyPerm=true;
+      msg('✓ '+su.emp_name+' 권한을 불러왔습니다. [권한저장]을 눌러 반영하세요.',true);
+    }catch(e){ msg('❌ '+e.message); }
+  }
+
+  /* ---------- 목록 ---------- */
+  function drawList(){
+    const q=V('q_name').toLowerCase(), fac=$('#q_fac').value, all=$('#q_all').checked;
+    const list=USERS.filter(u=>
+      (all || u.is_active!==false) &&
+      (!fac || u.factory===fac) &&
+      (!q || (u.emp_name||'').toLowerCase().includes(q) || (u.user_id||'').toLowerCase().includes(q) ||
+             (u.emp_no||'').toLowerCase().includes(q)));
+    const byDept={};
+    list.forEach(u=>{ const d=u.dept||'(부서없음)'; (byDept[d]=byDept[d]||[]).push(u); });
+    const box=$('#list'); box.innerHTML='';
+    Object.keys(byDept).sort().forEach(d=>{
+      box.appendChild(el('div','ui-dept','부서명: '+d));
+      byDept[d].forEach(u=>{
+        const r=el('div','ui-row'+(u.emp_no===key?' sel':''));
+        r.innerHTML='<div>'+esc(u.position||'-')+'</div>'+
+          '<div>'+esc(u.emp_name||'')+(u.role==='관리자'?'<span class="tagm">[마스터]</span>':'')+'</div>'+
+          '<div class="ui-use">'+(u.is_active===false?'<span class="n">미사용</span>':'<span class="y">사용</span>')+'</div>';
+        r.addEventListener('click',()=>{
+          if(dirtyPerm && !confirm('저장하지 않은 권한 변경이 있습니다. 이동할까요?'))return;
+          box.querySelectorAll('.ui-row.sel').forEach(x=>x.classList.remove('sel'));
+          r.classList.add('sel'); fill(u);
+        });
+        box.appendChild(r);
+      });
+    });
+    if(!list.length) box.innerHTML='<div style="padding:16px;color:#8894a0">사용자가 없습니다.</div>';
+  }
+  ['q_name','q_fac','q_all'].forEach(id=>$('#'+id).addEventListener('input',drawList));
+
+  /* ---------- 로드 ---------- */
+  async function loadUsers(){
+    USERS=await KI.get(OBJ.employee+'?select=*&order=emp_no.asc');
+    drawList();
+  }
+  await KI.masters(['factory']);
+  const fs1=$('#q_fac'), fs2=$('#f_fac');
+  fs1.appendChild(el('option',null,'')); fs2.appendChild(el('option',null,''));
+  KI.M.factories.forEach(f=>{
+    [fs1,fs2].forEach(s=>{ const o=el('option',null,f.factory_name||f.factory_code); o.value=f.factory_code; s.appendChild(o); });
+  });
+  buildMatrix();
+  $('#bRe').addEventListener('click',async()=>{ await loadUsers(); if(key){ const u=USERS.find(x=>x.emp_no===key); if(u)fill(u); } });
+  $('#bSave').addEventListener('click',save);
+  $('#bDel').addEventListener('click',removeUser);
+  $('#bNew').addEventListener('click',clearForm);
+  $('#bPwRe').addEventListener('click',pwReset);
+  $('#bPwShow').addEventListener('click',pwShow);
+  $('#bPermSave').addEventListener('click',savePerm);
+  $('#bPermCopy').addEventListener('click',copyPerm);
+
+  if(!ADMIN){
+    ['bSave','bDel','bNew','bPwRe','bPwShow','bPermSave','bPermCopy'].forEach(id=>{
+      $('#'+id).disabled=true; $('#'+id).title='마스터 PIN으로 접속해야 사용할 수 있습니다';
+      $('#'+id).style.opacity=.5;
+    });
+    msg('일반 사용자 접속 — 조회만 가능합니다.',true);
+  }
+  await loadUsers();
+  clearForm();
+  if(USERS.length){ const first=$('#list .ui-row'); if(first) first.click(); }
+})();
+</script>
+</body>
+</html>
