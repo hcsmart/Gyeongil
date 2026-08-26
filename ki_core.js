@@ -28,7 +28,12 @@ async function signIn(userId,password){
     method:'POST',headers:{apikey:C.SUPABASE_KEY,'Content-Type':'application/json'},
     body:JSON.stringify({email:emailOf(userId),password:password})});
   const d=await r.json().catch(()=>({}));
-  if(!r.ok) throw new Error(d.error_description||d.msg||d.error||'아이디 또는 비밀번호가 올바르지 않습니다.');
+  if(!r.ok){
+    if(r.status===400) throw new Error('아이디 또는 비밀번호가 올바르지 않습니다.');
+    if(r.status===422) throw new Error('입력값을 확인하세요. ('+(d.msg||d.error_description||'')+')');
+    if(r.status>=500)  throw new Error('인증 서버 오류입니다. 관리자에게 문의하세요. ('+(d.error_code||r.status)+')');
+    throw new Error(d.error_description||d.msg||d.error||'로그인 실패 ('+r.status+')');
+  }
   saveSess({access_token:d.access_token,refresh_token:d.refresh_token,
             exp:Date.now()+(d.expires_in||3600)*1000,uid:d.user&&d.user.id,email:d.user&&d.user.email});
   await loadMe();

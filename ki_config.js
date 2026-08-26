@@ -4,14 +4,14 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v8.0',
+  VER      : 'v8.2',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
   LANDING      : 'mold_due.html',   // 로그인 후 기본 화면
   AUTH_DOMAIN  : 'ki.local',        // 아이디 → 로그인 이메일 : <아이디>@ki.local
   ADMIN_FN     : 'ki-admin-user',   // 계정관리 Edge Function
-  MIN_PW       : 8,
+  MIN_PW       : 6,   // Supabase Auth 기본 최소 길이
   MAX_FAIL     : 5,
   LOCKOUT_SEC  : 60
 };

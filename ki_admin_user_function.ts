@@ -40,8 +40,8 @@ Deno.serve(async (req) => {
     const password: string = body.password || ''
 
     if (action === 'create') {
-      if (!empNo || !email || password.length < 8)
-        return json({ error: '사번 · 이메일 · 8자 이상 비밀번호가 필요합니다.' }, 400)
+      if (!empNo || !email || password.length < 6)
+        return json({ error: '사번 · 이메일 · 6자 이상 비밀번호가 필요합니다.' }, 400)
       const { data, error } = await admin.auth.admin.createUser({
         email, password, email_confirm: true, user_metadata: { emp_no: empNo }
       })
@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'password') {
-      if (password.length < 8) return json({ error: '비밀번호는 8자 이상이어야 합니다.' }, 400)
+      if (password.length < 6) return json({ error: '비밀번호는 6자 이상이어야 합니다.' }, 400)
       const { data: t } = await admin.from('ki_employee').select('auth_uid').eq('emp_no', empNo).maybeSingle()
       if (!t?.auth_uid) return json({ error: '연결된 계정이 없습니다. 먼저 계정을 생성하세요.' }, 400)
       const { error } = await admin.auth.admin.updateUserById(t.auth_uid, { password })
