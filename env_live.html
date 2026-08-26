@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<style>
+.env{flex:1;min-height:0;overflow:auto;padding:9px;background:#eef2f6}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:8px;margin-bottom:9px}
+.c{border:1px solid #a9b6c3;background:#fff;padding:9px 10px}
+.c.bad{border-color:#e0a9a9;background:#fdf6f6}
+.c .nm{font-weight:800;color:#41556a;display:flex;align-items:center;gap:6px}
+.c .nm small{margin-left:auto;font-weight:400;color:#94a1ae;font-size:10px}
+.vals{display:flex;gap:14px;margin-top:6px}
+.v{flex:1}.v span{display:block;color:#6a7887;font-size:10px}
+.v b{font-size:24px;color:#22537f;font-weight:900}
+.v b i{font-size:11px;font-style:normal;color:#7c8b99;margin-left:2px}
+.v.bad b{color:#b0442f}
+.rng{margin-top:6px;color:#8894a0;font-size:10px}
+.chart{border:1px solid #a0aebc;background:#fff}
+.chart h4{margin:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 9px;font-size:12px;color:#41556a;
+  background:linear-gradient(#f4f7fa,#e5ebf1);border-bottom:1px solid #b3bfca}
+.chart select{height:22px;border:1px solid #aeb9c4;background:#fff;padding:0 5px}
+.chart h4 select:first-of-type{margin-left:auto}
+.chart .bd{padding:8px}
+svg.ch{width:100%;height:260px;display:block}
+svg.ch .g{stroke:#e6ebf0;stroke-width:1}
+svg.ch .ax{stroke:#b6c3cf;stroke-width:1}
+svg.ch .tk{font-size:9px;fill:#8894a0}
+svg.ch .lt{fill:none;stroke:#2e67a8;stroke-width:1.6}
+svg.ch .lh{fill:none;stroke:#2f9d63;stroke-width:1.6}
+svg.ch .lim{stroke:#c0392b;stroke-width:.8;stroke-dasharray:4 3;opacity:.55}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  if(!KI.guard())return;
+  const $=KI.$, esc=KI.esc;
+  const cur=KI.header('env-live');
+  const ui=KI.page(cur,[['새로고침','primary',()=>load()],['측정 이력','',()=>location.href='env_history.html']]);
+  const w=KI.el('div','env');
+  w.innerHTML='<div class="cards" id="cards"></div>'+
+    '<div class="chart"><h4>온습도 추이<select id="sel"></select>'+
+    '<select id="rg"><option value="6">최근 6시간</option><option value="12">최근 12시간</option>'+
+    '<option value="24" selected>최근 24시간</option><option value="48">최근 48시간</option></select></h4>'+
+    '<div class="bd" id="ch"></div></div>';
+  ui.pg.appendChild(w);
+  let live=[];
+
+  function cards(){
+    $('#cards').innerHTML = live.map(e=>{
+      const tb=e.temp_status!=='정상', hb=e.humi_status!=='정상';
+      return '<div class="c'+((tb||hb)?' bad':'')+'">'+
+        '<div class="nm">'+((tb||hb)?'⚠ ':'🌡 ')+esc(e.sensor_name)+'<small>'+esc(e.sensor_code)+'</small></div>'+
+        '<div class="vals">'+
+          '<div class="v'+(tb?' bad':'')+'"><span>온도</span><b>'+(e.temperature==null?'-':e.temperature)+'<i>℃</i></b></div>'+
+          '<div class="v'+(hb?' bad':'')+'"><span>습도</span><b>'+(e.humidity==null?'-':e.humidity)+'<i>%</i></b></div>'+
+        '</div><div class="rng">기준 '+e.temp_min+'~'+e.temp_max+'℃ / '+e.humi_min+'~'+e.humi_max+'% · '+
+        String(e.measured_at||'').replace('T',' ').substring(11,16)+'</div></div>';
+    }).join('') || '<div style="color:#8894a0">등록된 센서가 없습니다.</div>';
+  }
+  const path=(v,W,H,pd,mn,mx,cls)=>{
+    if(!v.length)return '';
+    const sp=(mx-mn)||1, n=v.length;
+    return '<path class="'+cls+'" d="'+v.map((y,i)=>{
+      const X=pd+i*(W-pd*2)/(n-1||1), Y=H-pd-((y-mn)/sp)*(H-pd*2);
+      return (i?'L':'M')+X.toFixed(1)+' '+Y.toFixed(1);
+    }).join(' ')+'"/>';
+  };
+  async function chart(){
+    const code=$('#sel').value; if(!code)return;
+    const hrs=+$('#rg').value, since=new Date(Date.now()-hrs*36e5).toISOString();
+    try{
+      const rows=await KI.get(OBJ.envHist+'?select=measured_at,temperature,humidity&sensor_code=eq.'+
+        encodeURIComponent(code)+'&measured_at=gte.'+since+'&order=measured_at.asc&limit=2000');
+      if(!rows.length){ $('#ch').innerHTML='<div style="color:#8894a0;padding:20px">데이터 없음</div>'; return; }
+      const s=live.find(x=>x.sensor_code===code)||{};
+      const W=1000,H=260,pd=36;
+      const T=rows.map(r=>+r.temperature), Hm=rows.map(r=>+r.humidity);
+      const tmn=Math.floor(Math.min(...T,+s.temp_min||99)-1), tmx=Math.ceil(Math.max(...T,+s.temp_max||0)+1);
+      const hmn=Math.floor(Math.min(...Hm,+s.humi_min||99)-3), hmx=Math.ceil(Math.max(...Hm,+s.humi_max||0)+3);
+      let g='<svg class="ch" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">';
+      for(let i=0;i<=4;i++){
+        const y=pd+i*(H-pd*2)/4;
+        g+='<line class="g" x1="'+pd+'" y1="'+y+'" x2="'+(W-pd)+'" y2="'+y+'"/>'+
+           '<text class="tk" x="3" y="'+(y+3)+'">'+(tmx-(tmx-tmn)*i/4).toFixed(1)+'℃</text>'+
+           '<text class="tk" x="'+(W-pd+4)+'" y="'+(y+3)+'">'+Math.round(hmx-(hmx-hmn)*i/4)+'%</text>';
+      }
+      [['temp_min',tmn,tmx],['temp_max',tmn,tmx]].forEach(([k,mn,mx])=>{
+        if(s[k]==null)return;
+        const y=H-pd-((+s[k]-mn)/((mx-mn)||1))*(H-pd*2);
+        g+='<line class="lim" x1="'+pd+'" y1="'+y.toFixed(1)+'" x2="'+(W-pd)+'" y2="'+y.toFixed(1)+'"/>';
+      });
+      g+='<line class="ax" x1="'+pd+'" y1="'+(H-pd)+'" x2="'+(W-pd)+'" y2="'+(H-pd)+'"/>';
+      g+=path(T,W,H,pd,tmn,tmx,'lt')+path(Hm,W,H,pd,hmn,hmx,'lh');
+      g+='<text class="tk" x="'+pd+'" y="'+(H-9)+'">'+String(rows[0].measured_at).replace('T',' ').substring(5,16)+'</text>'+
+         '<text class="tk" x="'+(W-pd-92)+'" y="'+(H-9)+'">'+String(rows[rows.length-1].measured_at).replace('T',' ').substring(5,16)+'</text></svg>'+
+         '<div style="font-size:11px;color:#687785;margin-top:4px">'+
+         '<b style="color:#2e67a8">— 온도(℃)</b> &nbsp; <b style="color:#2f6e49">— 습도(%)</b> &nbsp; '+
+         '<span style="color:#c0392b">--- 온도 상·하한</span> &nbsp; '+rows.length+'건</div>';
+      $('#ch').innerHTML=g;
+    }catch(e){ $('#ch').innerHTML='<div style="color:#b0442f;padding:20px">❌ '+esc(e.message)+'</div>'; }
+  }
+  async function load(){
+    try{
+      live=await KI.get(OBJ.envLive+'?select=*&order=sensor_code.asc');
+      cards();
+      if(!$('#sel').options.length)
+        live.forEach(e=>{ const o=KI.el('option',null,e.sensor_name); o.value=e.sensor_code; $('#sel').appendChild(o); });
+      chart();
+    }catch(e){ $('#cards').innerHTML='<div style="color:#b0442f">❌ '+esc(e.message)+'</div>'; }
+  }
+  $('#sel').addEventListener('change',chart);
+  $('#rg').addEventListener('change',chart);
+  load(); setInterval(load,60000);
+})();
+</script>
+</body>
+</html>

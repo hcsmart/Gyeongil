@@ -1,0 +1,99 @@
+:root{
+  --hd-h:40px; --blue:#2d66ad; --blue-dark:#1f4f8c; --line:#a9b6c4;
+  --text:#25313d; --muted:#68757f; --shadow:rgba(24,45,67,.15);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:"Malgun Gothic","맑은 고딕",Arial,sans-serif;font-size:12px;color:var(--text);
+  background:#dfe5ea;overflow:hidden;display:flex;flex-direction:column}
+button,input,select{font:inherit}
+button{cursor:pointer}
+
+/* ===== 헤더(플랫) ===== */
+.hd{height:var(--hd-h);flex:0 0 auto;display:flex;align-items:stretch;z-index:100;
+  background:linear-gradient(#f9fbfc,#e4eaf0);border-bottom:1px solid #8d9aaa;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.hd-mark{width:86px;display:flex;align-items:center;justify-content:center;border-right:1px solid #b7c1cb;
+  background:#f1f4f7;font-weight:900;color:#b63b30;letter-spacing:.5px;text-decoration:none}
+.hd-menu{height:100%;padding:0 14px;border:0;border-right:1px solid #c6ced6;background:transparent;
+  color:#3d4a58;font-weight:700;display:flex;align-items:center;gap:6px}
+.hd-menu:hover{background:#edf3f9;color:var(--blue-dark)}
+.hd-title{display:flex;align-items:center;gap:8px;padding:0 12px;font-weight:800;color:#22537f}
+.hd-title small{font-weight:400;color:#8894a0}
+.hd-right{margin-left:auto;display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--muted);font-size:11px;
+  background:#f8fafc;border-left:1px solid #c6ced6}
+.dot{width:7px;height:7px;background:#2f9d63;border-radius:50%}
+.dot.off{background:#c0392b}
+.mini{height:23px;border:1px solid #9aa8b6;background:linear-gradient(#fff,#e6ebf0);padding:0 8px;color:#43536a}
+.mini:hover{border-color:#6e8fb3;background:#edf5fd}
+
+/* ===== 전체메뉴 팝오버(플랫) ===== */
+.nav-pop{position:fixed;top:var(--hd-h);left:0;right:0;z-index:200;display:none;
+  background:#fff;border-bottom:1px solid #8494a4;box-shadow:0 6px 14px rgba(0,0,0,.16);padding:10px 12px 14px}
+.nav-pop.on{display:block}
+.nav-search{width:260px;height:26px;border:1px solid #aeb9c4;padding:0 8px;margin-bottom:10px}
+.nav-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:8px 9px;border:1px solid #c8d2dc;background:#f8fafb;
+  color:#41556a;text-decoration:none;font-weight:700}
+.nav-item:hover{border-color:#5b86b6;background:#e9f2fc;color:var(--blue-dark)}
+.nav-item.cur{border-color:var(--blue);background:#d6e5f6;color:#153f74}
+.nav-item i{font-style:normal;font-size:15px;width:20px;text-align:center}
+.nav-item span{display:block;font-weight:400;color:#8894a0;font-size:10px;margin-top:1px}
+.nav-tag{display:inline-block;font-size:10px;font-weight:700;color:#fff;padding:0 5px;border-radius:2px;margin-right:5px}
+.t-mold{background:#8a5b12}.t-osp{background:#1f4f8c}.t-twin{background:#2f6e49}.t-env{background:#9a3b6d}.t-sys{background:#6b7b8b}
+
+/* ===== 본문 ===== */
+.main{flex:1;min-height:0;display:flex;flex-direction:column;background:#dfe4e9;padding:7px;padding-bottom:26px}
+.page{flex:1;min-height:0;background:#fff;border:1px solid #8f9cab;box-shadow:0 1px 3px var(--shadow);
+  display:flex;flex-direction:column;overflow:hidden}
+.pg-head{height:34px;flex:0 0 auto;display:flex;align-items:center;padding:0 9px;gap:8px;
+  background:linear-gradient(#fbfcfd,#e8edf2);border-bottom:1px solid #a9b6c2}
+.pg-head h2{font-size:14px;margin:0;color:#41556a;font-weight:800}
+.pg-head h2::before{content:"◯";margin-right:5px;color:#76879a;font-size:13px}
+.pg-head .sub{font-size:10px;color:#8894a0}
+.pg-act{margin-left:auto;display:flex;gap:4px}
+.btn{height:24px;padding:0 10px;border:1px solid #9aa8b6;background:linear-gradient(#fff,#e1e7ec);color:#405163}
+.btn:hover{border-color:#6e8fb3;background:#edf5fd}
+.btn.primary{background:linear-gradient(#4f84c0,#2e67a8);color:#fff;border-color:#24578f}
+
+/* 검색 */
+.search-panel{margin:7px;border:1px solid #a9b6c3;background:#f7f9fb;flex:0 0 auto}
+.search-row{display:grid;grid-template-columns:96px minmax(130px,1fr) 96px minmax(130px,1fr) 96px minmax(130px,1fr);
+  border-bottom:1px solid #d6dde4}
+.search-row:last-child{border-bottom:0}
+.search-label{display:flex;align-items:center;padding:5px 7px;background:#edf2f6;border-right:1px solid #d1d9e0;
+  color:#526171;font-weight:700}
+.search-field{padding:4px 6px;border-right:1px solid #e0e5ea;display:flex;align-items:center;gap:4px}
+.search-field:last-child{border-right:0}
+.search-field input,.search-field select{height:24px;width:100%;border:1px solid #aeb9c4;background:#fff;padding:0 6px;color:#42515f}
+
+/* 그리드 */
+.grid-wrap{margin:7px;border:1px solid #8494a4;overflow:auto;background:#fff;flex:1;min-height:120px}
+.grid-tb{height:28px;background:#edf2f6;border-bottom:1px solid #aab6c1;display:flex;align-items:center;
+  padding:0 6px;gap:6px;color:#697785;position:sticky;top:0;z-index:3}
+.grid-tb .right{margin-left:auto}
+table.grid{width:100%;border-collapse:collapse;table-layout:fixed}
+.grid th{height:27px;background:linear-gradient(#f3f6f8,#dce3e9);border-right:1px solid #aab7c3;
+  border-bottom:1px solid #91a0af;color:#4a5968;font-weight:800;text-align:center;padding:0 5px;
+  white-space:nowrap;position:sticky;top:28px;z-index:2}
+.grid td{height:26px;border-right:1px solid #d0d7de;border-bottom:1px solid #d9dfe5;padding:0 6px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grid tr:nth-child(even) td{background:#fafbfc}
+.grid tr:hover td{background:#e8f1fa}
+.grid tr.sel td{background:#2f68ad;color:#fff}
+.grid .num{text-align:right}
+.grid .center{text-align:center}
+.badge{display:inline-block;padding:0 6px;border-radius:2px;font-weight:700;font-size:11px;border:1px solid transparent}
+.b-wait{background:#fdf3e0;color:#8a5b12;border-color:#e6cfa2}
+.b-run{background:#e6f0fb;color:#1f4f8c;border-color:#b8cfe9}
+.b-done{background:#e6f5eb;color:#15803d;border-color:#b4ddc3}
+.b-late{background:#fdecec;color:#b91c1c;border-color:#eab8b8}
+.bar{height:12px;background:#e6ebf0;border:1px solid #c8d2dc;position:relative}
+.bar i{display:block;height:100%;background:linear-gradient(#5b93cd,#2e67a8)}
+.bar.hi i{background:linear-gradient(#d98a6a,#b0442f)}
+.chain{color:#41556a}.chain b{color:#1f4f8c}
+
+/* 하단 */
+.ft{position:fixed;left:0;right:0;bottom:0;height:22px;display:flex;align-items:center;padding:0 8px;
+  background:#e7ecf0;border-top:1px solid #9aa8b5;color:#6f7b87;font-size:10px;z-index:85}
+.ft .right{margin-left:auto}
+@media print{.hd,.ft,.search-panel,.nav-pop{display:none}.main{padding:0}.page{border:0}}

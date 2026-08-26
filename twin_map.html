@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<style>
+.tw-bar{display:flex;align-items:center;gap:8px;padding:6px 9px;background:#eef2f6;border-bottom:1px solid #b3bfca;flex:0 0 auto}
+.tw-bar select{height:24px;border:1px solid #aeb9c4;padding:0 6px;background:#fff}
+.tw-lg{margin-left:auto;display:flex;gap:10px;align-items:center;color:#687785;font-size:11px}
+.tw-lg i{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:4px}
+.tw-body{flex:1;min-height:0;display:flex;gap:8px;padding:8px;background:#eef2f6;overflow:auto}
+.tw-canvas{flex:1;min-width:0;background:#fff;border:1px solid #a0aebc}
+.tw-side{width:262px;flex:0 0 auto;display:flex;flex-direction:column;gap:8px}
+.card{border:1px solid #a0aebc;background:#fff}
+.card h4{margin:0;height:26px;display:flex;align-items:center;padding:0 8px;font-size:11px;color:#41556a;
+  background:linear-gradient(#f4f7fa,#e5ebf1);border-bottom:1px solid #b3bfca}
+.card .bd{padding:8px;font-size:11px;color:#4d5a68;line-height:1.85}
+.card .bd b{color:#22537f}
+.k4{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px}
+.k4 div{border:1px solid #c8d2dc;background:#f7f9fb;padding:6px 8px}
+.k4 span{display:block;color:#6a7887;font-size:10px}
+.k4 b{font-size:18px;color:#22537f}
+.k4 .w b{color:#b0442f}.k4 .o b{color:#2f6e49}
+svg.tw{width:100%;height:100%;display:block}
+svg.tw .zn{stroke:#b6c3cf;stroke-width:.4}
+svg.tw .zl{font-size:2.4px;fill:#6b7b8b;font-weight:700}
+svg.tw .as{stroke:#4a5968;stroke-width:.3;cursor:pointer}
+svg.tw .as:hover{stroke:#1f4f8c;stroke-width:.8}
+svg.tw .al{font-size:1.9px;fill:#2b3844;text-anchor:middle;pointer-events:none}
+svg.tw .sl{font-size:1.9px;text-anchor:middle;font-weight:700;pointer-events:none}
+svg.tw .sn{cursor:pointer}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  if(!KI.guard())return;
+  const $=KI.$, esc=KI.esc;
+  const cur=KI.header('twin-map');
+  const ui=KI.page(cur,[['새로고침','primary',()=>load()]]);
+  const w=KI.el('div'); w.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column';
+  w.innerHTML=
+    '<div class="tw-bar">공장 <select id="fac"></select>'+
+    '<label style="margin-left:6px"><input type="checkbox" id="ss" checked> 센서 표시</label>'+
+    '<label style="margin-left:6px"><input type="checkbox" id="al" checked> 설비 라벨</label>'+
+    '<span class="tw-lg" id="lg"></span></div>'+
+    '<div class="tw-body">'+
+      '<div class="tw-canvas" id="cv"></div>'+
+      '<div class="tw-side">'+
+        '<div class="card"><h4>가동 요약</h4><div class="k4" id="kpi"></div></div>'+
+        '<div class="card"><h4>선택 항목</h4><div class="bd" id="info">배치도에서 설비 또는 센서를 클릭하세요.</div></div>'+
+        '<div class="card"><h4>환경 이상</h4><div class="bd" id="env">-</div></div>'+
+      '</div></div>';
+  ui.pg.appendChild(w);
+
+  const COLOR={'가동':'#3f9e63','정지':'#9aa8b6','경고':'#d98324','정상':'#5b93cd','고장':'#c0392b'};
+  $('#lg').innerHTML = Object.keys(COLOR).map(k=>'<span><i style="background:'+COLOR[k]+'"></i>'+k+'</span>').join('')+
+                       '<span id="tm" style="margin-left:6px"></span>';
+  let FAC=[],ZONE=[],AS=[],EN=[];
+
+  function render(){
+    const fc=$('#fac').value;
+    const f=FAC.find(x=>x.factory_code===fc)||FAC[0];
+    if(!f){ $('#cv').innerHTML='<div style="padding:20px;color:#8894a0">공장 기준정보가 없습니다.</div>'; return; }
+    const W=+f.width_m||100, H=+f.height_m||60;
+    const zs=ZONE.filter(z=>z.factory_code===fc);
+    const as=AS.filter(a=>a.factory_code===fc);
+    const ss=$('#ss').checked ? EN.filter(e=>e.factory_code===fc) : [];
+    const lb=$('#al').checked;
+
+    let s='<svg class="tw" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">'+
+      '<rect width="'+W+'" height="'+H+'" fill="#fbfcfd" stroke="#8f9cab" stroke-width=".5"/>';
+    zs.forEach(z=>{
+      s+='<rect class="zn" x="'+z.x+'" y="'+z.y+'" width="'+z.w+'" height="'+z.h+'" fill="'+(z.color||'#eef2f6')+'"/>'+
+         '<text class="zl" x="'+(+z.x+1.5)+'" y="'+(+z.y+3.6)+'">'+esc(z.zone_name||z.zone_code)+'</text>';
+    });
+    as.forEach((a,i)=>{
+      const c=COLOR[a.status]||'#9aa8b6';
+      s+='<g><rect class="as" data-k="a" data-i="'+i+'" x="'+(+a.x-4)+'" y="'+(+a.y-3)+'" width="8" height="6" rx=".6" fill="'+c+'" fill-opacity=".85"/>'+
+         (lb?'<text class="al" x="'+a.x+'" y="'+(+a.y+.7)+'">'+esc(a.asset_code)+'</text>':'')+'</g>';
+    });
+    ss.forEach((e,i)=>{
+      const bad=e.temp_status!=='정상'||e.humi_status!=='정상', c=bad?'#c0392b':'#2e67a8';
+      s+='<g class="sn" data-k="s" data-i="'+i+'">'+
+         '<circle cx="'+e.x+'" cy="'+e.y+'" r="2.4" fill="#fff" stroke="'+c+'" stroke-width=".6"/>'+
+         (bad?'<circle cx="'+e.x+'" cy="'+e.y+'" r="3.8" fill="none" stroke="'+c+'" stroke-width=".35" opacity=".5"/>':'')+
+         '<text class="sl" x="'+e.x+'" y="'+(+e.y-3.4)+'" fill="'+c+'">'+
+           (e.temperature==null?'-':e.temperature+'℃ / '+e.humidity+'%')+'</text></g>';
+    });
+    $('#cv').innerHTML=s+'</svg>';
+
+    $('#cv').querySelectorAll('[data-k]').forEach(g=>g.addEventListener('click',()=>{
+      const i=+g.dataset.i;
+      if(g.dataset.k==='a'){
+        const a=as[i];
+        $('#info').innerHTML='<b>'+esc(a.asset_name)+'</b> ('+esc(a.asset_code)+')<br>'+
+          '구분: '+esc(a.asset_type||'-')+'<br>구역: '+esc(a.zone_name||'-')+'<br>사양: '+esc(a.spec||'-')+'<br>'+
+          '상태: <span class="badge '+(a.status==='가동'?'b-done':a.status==='경고'?'b-late':'b-wait')+'">'+esc(a.status)+'</span>';
+      }else{
+        const e=ss[i];
+        $('#info').innerHTML='<b>'+esc(e.sensor_name)+'</b> ('+esc(e.sensor_code)+')<br>'+
+          '온도: <b>'+(e.temperature==null?'-':e.temperature+' ℃')+'</b> (기준 '+e.temp_min+'~'+e.temp_max+')<br>'+
+          '습도: <b>'+(e.humidity==null?'-':e.humidity+' %')+'</b> (기준 '+e.humi_min+'~'+e.humi_max+')<br>'+
+          '판정: '+esc(e.temp_status)+' / '+esc(e.humi_status)+'<br>'+
+          '측정: '+String(e.measured_at||'').replace('T',' ').substring(0,16)+
+          '<br><a href="env_live.html" style="color:#1f4f8c">→ 실시간 현황</a>';
+      }
+    }));
+
+    const n=k=>as.filter(a=>a.status===k).length;
+    $('#kpi').innerHTML='<div class="o"><span>가동</span><b>'+n('가동')+'</b></div>'+
+      '<div><span>정지</span><b>'+n('정지')+'</b></div>'+
+      '<div class="w"><span>경고</span><b>'+n('경고')+'</b></div>'+
+      '<div><span>총 설비</span><b>'+as.length+'</b></div>';
+    const bad=EN.filter(e=>e.factory_code===fc&&(e.temp_status!=='정상'||e.humi_status!=='정상'));
+    $('#env').innerHTML = bad.length ? bad.map(e=>'⚠ <b>'+esc(e.sensor_name)+'</b> — '+
+        (e.temp_status!=='정상'?e.temp_status+' '+e.temperature+'℃ ':'')+
+        (e.humi_status!=='정상'?e.humi_status+' '+e.humidity+'%':'')).join('<br>')
+      : '<span style="color:#2f6e49">이상 없음</span>';
+    $('#tm').textContent='갱신 '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+  }
+  async function load(){
+    try{
+      const r=await Promise.all([KI.get(OBJ.factory+'?select=*&order=factory_code.asc'),
+                                KI.get(OBJ.zone+'?select=*'),
+                                KI.get(OBJ.assetSt+'?select=*'),
+                                KI.get(OBJ.envLive+'?select=*')]);
+      FAC=r[0];ZONE=r[1];AS=r[2];EN=r[3];
+      if(!$('#fac').options.length)
+        FAC.forEach(f=>{ const o=KI.el('option',null,f.factory_name||f.factory_code); o.value=f.factory_code; $('#fac').appendChild(o); });
+      render();
+    }catch(e){ $('#cv').innerHTML='<div style="padding:20px;color:#b0442f">❌ '+esc(e.message)+'</div>'; }
+  }
+  ['fac','ss','al'].forEach(id=>$('#'+id).addEventListener('change',render));
+  load(); setInterval(load,60000);
+})();
+</script>
+</body>
+</html>
