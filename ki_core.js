@@ -236,6 +236,7 @@ function opts(kind){
     case 'sel-rst':    return ['전체','대기','확인','완료'];
     case 'sel-alert':  return ['전체','고온','저온','고습','저습','무신호'];
     case 'sel-astat':  return ['전체','발생','조치중','해제'];
+    case 'sel-ctype':  return ['전체','일상','정기'];
     default: return ['전체'];
   }
 }
@@ -339,6 +340,14 @@ function cell(row,col){
     case 'days':return v==null?'-':v+'일';
     case 'dt':  return v?String(v).replace('T',' ').substring(0,16):'';
     case 'mp':  return v?esc(v)+(pName(v)?' · '+esc(pName(v)):''):'';
+    case 'w2':  return v==null?'':Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    case 'qr':{
+      const q=row.qr_code, lk=row.link_no;
+      let h = q ? '<span class="badge b-run">'+esc(q)+'</span>'
+                : '<span class="badge" style="background:#eef1f4;color:#8b98a5;border-color:#d6dde4">QR 없음</span>';
+      if(lk) h+=' <span class="badge" style="background:#f4ecfa;color:#7b3fa0;border-color:#ddc9ec">↔ '+esc(lk)+'</span>';
+      return h;
+    }
     case 'bool':return v===true?'<span class="badge b-done">✓</span>':(v===false?'<span style="color:#a7b3bf">–</span>':'');
     case 'color':return v?'<span style="display:inline-block;width:12px;height:12px;border:1px solid #b6c3cf;background:'+esc(v)+';vertical-align:-2px"></span> '+esc(v):'';
     case 'dday':{
@@ -375,6 +384,9 @@ async function grid(id, need){
   const state={rows:[]};
   await masters(need);
 
+  if(def.note){
+    const nt=el('div','note'); nt.innerHTML=def.note; ui.pg.appendChild(nt);
+  }
   const sp=searchPanel(def); ui.pg.appendChild(sp);
   const gw=el('div','grid-wrap');
   const tb=el('div','grid-tb');

@@ -86,6 +86,11 @@ body.resizing{cursor:col-resize;user-select:none}
 .btn:hover{border-color:#6e8fb3;background:#edf5fd}
 .btn.primary{background:linear-gradient(#4f84c0,#2e67a8);color:#fff;border-color:#24578f}
 
+/* 안내 배너 */
+.note{margin:7px 7px 0;padding:8px 11px;border:1px solid #bcd0e4;border-left:3px solid #2e77bd;
+  background:#f2f7fc;color:#3d5063;line-height:1.7;flex:0 0 auto}
+.note b{color:#1d568c}
+
 /* 검색 */
 .search-panel{margin:7px;border:1px solid #a9b6c3;background:#f7f9fb;flex:0 0 auto}
 .search-row{display:grid;grid-template-columns:96px minmax(120px,1fr) 96px minmax(120px,1fr) 96px minmax(120px,1fr);
