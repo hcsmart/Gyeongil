@@ -40,7 +40,7 @@ svg.ch .lim{stroke:#c0392b;stroke-width:.8;stroke-dasharray:4 3;opacity:.55}
 (async function(){
   if(!KI.guard())return;
   const $=KI.$, esc=KI.esc;
-  const cur=KI.header('env-live');
+  const cur=KI.chrome('env-live');
   const ui=KI.page(cur,[['새로고침','primary',()=>load()],['측정 이력','',()=>location.href='env_history.html']]);
   const w=KI.el('div','env');
   w.innerHTML='<div class="cards" id="cards"></div>'+

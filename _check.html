@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><title>KI MES 파일 점검</title>
+<style>body{font-family:"Malgun Gothic",Arial;font-size:13px;padding:20px;background:#f2f5f8;color:#25313d}
+h2{margin:0 0 12px;color:#22537f} table{border-collapse:collapse;background:#fff}
+th,td{border:1px solid #c8d2dc;padding:5px 9px;text-align:left}
+th{background:#e5ebf1} .ok{color:#15803d;font-weight:700} .ng{color:#b91c1c;font-weight:700}
+#sum{margin:12px 0;padding:10px 12px;border:1px solid #c8d2dc;background:#fff}</style></head>
+<body><h2>KI MES 배포 파일 점검</h2><div id="sum">확인 중…</div><table id="t">
+<thead><tr><th>파일</th><th>결과</th></tr></thead><tbody></tbody></table>
+<script>
+const FILES=['ki_style.css','ki_config.js','ki_core.js','index.html',
+'mold_due.html','mold_inspection.html','mold_inspection_detail.html','mold_master.html','inspection_item.html',
+'osp_order.html','osp_issue.html','osp_receipt.html','osp_stock.html','lot_trace.html','lot_route.html',
+'std_route.html','vendor.html','twin_map.html','asset_status.html','factory.html','zone.html','asset.html',
+'env_live.html','env_history.html','env_alert.html','sensor.html','settings.html'];
+(async()=>{
+  const tb=document.querySelector('#t tbody'); let ng=0;
+  for(const f of FILES){
+    let ok=false;
+    try{ const r=await fetch(f,{method:'HEAD',cache:'no-store'}); ok=r.ok; }
+    catch(e){ try{ const r=await fetch(f,{cache:'no-store'}); ok=r.ok; }catch(_){ ok=false; } }
+    if(!ok)ng++;
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td>'+f+'</td><td class="'+(ok?'ok':'ng')+'">'+(ok?'✓ 정상':'✗ 없음')+'</td>';
+    tb.appendChild(tr);
+  }
+  document.getElementById('sum').innerHTML = ng
+    ? '<span class="ng">누락 '+ng+'개</span> — 모든 파일을 같은 폴더에 함께 올려주세요.'
+    : '<span class="ok">전체 '+FILES.length+'개 정상</span> — <a href="index.html">index.html 실행 →</a>';
+})();
+</script></body></html>

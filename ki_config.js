@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v6.0',
+  VER      : 'v6.1',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -36,40 +36,97 @@ const OBJ = {
 };
 
 /* ============================================================
-   플랫 메뉴 — 화면 = 파일 1:1
+   메뉴 구성 : 1차 모듈 > 2차 아이콘 > 그룹 > 화면(파일)
 ============================================================ */
 const MENU = [
-  {id:'home',        f:'index.html',                g:'홈',   ic:'🏠', n:'홈',            d:'요약 현황 · 전체 메뉴'},
+  { key:'mold', name:'금형관리', second:[
+    { key:'m-insp', name:'정기점검', icon:'🛠', groups:[
+      { name:'정기점검', items:[
+        {id:'mold-due',    f:'mold_due.html',              n:'점검 도래현황', d:'주기 도래 · 지연 D-day'},
+        {id:'mold-insp',   f:'mold_inspection.html',       n:'점검 실적',     d:'금형별 정기점검 결과'},
+        {id:'mold-detail', f:'mold_inspection_detail.html',n:'점검 항목결과', d:'항목별 측정값 · 판정'}
+      ]}
+    ]},
+    { key:'m-base', name:'금형기준', icon:'▥', groups:[
+      { name:'기준정보', items:[
+        {id:'mold-master', f:'mold_master.html',      n:'금형대장',  d:'금형 기준정보 · 타발수'},
+        {id:'insp-item',   f:'inspection_item.html',  n:'점검 항목', d:'점검 항목 · 기준값'}
+      ]}
+    ]}
+  ]},
 
-  {id:'mold-due',    f:'mold_due.html',             g:'금형', ic:'📅', n:'점검 도래현황',  d:'주기 도래 · 지연 D-day'},
-  {id:'mold-insp',   f:'mold_inspection.html',      g:'금형', ic:'🛠', n:'점검 실적',      d:'금형별 정기점검 결과'},
-  {id:'mold-detail', f:'mold_inspection_detail.html',g:'금형',ic:'📐', n:'점검 항목결과',  d:'항목별 측정값 · 판정'},
-  {id:'mold-master', f:'mold_master.html',          g:'금형', ic:'▥', n:'금형대장',       d:'금형 기준정보 · 타발수'},
-  {id:'insp-item',   f:'inspection_item.html',      g:'금형', ic:'✓', n:'점검 항목',      d:'점검 항목 · 기준값'},
+  { key:'osp', name:'외주LOT관리', second:[
+    { key:'o-io', name:'외주 입출고', icon:'↔', groups:[
+      { name:'외주 진행', items:[
+        {id:'osp-order',   f:'osp_order.html',   n:'외주발주',       d:'JOB·부품(LOT) 발주현황'},
+        {id:'osp-issue',   f:'osp_issue.html',   n:'외주출고(반출)', d:'외주처 반출 LOT'},
+        {id:'osp-receipt', f:'osp_receipt.html', n:'외주입고',       d:'가공 완료 입고 확인'},
+        {id:'osp-stock',   f:'osp_stock.html',   n:'미입고 재공',    d:'외주처 보유 재공·경과일'}
+      ]}
+    ]},
+    { key:'o-lot', name:'LOT 추적', icon:'🔎', groups:[
+      { name:'추적', items:[
+        {id:'lot-trace', f:'lot_trace.html', n:'LOT 이동이력', d:'외주업체 경유 이력'},
+        {id:'lot-route', f:'lot_route.html', n:'LOT 진행현황', d:'공정 진척 · 현재 위치'}
+      ]},
+      { name:'기준', items:[
+        {id:'std-route', f:'std_route.html', n:'표준 공정경로', d:'표준공정 가공순서'},
+        {id:'vendor',    f:'vendor.html',    n:'외주업체',      d:'외주 가공 거래처'}
+      ]}
+    ]}
+  ]},
 
-  {id:'osp-order',   f:'osp_order.html',            g:'외주', ic:'📤', n:'외주발주',       d:'JOB·부품(LOT) 발주현황'},
-  {id:'osp-issue',   f:'osp_issue.html',            g:'외주', ic:'🚚', n:'외주출고(반출)', d:'외주처 반출 LOT'},
-  {id:'osp-receipt', f:'osp_receipt.html',          g:'외주', ic:'📥', n:'외주입고',       d:'가공 완료 입고 확인'},
-  {id:'osp-stock',   f:'osp_stock.html',            g:'외주', ic:'📦', n:'미입고 재공',    d:'외주처 보유 재공·경과일'},
-  {id:'lot-trace',   f:'lot_trace.html',            g:'외주', ic:'🔎', n:'LOT 이동이력',   d:'외주업체 경유 이력'},
-  {id:'lot-route',   f:'lot_route.html',            g:'외주', ic:'📈', n:'LOT 진행현황',   d:'공정 진척 · 현재 위치'},
-  {id:'std-route',   f:'std_route.html',            g:'외주', ic:'🧭', n:'표준 공정경로',  d:'표준공정 가공순서'},
-  {id:'vendor',      f:'vendor.html',               g:'외주', ic:'🏢', n:'외주업체',       d:'외주 가공 거래처'},
+  { key:'twin', name:'트윈팩토리', second:[
+    { key:'t-live', name:'공장현황', icon:'🏭', groups:[
+      { name:'실시간', items:[
+        {id:'twin-map',  f:'twin_map.html',     n:'공장 레이아웃', d:'2D 배치도 · 가동상태'},
+        {id:'asset-st',  f:'asset_status.html', n:'설비 현황',     d:'설비별 가동상태'}
+      ]}
+    ]},
+    { key:'t-base', name:'공장기준', icon:'▦', groups:[
+      { name:'기준정보', items:[
+        {id:'factory', f:'factory.html', n:'공장',      d:'공장 · 도면 크기'},
+        {id:'zone',    f:'zone.html',    n:'구역',      d:'구역 좌표 · 크기'},
+        {id:'asset',   f:'asset.html',   n:'설비 배치', d:'설비 좌표 · 사양'}
+      ]}
+    ]}
+  ]},
 
-  {id:'twin-map',    f:'twin_map.html',             g:'트윈', ic:'🏭', n:'공장 레이아웃',  d:'2D 배치도 · 가동상태'},
-  {id:'asset-st',    f:'asset_status.html',         g:'트윈', ic:'⚙', n:'설비 현황',      d:'설비별 가동상태'},
-  {id:'factory',     f:'factory.html',              g:'트윈', ic:'▤', n:'공장',           d:'공장 · 도면 크기'},
-  {id:'zone',        f:'zone.html',                 g:'트윈', ic:'▦', n:'구역',           d:'구역 좌표 · 크기'},
-  {id:'asset',       f:'asset.html',                g:'트윈', ic:'🔧', n:'설비 배치',      d:'설비 좌표 · 사양'},
+  { key:'env', name:'온습도관리', second:[
+    { key:'e-live', name:'모니터링', icon:'🌡', groups:[
+      { name:'실시간', items:[
+        {id:'env-live',  f:'env_live.html',    n:'실시간 현황', d:'센서 온습도 · 추이'},
+        {id:'env-hist',  f:'env_history.html', n:'측정 이력',   d:'센서별 측정값'},
+        {id:'env-alert', f:'env_alert.html',   n:'알람 이력',   d:'상·하한 이탈 알람'}
+      ]}
+    ]},
+    { key:'e-base', name:'센서기준', icon:'📍', groups:[
+      { name:'기준정보', items:[
+        {id:'sensor', f:'sensor.html', n:'센서 마스터', d:'센서 · 임계치'}
+      ]}
+    ]}
+  ]},
 
-  {id:'env-live',    f:'env_live.html',             g:'온습도', ic:'🌡', n:'실시간 현황',  d:'센서 온습도 · 추이'},
-  {id:'env-hist',    f:'env_history.html',          g:'온습도', ic:'📊', n:'측정 이력',    d:'센서별 측정값'},
-  {id:'env-alert',   f:'env_alert.html',            g:'온습도', ic:'🚨', n:'알람 이력',    d:'상·하한 이탈 알람'},
-  {id:'sensor',      f:'sensor.html',               g:'온습도', ic:'📍', n:'센서 마스터',  d:'센서 · 임계치'},
-
-  {id:'settings',    f:'settings.html',             g:'설정', ic:'⚙', n:'비밀번호 설정',  d:'마스터 / 사용자 PIN'}
+  { key:'sys', name:'시스템', second:[
+    { key:'s-home', name:'홈', icon:'🏠', groups:[
+      { name:'현황', items:[
+        {id:'home', f:'index.html', n:'통합 현황', d:'요약 KPI · 전체 메뉴'}
+      ]}
+    ]},
+    { key:'s-set', name:'설정', icon:'⚙', groups:[
+      { name:'시스템', items:[
+        {id:'settings', f:'settings.html', n:'비밀번호 설정', d:'마스터 / 사용자 PIN'}
+      ]}
+    ]}
+  ]}
 ];
-const GTAG = {'홈':'t-sys','금형':'t-mold','외주':'t-osp','트윈':'t-twin','온습도':'t-env','설정':'t-sys'};
+
+/* 화면 id → {item, 모듈, 2차, 경로} 색인 */
+const FLAT = {};
+MENU.forEach(m1=>m1.second.forEach(m2=>m2.groups.forEach(g=>g.items.forEach(it=>{
+  FLAT[it.id] = {it:it, mod:m1.key, sec:m2.key, modName:m1.name, secName:m2.name,
+                 path:m1.name+' › '+m2.name+' › '+it.n};
+}))));
 
 /* ============================================================
    화면 정의 (그리드)

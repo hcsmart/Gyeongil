@@ -30,7 +30,7 @@
 (async function(){
   if(!KI.guard())return;
   const $=KI.$, C=KI.CFG, N=C.PIN_LEN, D=C.DEFAULT_PIN;
-  const cur=KI.header('settings');
+  const cur=KI.chrome('settings');
   const ui=KI.page(cur,[]);
   const row=(id,l,p)=>'<div class="row"><label>'+l+'</label><input type="password" id="'+id+'" maxlength="'+N+
     '" inputmode="numeric" autocomplete="new-password" placeholder="'+p+'"></div>';

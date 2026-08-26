@@ -6,13 +6,13 @@
 <title>KI MES - 통합관리시스템</title>
 <link rel="stylesheet" href="ki_style.css">
 <style>
-body.locked > .hd, body.locked > .main, body.locked > .ft, body.locked > .nav-pop{display:none}
+body.locked > .top1, body.locked > .top2, body.locked > .left,
+body.locked > .splitter, body.locked > .workspace, body.locked > .status{display:none}
 .lock{position:fixed;inset:0;z-index:900;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;
   background:linear-gradient(160deg,#233c5c,#12233a)}
 body.locked .lock{display:flex}
 .lg{color:#e8f0fa;font-size:24px;font-weight:900;letter-spacing:1px}
 .lg span{color:#7fb3ea}
-.sb{color:#9fb6cf;font-size:12px}
 .nt{margin:2px 0 4px;padding:7px 14px;border:1px solid #3d6ea8;border-radius:4px;background:rgba(45,102,173,.22);color:#cfe0f2;font-size:12px}
 .nt b{color:#ffd166;font-size:13px;letter-spacing:1px}
 .hint{color:#cfe0f2;font-size:12px;height:16px}
@@ -27,19 +27,25 @@ body.locked .lock{display:flex}
   color:#e8f1fa;font-size:18px;font-weight:700}
 .kp button:hover{background:#365a83}
 .lo{color:#ff9a9a;font-size:12px}
+.err{max-width:520px;margin-top:6px;padding:12px 14px;border:1px solid #a3524f;border-radius:4px;
+  background:rgba(160,60,55,.22);color:#ffd9d9;font-size:12px;line-height:1.9;text-align:left}
+.err b{color:#ffb3b3}
+.err code{display:block;margin-top:6px;padding:7px 9px;background:rgba(0,0,0,.28);color:#cfe0f2;
+  font-family:Consolas,monospace;font-size:11px;letter-spacing:.3px}
 .ver{position:fixed;bottom:12px;color:#5f7994;font-size:11px}
 
-.home{flex:1;min-height:0;overflow:auto;padding:10px;background:#eef2f6}
+.home{flex:1;min-height:0;overflow:auto;padding:10px;background:#f2f5f8}
 .kpi{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-bottom:10px}
 .kpi a{border:1px solid #a9b6c3;background:linear-gradient(#fff,#eef3f8);padding:10px 11px;text-decoration:none;display:block}
 .kpi a:hover{border-color:#5b86b6;background:#e9f2fc}
 .kpi .l{color:#6a7887;font-weight:700;font-size:11px}
 .kpi .v{font-size:26px;font-weight:900;color:#22537f;margin-top:3px}
 .kpi .v small{font-size:11px;color:#7c8b99;margin-left:3px}
-.kpi.a .v{color:#b0442f}
-.kpi.b .v{color:#2f6e49}
+.kpi a.a .v{color:#b0442f}
+.kpi a.b .v{color:#2f6e49}
 .grp{margin-bottom:10px}
-.grp h3{margin:0 0 6px;font-size:12px;color:#41556a;display:flex;align-items:center;gap:6px}
+.grp h3{margin:0 0 6px;font-size:12px;color:#2f4559;font-weight:800;padding-left:4px;
+  border-left:3px solid #2e77bd;line-height:1.5}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:7px}
 .tile{display:flex;align-items:center;gap:9px;padding:11px 10px;border:1px solid #a9b6c3;background:#fff;
   color:#3f5164;text-decoration:none;font-weight:700}
@@ -54,18 +60,31 @@ body.locked .lock{display:flex}
 
 <div class="lock" id="lock">
   <div class="lg">KI <span>MES</span></div>
-  <div class="sb">통합관리시스템 · 금형점검 / 외주LOT / 트윈팩토리 / 온습도</div>
   <div class="nt" id="notice">초기 비밀번호 : <b>123456</b> (6자리) · 접속 후 [비밀번호 설정]에서 변경하세요</div>
   <div class="hint" id="hint">6자리 PIN을 입력하세요</div>
   <div class="dots" id="dots"></div>
   <div class="lo" id="lock2" style="display:none"></div>
   <div class="kp" id="pad"></div>
-  <div class="ver">KI MES v6.0</div>
+  <div class="ver" id="ver">KI MES</div>
 </div>
 
 <script>
+/* ================= 공통 스크립트 로드 확인 ================= */
+if(typeof KI==='undefined' || typeof KI_CFG==='undefined'){
+  document.getElementById('hint').textContent='';
+  document.getElementById('notice').style.display='none';
+  const box=document.createElement('div'); box.className='err';
+  box.innerHTML='<b>⚠ 공통 스크립트를 불러오지 못했습니다.</b><br>'+
+    'index.html 과 같은 폴더에 아래 파일이 함께 있어야 합니다.'+
+    '<code>index.html<br>ki_style.css<br>ki_config.js<br>ki_core.js</code>'+
+    'index.html 하나만 열었거나 미리보기로 실행한 경우 이 메시지가 표시됩니다.';
+  document.getElementById('lock').insertBefore(box, document.getElementById('pad'));
+  throw new Error('KI core not loaded');
+}
+
 /* ================= PIN 잠금 ================= */
 const C=KI.CFG, LK=KI.LK;
+document.getElementById('ver').textContent='KI MES '+C.VER;
 let pin='', timer=null;
 const $=KI.$;
 function fail(){ try{return JSON.parse(localStorage.getItem(LK.fail)||'{"count":0,"until":0}')}catch(e){return{count:0,until:0}} }
@@ -124,21 +143,22 @@ function lockout(){
   if(KI.session()) start();
 })();
 
-/* ================= 홈(런처) ================= */
+/* ================= 홈(통합 현황) ================= */
 async function start(){
   document.body.classList.remove('locked');
   $('#lock').style.display='none';
-  const cur=KI.header('home');
-  const main=KI.el('div','main'), pg=KI.el('div','page home');
-  pg.innerHTML =
+  const cur=KI.chrome('home');
+  const ui=KI.page(cur,[['새로고침','primary',()=>loadKpi()]]);
+  const w=KI.el('div','home');
+  w.innerHTML =
     '<div class="kpi" id="kpi"></div>'+
-    ['금형','외주','트윈','온습도','설정'].map(g=>
-      '<div class="grp"><h3><span class="nav-tag '+(GTAG[g]||'t-sys')+'">'+g+'</span></h3>'+
-      '<div class="tiles">'+
-        MENU.filter(m=>m.g===g).map(m=>
-          '<a class="tile" href="'+m.f+'"><i>'+m.ic+'</i><div>'+m.n+'<span>'+m.d+'</span></div></a>').join('')+
+    MENU.map(m1=>
+      '<div class="grp"><h3>'+m1.name+'</h3><div class="tiles">'+
+      m1.second.map(m2=>m2.groups.map(g=>g.items.filter(x=>x.id!=='home').map(x=>
+        '<a class="tile" href="'+x.f+'"><i>'+m2.icon+'</i><div>'+x.n+'<span>'+x.d+'</span></div></a>'
+      ).join('')).join('')).join('')+
       '</div></div>').join('');
-  main.appendChild(pg); document.body.appendChild(main);
+  ui.pg.appendChild(w);
   loadKpi();
 }
 function kpi(cls,label,val,unit,href){
@@ -147,28 +167,26 @@ function kpi(cls,label,val,unit,href){
 }
 async function loadKpi(){
   const box=$('#kpi'); box.className='kpi';
-  const q=async(p)=>{ try{ return await KI.get(p); }catch(e){ return null; } };
-  const [due,alerts,stock,assets] = await Promise.all([
+  const q=async p=>{ try{ return await KI.get(p); }catch(e){ return null; } };
+  const [due,env,stock,asset] = await Promise.all([
     q(OBJ.moldDue+'?select=due_status'),
     q(OBJ.envLive+'?select=temp_status,humi_status'),
     q(OBJ.ospOrder+'?select=idate'),
     q(OBJ.assetSt+'?select=status')
   ]);
-  const late = due? due.filter(x=>x.due_status==='지연').length : null;
-  const soon = due? due.filter(x=>x.due_status==='임박').length : null;
-  const bad  = alerts? alerts.filter(x=>x.temp_status!=='정상'||x.humi_status!=='정상').length : null;
-  const wip  = stock? stock.filter(x=>!x.idate).length : null;
-  const run  = assets? assets.filter(x=>x.status==='가동').length : null;
-  box.innerHTML =
-    '<div class="kpi a" style="display:contents">'+kpi('','점검 지연',late,'건','mold_due.html')+'</div>'+
-    kpi('','점검 임박(7일)',soon,'건','mold_due.html')+
-    kpi('','미입고 재공',wip,'건','osp_stock.html')+
-    kpi('','환경 이상 센서',bad,'개','env_live.html')+
-    kpi('','가동 설비',run,'대','twin_map.html')+
-    kpi('','등록 금형',due?due.length:null,'건','mold_master.html');
-  if(late) box.children[0].querySelector('.v').style.color='#b0442f';
-  if(bad)  box.children[3].querySelector('.v').style.color='#b0442f';
-  if(run)  box.children[4].querySelector('.v').style.color='#2f6e49';
+  const n=(a,f)=>a?a.filter(f).length:null;
+  const items=[
+    ['점검 지연',        n(due,x=>x.due_status==='지연'), '건','mold_due.html','a'],
+    ['점검 임박(7일)',   n(due,x=>x.due_status==='임박'), '건','mold_due.html',''],
+    ['미입고 재공',      n(stock,x=>!x.idate),            '건','osp_stock.html',''],
+    ['환경 이상 센서',   n(env,x=>x.temp_status!=='정상'||x.humi_status!=='정상'),'개','env_live.html','a'],
+    ['가동 설비',        n(asset,x=>x.status==='가동'),   '대','twin_map.html','b'],
+    ['등록 금형',        due?due.length:null,             '건','mold_master.html','']
+  ];
+  box.innerHTML = items.map(([l,v,u,h,c])=>
+    '<a href="'+h+'" class="'+(v?c:'')+'"><div class="l">'+l+'</div>'+
+    '<div class="v">'+(v==null?'-':v.toLocaleString())+'<small>'+u+'</small></div></a>').join('');
+  KI.msg('통합 현황이 갱신되었습니다. ('+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})+')');
 }
 </script>
 </body>

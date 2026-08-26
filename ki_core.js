@@ -61,77 +61,146 @@ function guard(){                       // 로그인 안 되어 있으면 홈으
   return false;
 }
 
-/* ---------- 헤더(플랫) ---------- */
-function header(curId){
-  const cur = MENU.find(m=>m.id===curId) || MENU[0];
-  document.title = C.APP_NAME+' - '+cur.n;
-  const hd=el('div','hd');
-  hd.innerHTML =
-    '<a class="hd-mark" href="index.html">KI MES</a>'+
-    '<button class="hd-menu" id="kiNav">☰ 전체메뉴</button>'+
-    '<div class="hd-title"><span class="nav-tag '+(GTAG[cur.g]||'t-sys')+'">'+esc(cur.g)+'</span>'+
-      esc(cur.n)+' <small>'+esc(cur.d||'')+'</small></div>'+
-    '<div class="hd-right">'+
+/* ---------- 화면 크롬 (1차 모듈 / 2차 아이콘 / 좌측 트리 / 상태바) ---------- */
+const LK_LEFT='ki_left_w';
+function chrome(curId){
+  const cur = FLAT[curId] || FLAT[Object.keys(FLAT)[0]];
+  const it  = cur.it;
+  document.title = C.APP_NAME+' - '+it.n;
+
+  /* 1차 */
+  const t1=el('div','top1');
+  t1.innerHTML =
+    '<a class="logo" href="index.html"><b>KI</b>MES<i>(Mold)</i></a>'+
+    '<nav class="modules" id="kiMod"></nav>'+
+    '<div class="user">'+
       '<button class="mini" id="kiUser">👤</button>'+
       '<button class="mini" id="kiOut">🔒</button>'+
       '<span class="dot" id="kiDot"></span><span id="kiNet">Connected</span><span id="kiClock"></span>'+
     '</div>';
-  document.body.insertBefore(hd, document.body.firstChild);
+  document.body.appendChild(t1);
 
-  const pop=el('div','nav-pop');
-  pop.innerHTML='<input class="nav-search" id="kiSearch" placeholder="🔍 화면 검색 (Ctrl+K)"><div class="nav-grid" id="kiGrid"></div>';
-  document.body.insertBefore(pop, hd.nextSibling);
+  /* 2차 */
+  const t2=el('div','top2'); t2.id='kiSec'; document.body.appendChild(t2);
 
-  const grid=$('#kiGrid',pop);
-  function draw(q){
-    grid.innerHTML='';
-    MENU.filter(m=>!q||(m.n+m.d+m.g).toLowerCase().includes(q)).forEach(m=>{
-      const a=el('a','nav-item'+(m.id===curId?' cur':''));
-      a.href=m.f;
-      a.innerHTML='<i>'+m.ic+'</i><div><span class="nav-tag '+(GTAG[m.g]||'t-sys')+'">'+esc(m.g)+'</span>'+
-                  esc(m.n)+'<span>'+esc(m.d||'')+'</span></div>';
-      grid.appendChild(a);
-    });
-  }
-  draw('');
-  $('#kiNav').addEventListener('click',e=>{ e.stopPropagation(); pop.classList.toggle('on'); if(pop.classList.contains('on'))$('#kiSearch',pop).focus(); });
-  $('#kiSearch',pop).addEventListener('input',e=>draw(e.target.value.trim().toLowerCase()));
-  document.addEventListener('click',e=>{ if(!e.target.closest('.nav-pop')&&e.target.id!=='kiNav') pop.classList.remove('on'); });
-  document.addEventListener('keydown',e=>{
-    if(e.ctrlKey&&e.key.toLowerCase()==='k'){ e.preventDefault(); pop.classList.add('on'); $('#kiSearch',pop).focus(); }
-    if(e.key==='Escape') pop.classList.remove('on');
-  });
+  /* 좌측 트리 */
+  const lf=el('div','left');
+  lf.innerHTML='<div class="tree-top"><input id="kiFind" placeholder="🔍 메뉴 검색 (Ctrl+K)"></div>'+
+               '<div class="tree" id="kiTree"></div>'+
+               '<div class="left-foot" id="kiFoot">⚙ '+esc(cur.modName)+'</div>';
+  document.body.appendChild(lf);
 
+  const sepr=el('div','splitter'); sepr.id='kiSplit';
+  sepr.title='드래그: 창 폭 조절 / 더블클릭: 기본값(300px)';
+  document.body.appendChild(sepr);
+
+  /* 상태바 */
+  const st=el('div','status');
   const s=session();
-  $('#kiUser').textContent='👤 '+(s?(s.role==='admin'?'관리자':'사용자'):'-');
-  $('#kiUser').addEventListener('click',()=>{
-    if(!s)return;
-    alert('👤 '+(s.role==='admin'?'관리자 (마스터 PIN)':'사용자 (일반 PIN)')+
-          '\n⏱ 자동 잠금까지: '+Math.max(0,Math.ceil((s.exp-Date.now())/864e5))+'일');
+  st.innerHTML='<span id="kiTime"></span>'+
+    '<span class="msg" id="kiMsg">'+esc(cur.path)+'</span>'+
+    '<span class="right">'+esc(s?(s.role==='admin'?'관리자':'사용자'):'-')+' · '+C.APP_NAME+' '+C.VER+'</span>';
+  document.body.appendChild(st);
+
+  /* --- 렌더 --- */
+  let curMod=cur.mod, curSec=cur.sec;
+  const mod=()=>MENU.find(m=>m.key===curMod)||MENU[0];
+  const sec=()=>mod().second.find(x=>x.key===curSec)||mod().second[0];
+
+  function drawMod(){
+    $('#kiMod').innerHTML = MENU.map(m=>
+      '<button class="module'+(m.key===curMod?' on':'')+'" data-k="'+m.key+'">'+esc(m.name)+'</button>').join('');
+    $('#kiMod').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+      curMod=b.dataset.k; curSec=mod().second[0].key; drawMod(); drawSec(); drawTree();
+      $('#kiFoot').textContent='⚙ '+mod().name;
+    }));
+  }
+  function drawSec(){
+    $('#kiSec').innerHTML = mod().second.map(x=>
+      '<button class="tool'+(x.key===curSec?' on':'')+'" data-k="'+x.key+'">'+
+      '<span class="ico">'+x.icon+'</span><span>'+esc(x.name)+'</span></button>').join('');
+    $('#kiSec').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+      curSec=b.dataset.k; drawSec(); drawTree();
+    }));
+  }
+  function drawTree(q){
+    const box=$('#kiTree');
+    if(q){                                   /* 검색 : 전 모듈 평면 결과 */
+      const hit=Object.keys(FLAT).map(k=>FLAT[k])
+        .filter(f=>(f.it.n+' '+(f.it.d||'')+' '+f.path).toLowerCase().includes(q));
+      box.innerHTML = hit.length
+        ? '<div class="group"><div class="group-title">검색결과 '+hit.length+'건</div>'+
+          hit.map(f=>'<a class="item'+(f.it.id===curId?' on':'')+'" href="'+f.it.f+'">'+esc(f.it.n)+
+                     '<small>'+esc(f.path)+'</small></a>').join('')+'</div>'
+        : '<div style="padding:16px;color:#7a8793">검색 결과가 없습니다.</div>';
+      return;
+    }
+    box.innerHTML = sec().groups.map(g=>
+      '<div class="group"><div class="group-title">'+esc(g.name)+'</div>'+
+      g.items.map(x=>'<a class="item'+(x.id===curId?' on':'')+'" href="'+x.f+'" title="'+esc(x.d||'')+'">'+
+        esc(x.n)+'<small>'+esc(x.d||'')+'</small></a>').join('')+'</div>').join('');
+  }
+  drawMod(); drawSec(); drawTree();
+
+  const find=$('#kiFind');
+  find.addEventListener('input',e=>drawTree(e.target.value.trim().toLowerCase()));
+  document.addEventListener('keydown',e=>{
+    if(e.ctrlKey&&e.key.toLowerCase()==='k'){ e.preventDefault(); find.focus(); find.select(); }
+    if(e.key==='Escape'&&document.activeElement===find){ find.value=''; drawTree(); find.blur(); }
   });
+
+  /* --- 스플리터 --- */
+  (function(){
+    const root=document.documentElement, MIN=200, MAX=560, DEF=300;
+    const apply=w=>root.style.setProperty('--left',w+'px');
+    try{ const v=parseInt(localStorage.getItem(LK_LEFT),10); if(v>=MIN) apply(Math.min(v,MAX)); }catch(e){}
+    let drag=false;
+    sepr.addEventListener('pointerdown',e=>{ drag=true; try{sepr.setPointerCapture(e.pointerId)}catch(_){}
+      sepr.classList.add('drag'); document.body.classList.add('resizing'); e.preventDefault(); });
+    sepr.addEventListener('pointermove',e=>{
+      if(!drag)return;
+      let w=Math.round(e.clientX), lim=Math.min(MAX,window.innerWidth-360);
+      apply(Math.max(MIN,Math.min(w,lim)));
+    });
+    const end=e=>{ if(!drag)return; drag=false; try{sepr.releasePointerCapture(e.pointerId)}catch(_){}
+      sepr.classList.remove('drag'); document.body.classList.remove('resizing');
+      const w=parseInt(getComputedStyle(root).getPropertyValue('--left'),10)||DEF;
+      try{ localStorage.setItem(LK_LEFT,String(w)); }catch(_){}
+      msg('메뉴 창 폭을 '+w+'px 로 조절했습니다.'); };
+    sepr.addEventListener('pointerup',end); sepr.addEventListener('pointercancel',end);
+    sepr.addEventListener('dblclick',()=>{ apply(DEF); try{localStorage.setItem(LK_LEFT,String(DEF))}catch(_){}
+      msg('메뉴 창 폭을 기본값(300px)으로 되돌렸습니다.'); });
+  })();
+
+  /* --- 사용자 / 시계 / 접속 --- */
+  $('#kiUser').textContent='👤 '+(s?(s.role==='admin'?'관리자':'사용자'):'-');
+  $('#kiUser').addEventListener('click',()=>{ if(!s)return;
+    alert('👤 '+(s.role==='admin'?'관리자 (마스터 PIN)':'사용자 (일반 PIN)')+
+          '\n⏱ 자동 잠금까지: '+Math.max(0,Math.ceil((s.exp-Date.now())/864e5))+'일'); });
   $('#kiOut').addEventListener('click',()=>{ if(confirm('로그아웃 하시겠습니까?')) logout(); });
 
-  const ft=el('div','ft');
-  ft.innerHTML='<span>사용자: '+(s?(s.role==='admin'?'관리자':'사용자'):'-')+'</span>'+
-    '<span style="margin-left:18px">KI 통합관리 · 금형점검 / 외주LOT / 트윈팩토리 / 온습도</span>'+
-    '<span class="right">'+C.APP_NAME+' '+C.VER+'</span>';
-  document.body.appendChild(ft);
-
-  const tick=()=>{ $('#kiClock').textContent=new Date().toLocaleString('ko-KR',{hour12:false,month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); };
-  tick(); setInterval(tick,30000);
+  const tick=()=>{ const d=new Date();
+    $('#kiClock').textContent=d.toLocaleString('ko-KR',{hour12:false,month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    $('#kiTime').textContent=d.toLocaleString('sv-SE',{hour12:false}).replace(',',''); };
+  tick(); setInterval(tick,1000);
   const net=async()=>{ let ok=true; try{ await get(OBJ.settings+'?select=key&limit=1'); }catch(e){ ok=false; }
     $('#kiDot').classList.toggle('off',!ok); $('#kiNet').textContent=ok?'Connected':'Offline'; };
   net(); setInterval(net,120000);
   return cur;
 }
+function msg(t){ const m=$('#kiMsg'); if(m)m.textContent=t; }
+const header = chrome;                       /* 하위 호환 */
+
 function page(cur, actions){
-  const main=el('div','main'), pg=el('div','page');
+  const it = cur.it || cur;
+  const ws=el('div','workspace'), pg=el('div','page');
   const h=el('div','pg-head');
-  h.innerHTML='<h2>'+esc(cur.n)+'</h2><span class="sub">'+esc(cur.d||'')+'</span>';
+  h.innerHTML='<h2>'+esc(it.n)+'</h2><span class="sub">'+esc(it.d||'')+'</span>';
   const act=el('div','pg-act');
-  (actions||[]).forEach(([label,cls,fn])=>{ const b=el('button','btn'+(cls?' '+cls:''),label); b.addEventListener('click',fn); act.appendChild(b); });
-  h.appendChild(act); pg.appendChild(h); main.appendChild(pg); document.body.appendChild(main);
-  return {pg:pg, head:h, act:act};
+  (actions||[]).forEach(([label,cls,fn])=>{ const b=el('button','btn'+(cls?' '+cls:''),label);
+    b.addEventListener('click',fn); act.appendChild(b); });
+  h.appendChild(act); pg.appendChild(h); ws.appendChild(pg); document.body.appendChild(ws);
+  return {pg:pg, head:h, act:act, ws:ws};
 }
 
 /* ---------- 마스터 캐시 ---------- */
@@ -296,11 +365,11 @@ function cell(row,col){
 /* ---------- 그리드 화면 ---------- */
 async function grid(id, need){
   if(!guard())return;
-  const cur=header(id), def=VIEWS[id];
+  const cur=chrome(id), def=VIEWS[id];
   const ui=page(cur,[
     ['조회','primary',b=>run(b.target)],
     ['초기화','',()=>{ sp.querySelectorAll('input').forEach(i=>i.value=''); sp.querySelectorAll('select').forEach(s=>s.selectedIndex=0); }],
-    ['엑셀(CSV)','',()=>csv(cur,def,state.rows)],
+    ['엑셀(CSV)','',()=>csv(cur.it,def,state.rows)],
     ['인쇄','',()=>window.print()]
   ]);
   const state={rows:[]};
@@ -337,6 +406,7 @@ async function grid(id, need){
         tbody.appendChild(t);
       });
       cnt.textContent='총 '+rows.length.toLocaleString()+'건';
+      msg(cur.path+' — '+rows.length.toLocaleString()+'건 조회되었습니다.');
     }catch(e){ msg('❌ '+e.message); cnt.textContent='총 0건'; }
     if(btn){btn.textContent=old;btn.disabled=false;}
   }
@@ -352,6 +422,7 @@ function csv(cur,def,rows){
 
 return {CFG:C, $:$, el:el, esc:esc, get:get, upsert:upsert, sha256:sha256,
         session:session, setSession:setSession, logout:logout, loadPins:loadPins, savePin:savePin,
-        isDefaultPin:isDefaultPin, guard:guard, header:header, page:page, masters:masters, M:M,
+        isDefaultPin:isDefaultPin, guard:guard, header:header, chrome:chrome, page:page,
+        masters:masters, M:M, msg:msg,
         grid:grid, csv:csv, POST:POST, cell:cell, LK:LK};
 })();
