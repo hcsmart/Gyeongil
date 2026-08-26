@@ -3,110 +3,61 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>TJ MES v1.1 - 통합 생산관리시스템</title>
+<title>KI MES - 통합관리시스템</title>
 <style>
 :root{
-  --top1-h:36px;
-  --top2-h:72px;
-  --left-w:210px;
-  --tab-h:32px;
-  --blue:#2d66ad;
-  --blue-dark:#1f4f8c;
-  --blue-soft:#dce8f6;
-  --line:#a9b6c4;
-  --line2:#c8d1da;
-  --panel:#eef2f5;
-  --header:#e7edf3;
-  --text:#25313d;
-  --muted:#667483;
-  --shadow:rgba(24,45,67,.15);
+  --top1-h:36px; --top2-h:72px; --left-w:210px; --tab-h:32px;
+  --blue:#2d66ad; --blue-dark:#1f4f8c; --line:#a9b6c4;
+  --text:#25313d; --shadow:rgba(24,45,67,.15);
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{
-  font-family:"Malgun Gothic","맑은 고딕",Arial,sans-serif;
-  font-size:12px;
-  color:var(--text);
-  background:#dfe5ea;
-  overflow:hidden;
-}
+body{font-family:"Malgun Gothic","맑은 고딕",Arial,sans-serif;font-size:12px;color:var(--text);background:#dfe5ea;overflow:hidden}
 button,input,select{font:inherit}
 button{cursor:pointer}
 body.locked .top-level-1,body.locked .top-level-2,body.locked .left-panel,
 body.locked .workspace,body.locked .bottom-status{display:none}
 
 /* ===== PIN 잠금 ===== */
-.pin-lock{
-  position:fixed;inset:0;z-index:900;display:none;
-  flex-direction:column;align-items:center;justify-content:center;gap:12px;
-  background:linear-gradient(160deg,#233c5c,#12233a);
-}
+.pin-lock{position:fixed;inset:0;z-index:900;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  background:linear-gradient(160deg,#233c5c,#12233a)}
 body.locked .pin-lock{display:flex}
 .pl-logo{color:#e8f0fa;font-size:22px;font-weight:900;letter-spacing:1px}
 .pl-logo span{color:#7fb3ea}
 .pl-sub{color:#9fb6cf;font-size:12px}
+.pl-notice{margin:2px 0 4px;padding:7px 14px;border:1px solid #3d6ea8;border-radius:4px;
+  background:rgba(45,102,173,.22);color:#cfe0f2;font-size:12px}
+.pl-notice b{color:#ffd166;font-size:13px;letter-spacing:1px}
 .pl-hint{color:#cfe0f2;font-size:12px;height:16px}
 .pl-hint.ok{color:#7ee3a6}.pl-hint.err{color:#ff9a9a}
-.pl-dots{display:flex;gap:12px;margin:4px 0 2px}
+.pl-dots{display:flex;gap:10px;margin:4px 0 2px}
 .pl-dot{width:13px;height:13px;border-radius:50%;border:1px solid #6f8fb5;background:transparent}
 .pl-dot.on{background:#7fb3ea;border-color:#7fb3ea}
 .pl-dots.shake{animation:shk .35s}
 @keyframes shk{25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
 .pl-keypad{display:grid;grid-template-columns:repeat(3,64px);gap:8px}
-.pl-key{
-  height:52px;border:1px solid #48688f;border-radius:4px;
-  background:linear-gradient(#2f4f74,#24405f);color:#e8f1fa;font-size:18px;font-weight:700;
-}
+.pl-key{height:52px;border:1px solid #48688f;border-radius:4px;background:linear-gradient(#2f4f74,#24405f);color:#e8f1fa;font-size:18px;font-weight:700}
 .pl-key:hover{background:#365a83}
 .pl-lockout{color:#ff9a9a;font-size:12px}
 .pl-ver{position:fixed;bottom:12px;color:#5f7994;font-size:11px}
 
-/* 모바일 가드 */
-.mob-guard{position:fixed;inset:0;z-index:950;display:none;align-items:center;justify-content:center;
-  background:linear-gradient(160deg,#12233a,#0b1626);padding:22px}
-body.mobile-block .mob-guard{display:flex}
-body.mobile-block .top-level-1,body.mobile-block .top-level-2,body.mobile-block .left-panel,
-body.mobile-block .workspace,body.mobile-block .bottom-status{display:none}
-.mg-box{max-width:330px;text-align:center;color:#dce8f6}
-.mg-ic{font-size:44px;margin-bottom:10px}
-.mg-box h3{margin:0 0 8px;font-size:17px;color:#7fb3ea}
-.mg-box p{margin:0 0 18px;font-size:13px;line-height:1.7;color:#9fb6cf}
-.mg-btn{display:block;padding:14px;border-radius:10px;text-decoration:none;font-weight:800;font-size:15px;
-  background:linear-gradient(135deg,#3d7cc0,#2b5c96);color:#fff;border:1px solid #4d88c9}
-.mg-skip{margin-top:12px;background:none;border:0;color:#7f95ac;font-size:12px;text-decoration:underline}
-
 /* 1차 메뉴 */
-.top-level-1{
-  position:fixed;left:0;right:0;top:0;height:var(--top1-h);z-index:100;
-  display:flex;align-items:stretch;
-  background:linear-gradient(#f9fbfc,#e4eaf0);
-  border-bottom:1px solid #8d9aaa;
-  box-shadow:0 1px 2px rgba(0,0,0,.06);
-}
-.app-mark{
-  width:78px;display:flex;align-items:center;justify-content:center;
-  border-right:1px solid #b7c1cb;background:#f1f4f7;
-  font-weight:900;color:#b63b30;letter-spacing:.5px;
-}
+.top-level-1{position:fixed;left:0;right:0;top:0;height:var(--top1-h);z-index:100;display:flex;align-items:stretch;
+  background:linear-gradient(#f9fbfc,#e4eaf0);border-bottom:1px solid #8d9aaa;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.app-mark{width:78px;display:flex;align-items:center;justify-content:center;border-right:1px solid #b7c1cb;background:#f1f4f7;
+  font-weight:900;color:#b63b30;letter-spacing:.5px}
 .l1-menu{display:flex;align-items:stretch;overflow:auto;white-space:nowrap}
-.l1-btn{
-  min-width:88px;padding:0 14px;border:0;border-right:1px solid #c6ced6;
-  background:transparent;color:#3d4a58;font-weight:700;
-}
+.l1-btn{min-width:110px;padding:0 14px;border:0;border-right:1px solid #c6ced6;background:transparent;color:#3d4a58;font-weight:700}
 .l1-btn:hover{background:#edf3f9;color:var(--blue-dark)}
 .l1-btn.active{background:#dce8f5;color:var(--blue-dark);box-shadow:inset 0 -3px 0 var(--blue)}
-.top-status{
-  margin-left:auto;display:flex;align-items:center;gap:8px;padding:0 10px;
-  color:#6f7c89;font-size:11px;background:#f8fafc;border-left:1px solid #c6ced6;
-}
+.top-status{margin-left:auto;display:flex;align-items:center;gap:8px;padding:0 10px;color:#6f7c89;font-size:11px;
+  background:#f8fafc;border-left:1px solid #c6ced6}
 .status-dot{width:7px;height:7px;background:#2f9d63;border-radius:50%}
 .status-dot.off{background:#c0392b}
 .gs-wrap{position:relative;display:flex;align-items:center}
 .gs-input{height:22px;width:150px;border:1px solid #aeb9c4;padding:0 6px;background:#fff}
-.gs-pop{
-  position:absolute;top:26px;right:0;width:270px;max-height:320px;overflow:auto;z-index:200;
-  background:#fff;border:1px solid #8494a4;box-shadow:0 4px 10px rgba(0,0,0,.18);display:none;
-}
+.gs-pop{position:absolute;top:26px;right:0;width:280px;max-height:320px;overflow:auto;z-index:200;background:#fff;
+  border:1px solid #8494a4;box-shadow:0 4px 10px rgba(0,0,0,.18);display:none}
 .gs-pop.on{display:block}
 .gs-item{padding:6px 8px;border-bottom:1px solid #eef1f4;cursor:pointer;color:#42515f}
 .gs-item:hover{background:#e8f1fa}
@@ -116,54 +67,31 @@ body.mobile-block .workspace,body.mobile-block .bottom-status{display:none}
 .mini-btn:hover{border-color:#6e8fb3;background:#edf5fd}
 
 /* 2차 메뉴 */
-.top-level-2{
-  position:fixed;top:var(--top1-h);left:0;right:0;height:var(--top2-h);z-index:90;
-  display:flex;align-items:stretch;background:linear-gradient(#f7f9fb,#e8edf2);
-  border-bottom:1px solid #929fad;
-}
-.l2-title{
-  width:78px;display:flex;align-items:center;justify-content:center;
-  background:#eef2f6;border-right:1px solid #bdc7d0;color:#677482;font-weight:700;
-}
+.top-level-2{position:fixed;top:var(--top1-h);left:0;right:0;height:var(--top2-h);z-index:90;display:flex;align-items:stretch;
+  background:linear-gradient(#f7f9fb,#e8edf2);border-bottom:1px solid #929fad}
+.l2-title{width:78px;display:flex;align-items:center;justify-content:center;background:#eef2f6;border-right:1px solid #bdc7d0;color:#677482;font-weight:700}
 .l2-menu{display:flex;align-items:stretch;overflow:auto;min-width:0}
-.l2-btn{
-  position:relative;min-width:80px;padding:8px 10px 6px;border:0;border-right:1px solid #ccd3da;
-  background:transparent;color:#4b5967;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-}
+.l2-btn{position:relative;min-width:96px;padding:8px 10px 6px;border:0;border-right:1px solid #ccd3da;background:transparent;color:#4b5967;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
 .l2-btn:hover{background:#fdfefe}
-.l2-btn.active{background:#ffffff;color:var(--blue-dark);box-shadow:inset 0 -3px 0 var(--blue)}
-.l2-icon{
-  width:28px;height:28px;display:grid;place-items:center;font-size:18px;
-  border:1px solid #bcc7d2;background:linear-gradient(#fff,#e9eef3);box-shadow:inset 0 0 0 1px #fff;
-}
+.l2-btn.active{background:#fff;color:var(--blue-dark);box-shadow:inset 0 -3px 0 var(--blue)}
+.l2-icon{width:28px;height:28px;display:grid;place-items:center;font-size:18px;border:1px solid #bcc7d2;
+  background:linear-gradient(#fff,#e9eef3);box-shadow:inset 0 0 0 1px #fff}
 .l2-label{font-weight:700;font-size:11px}
 
 /* 좌측 메뉴 */
-.left-panel{
-  position:fixed;top:calc(var(--top1-h) + var(--top2-h));left:0;bottom:0;width:var(--left-w);z-index:80;
-  background:#f4f6f8;border-right:1px solid #8f9dab;box-shadow:2px 0 4px rgba(0,0,0,.04);
-  display:flex;flex-direction:column;
-}
-.left-head{
-  height:34px;padding:0 10px;display:flex;align-items:center;gap:7px;
-  background:linear-gradient(#edf2f6,#dbe3ea);border-bottom:1px solid #9eabb8;
-  color:#314355;font-weight:800;
-}
+.left-panel{position:fixed;top:calc(var(--top1-h) + var(--top2-h));left:0;bottom:0;width:var(--left-w);z-index:80;
+  background:#f4f6f8;border-right:1px solid #8f9dab;box-shadow:2px 0 4px rgba(0,0,0,.04);display:flex;flex-direction:column}
+.left-head{height:34px;padding:0 10px;display:flex;align-items:center;gap:7px;background:linear-gradient(#edf2f6,#dbe3ea);
+  border-bottom:1px solid #9eabb8;color:#314355;font-weight:800}
 .left-head .tiny{font-size:10px;color:#7a8793;margin-left:auto}
 .tree{padding:4px 0;overflow:auto;flex:1;background:#f8fafb}
 .tree-group{border-bottom:1px solid #d5dce3}
-.tree-caption{
-  padding:7px 10px;background:#edf2f6;color:#546271;font-weight:800;
-  display:flex;align-items:center;gap:6px;
-}
+.tree-caption{padding:7px 10px;background:#edf2f6;color:#546271;font-weight:800;display:flex;align-items:center;gap:6px}
 .tree-caption::before{content:"▾";font-size:10px;color:#738394}
-.tree-item{
-  width:100%;border:0;background:transparent;text-align:left;padding:7px 8px 7px 26px;
-  color:#475563;border-top:1px solid #f1f3f5;position:relative;
-}
+.tree-item{width:100%;border:0;background:transparent;text-align:left;padding:7px 8px 7px 26px;color:#475563;
+  border-top:1px solid #f1f3f5;position:relative}
 .tree-item::before{content:"•";position:absolute;left:15px;color:#7d8b99}
-.tree-item.ext::before{content:"▸";color:#2f6e49}
 .tree-item:hover{background:#e8f0f8;color:#1f4f8c}
 .tree-item.active{background:#d6e5f6;color:#153f74;font-weight:800;box-shadow:inset 3px 0 0 var(--blue)}
 .recent-box{border-top:1px solid #9eabb8;background:#eef2f6;padding:4px 0 6px;max-height:150px;overflow:auto}
@@ -173,117 +101,94 @@ body.mobile-block .workspace,body.mobile-block .bottom-status{display:none}
 .recent-item:hover{background:#dfe9f4;color:#1f4f8c}
 
 /* 본문 + 누적 탭 */
-.workspace{
-  position:fixed;
-  top:calc(var(--top1-h) + var(--top2-h));
-  left:var(--left-w);right:0;bottom:0;
-  background:#cdd5dc;
-  display:flex;flex-direction:column;min-width:0;
-}
-.tabbar{
-  height:var(--tab-h);display:flex;align-items:flex-end;gap:2px;padding:4px 5px 0;
-  background:linear-gradient(#e7ecf1,#cfd7df);border-bottom:1px solid #8493a2;
-  overflow-x:auto;overflow-y:hidden;white-space:nowrap;
-}
-.tab{
-  height:28px;min-width:115px;max-width:210px;display:flex;align-items:center;
-  border:1px solid #97a6b5;border-bottom:0;background:linear-gradient(#f5f7f9,#d9e0e7);
-  color:#566371;padding:0 5px 0 9px;box-shadow:0 -1px 0 rgba(255,255,255,.7) inset;cursor:pointer;
-}
+.workspace{position:fixed;top:calc(var(--top1-h) + var(--top2-h));left:var(--left-w);right:0;bottom:0;background:#cdd5dc;
+  display:flex;flex-direction:column;min-width:0}
+.tabbar{height:var(--tab-h);display:flex;align-items:flex-end;gap:2px;padding:4px 5px 0;
+  background:linear-gradient(#e7ecf1,#cfd7df);border-bottom:1px solid #8493a2;overflow-x:auto;overflow-y:hidden;white-space:nowrap}
+.tab{height:28px;min-width:115px;max-width:210px;display:flex;align-items:center;border:1px solid #97a6b5;border-bottom:0;
+  background:linear-gradient(#f5f7f9,#d9e0e7);color:#566371;padding:0 5px 0 9px;box-shadow:0 -1px 0 rgba(255,255,255,.7) inset;cursor:pointer}
 .tab.active{background:#fff;color:#234d7f;font-weight:800;border-color:#7990a8;position:relative;z-index:2}
 .tab .tab-title{overflow:hidden;text-overflow:ellipsis}
-.tab .close{
-  margin-left:auto;width:20px;height:20px;border:0;background:transparent;color:#7e8994;font-size:14px;line-height:18px;padding:0;
-}
+.tab .close{margin-left:auto;width:20px;height:20px;border:0;background:transparent;color:#7e8994;font-size:14px;line-height:18px;padding:0}
 .tab .close:hover{background:#e1e7ed;color:#b23030}
-.tab-home .close{display:none}
+.tab .close.hide{visibility:hidden}
 
 .content-shell{flex:1;min-height:0;padding:7px;padding-bottom:29px;background:#dfe4e9}
-.page{
-  height:100%;background:#fff;border:1px solid #8f9cab;box-shadow:0 1px 3px var(--shadow);
-  display:none;overflow:auto;flex-direction:column;
-}
+.page{height:100%;background:#fff;border:1px solid #8f9cab;box-shadow:0 1px 3px var(--shadow);display:none;overflow:auto;flex-direction:column}
 .page.active{display:flex}
-.page-title{
-  height:34px;display:flex;align-items:center;padding:0 9px;gap:8px;flex:0 0 auto;
-  background:linear-gradient(#fbfcfd,#e8edf2);border-bottom:1px solid #a9b6c2;
-}
+.page-title{height:34px;display:flex;align-items:center;padding:0 9px;gap:8px;flex:0 0 auto;
+  background:linear-gradient(#fbfcfd,#e8edf2);border-bottom:1px solid #a9b6c2}
 .page-title h2{font-size:14px;margin:0;color:#41556a;font-weight:800}
 .page-title h2::before{content:"◯";margin-right:5px;color:#76879a;font-size:13px}
 .page-title .sub{font-size:10px;color:#8894a0}
 .page-actions{margin-left:auto;display:flex;gap:4px}
-.erp-btn{
-  height:24px;padding:0 10px;border:1px solid #9aa8b6;background:linear-gradient(#fff,#e1e7ec);color:#405163;
-}
+.erp-btn{height:24px;padding:0 10px;border:1px solid #9aa8b6;background:linear-gradient(#fff,#e1e7ec);color:#405163}
 .erp-btn:hover{border-color:#6e8fb3;background:#edf5fd}
 .erp-btn.primary{background:linear-gradient(#4f84c0,#2e67a8);color:#fff;border-color:#24578f}
 
-/* iframe 페이지 */
-.ext-frame{flex:1;min-height:0;width:100%;border:0;background:#0f172a}
-
 /* 검색 조건 */
 .search-panel{margin:7px;border:1px solid #a9b6c3;background:#f7f9fb;flex:0 0 auto}
-.search-row{display:grid;grid-template-columns:92px minmax(130px,1fr) 92px minmax(130px,1fr) 92px minmax(130px,1fr);border-bottom:1px solid #d6dde4}
+.search-row{display:grid;grid-template-columns:96px minmax(130px,1fr) 96px minmax(130px,1fr) 96px minmax(130px,1fr);border-bottom:1px solid #d6dde4}
 .search-row:last-child{border-bottom:0}
 .search-label{display:flex;align-items:center;padding:5px 7px;background:#edf2f6;border-right:1px solid #d1d9e0;color:#526171;font-weight:700}
-.search-field{padding:4px 6px;border-right:1px solid #e0e5ea}
+.search-field{padding:4px 6px;border-right:1px solid #e0e5ea;display:flex;align-items:center;gap:4px}
 .search-field:last-child{border-right:0}
 .search-field input,.search-field select{height:24px;width:100%;border:1px solid #aeb9c4;background:#fff;padding:0 6px;color:#42515f}
 
 /* 그리드 */
-.grid-wrap{margin:7px;border:1px solid #8494a4;overflow:auto;background:#fff}
-.grid-toolbar{height:28px;background:#edf2f6;border-bottom:1px solid #aab6c1;display:flex;align-items:center;padding:0 6px;gap:4px;color:#697785}
+.grid-wrap{margin:7px;border:1px solid #8494a4;overflow:auto;background:#fff;flex:1;min-height:120px}
+.grid-toolbar{height:28px;background:#edf2f6;border-bottom:1px solid #aab6c1;display:flex;align-items:center;padding:0 6px;gap:4px;
+  color:#697785;position:sticky;top:0;z-index:3}
 .grid-toolbar .right{margin-left:auto}
 table.erp-grid{width:100%;border-collapse:collapse;table-layout:fixed}
-.erp-grid th{
-  height:27px;background:linear-gradient(#f3f6f8,#dce3e9);border-right:1px solid #aab7c3;border-bottom:1px solid #91a0af;
-  color:#4a5968;font-weight:800;text-align:center;padding:0 5px;white-space:nowrap;
-}
+.erp-grid th{height:27px;background:linear-gradient(#f3f6f8,#dce3e9);border-right:1px solid #aab7c3;border-bottom:1px solid #91a0af;
+  color:#4a5968;font-weight:800;text-align:center;padding:0 5px;white-space:nowrap;position:sticky;top:28px;z-index:2}
 .erp-grid td{height:26px;border-right:1px solid #d0d7de;border-bottom:1px solid #d9dfe5;padding:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .erp-grid tr:nth-child(even) td{background:#fafbfc}
 .erp-grid tr:hover td{background:#e8f1fa}
 .erp-grid tr.selected td{background:#2f68ad;color:#fff}
 .erp-grid .num{text-align:right}
 .erp-grid .center{text-align:center}
-.erp-grid .status{font-weight:700;color:#2f6e49}
-.erp-grid .selected .status{color:#fff}
+.badge{display:inline-block;padding:0 6px;border-radius:2px;font-weight:700;font-size:11px;border:1px solid transparent}
+.b-wait{background:#fdf3e0;color:#8a5b12;border-color:#e6cfa2}
+.b-run{background:#e6f0fb;color:#1f4f8c;border-color:#b8cfe9}
+.b-done{background:#e6f5eb;color:#15803d;border-color:#b4ddc3}
+.b-late{background:#fdecec;color:#b91c1c;border-color:#eab8b8}
+.bar{height:12px;background:#e6ebf0;border:1px solid #c8d2dc;position:relative}
+.bar i{display:block;height:100%;background:linear-gradient(#5b93cd,#2e67a8)}
+.trace-chain{color:#41556a}
+.trace-chain b{color:#1f4f8c}
 
-.info-box{margin:7px;border:1px solid #aab6c2;background:#f8fafc;padding:10px;line-height:1.8;color:#4d5a68}
+.info-box{margin:7px;border:1px solid #aab6c2;background:#f8fafc;padding:10px;line-height:1.8;color:#4d5a68;flex:0 0 auto}
 .info-box b{color:#2e5f95}
 
-/* 대시보드 */
-.dash-wrap{padding:9px;overflow:auto;flex:1;min-height:0;background:#f2f5f8}
-.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:8px;margin-bottom:9px}
-.kpi{border:1px solid #a9b6c3;background:linear-gradient(#fff,#eef3f8);padding:9px 10px}
-.kpi .k-label{color:#6a7887;font-weight:700;font-size:11px}
-.kpi .k-val{font-size:22px;font-weight:900;color:#22537f;margin-top:4px}
-.kpi .k-val small{font-size:11px;color:#7c8b99;font-weight:700;margin-left:3px}
-.kpi.warn .k-val{color:#b0442f}
-.kpi.ok .k-val{color:#2f6e49}
-.dash-cols{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-@media(max-width:1100px){.dash-cols{grid-template-columns:1fr}}
-.dash-card{border:1px solid #a0aebc;background:#fff}
-.dash-card h3{margin:0;height:28px;display:flex;align-items:center;padding:0 9px;font-size:12px;color:#41556a;
+/* 설정(비밀번호) */
+.set-wrap{padding:12px;overflow:auto;flex:1;min-height:0;background:#f2f5f8}
+.set-card{max-width:640px;border:1px solid #a0aebc;background:#fff;margin-bottom:12px}
+.set-card h3{margin:0;height:30px;display:flex;align-items:center;gap:6px;padding:0 10px;font-size:12px;color:#41556a;
   background:linear-gradient(#f4f7fa,#e5ebf1);border-bottom:1px solid #b3bfca}
-.dash-card h3 .r{margin-left:auto;font-weight:400;color:#8894a0;font-size:10px}
-.dash-body{max-height:260px;overflow:auto}
-.quick{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;padding:9px}
-.quick button{border:1px solid #a9b6c3;background:linear-gradient(#fff,#eaf0f6);padding:9px 8px;text-align:left;color:#3f5164;font-weight:700}
-.quick button:hover{border-color:#5b86b6;background:#e9f2fc;color:#1f4f8c}
-.quick button span{display:block;font-weight:400;color:#8493a1;font-size:10px;margin-top:2px}
+.set-card h3 .tag{margin-left:auto;font-size:10px;font-weight:400;padding:1px 6px;border:1px solid #c3ccd6;background:#fff;color:#7b8794}
+.set-body{padding:12px}
+.set-row{display:grid;grid-template-columns:140px 1fr;align-items:center;gap:8px;margin-bottom:8px}
+.set-row label{color:#526171;font-weight:700}
+.set-row input{height:28px;border:1px solid #aeb9c4;padding:0 8px;color:#42515f;letter-spacing:4px;font-size:14px}
+.set-foot{display:flex;gap:6px;align-items:center;padding-top:6px;border-top:1px solid #e3e8ed;margin-top:10px}
+.set-msg{font-size:11px;font-weight:700}
+.set-msg.ok{color:#15803d}.set-msg.err{color:#b91c1c}
+.set-note{max-width:640px;margin:0 0 10px;padding:8px 10px;border:1px solid #d8c48a;background:#fdf7e3;color:#7a6321;line-height:1.7}
+.set-note b{color:#a4761a}
+.set-warn{max-width:640px;margin:0 0 10px;padding:8px 10px;border:1px solid #e0a9a9;background:#fdecec;color:#8c2b2b;line-height:1.7}
 
-/* 화면 하단 상태바 */
-.bottom-status{
-  position:fixed;left:var(--left-w);right:0;bottom:0;height:22px;
-  display:flex;align-items:center;padding:0 8px;background:#e7ecf0;border-top:1px solid #9aa8b5;color:#6f7b87;font-size:10px;z-index:85;
-}
+/* 하단 상태바 */
+.bottom-status{position:fixed;left:var(--left-w);right:0;bottom:0;height:22px;display:flex;align-items:center;padding:0 8px;
+  background:#e7ecf0;border-top:1px solid #9aa8b5;color:#6f7b87;font-size:10px;z-index:85}
 .bottom-status .right{margin-left:auto}
 
 @media(max-width:900px){
   :root{--left-w:175px}
-  .l1-btn{min-width:76px;padding:0 10px}
-  .l2-btn{min-width:70px}
-  .search-row{grid-template-columns:82px 1fr 82px 1fr}
+  .l1-btn{min-width:90px;padding:0 10px}
+  .l2-btn{min-width:80px}
+  .search-row{grid-template-columns:88px 1fr 88px 1fr}
   .search-row .hide-sm{display:none}
   .gs-input{width:100px}
 }
@@ -293,29 +198,19 @@ table.erp-grid{width:100%;border-collapse:collapse;table-layout:fixed}
 
 <!-- PIN 잠금 -->
 <div class="pin-lock" id="pinLock">
-  <div class="pl-logo">TJ <span>MES</span></div>
-  <div class="pl-sub">통합 생산관리시스템</div>
-  <div class="pl-hint" id="plHint">4자리 PIN을 입력하세요</div>
-  <div class="pl-dots" id="plDots"><div class="pl-dot"></div><div class="pl-dot"></div><div class="pl-dot"></div><div class="pl-dot"></div></div>
+  <div class="pl-logo">KI <span>MES</span></div>
+  <div class="pl-sub">통합관리시스템</div>
+  <div class="pl-notice" id="plNotice">초기 비밀번호 : <b>123456</b> (6자리) · 접속 후 [설정 &gt; 비밀번호 설정]에서 변경하세요</div>
+  <div class="pl-hint" id="plHint">6자리 PIN을 입력하세요</div>
+  <div class="pl-dots" id="plDots"></div>
   <div class="pl-lockout" id="plLockout" style="display:none"></div>
   <div class="pl-keypad" id="plKeypad"></div>
-  <div class="pl-ver">v1.1 · mm Smart Factory 통합</div>
-</div>
-
-<!-- 모바일 가드 -->
-<div class="mob-guard" id="mobGuard">
-  <div class="mg-box">
-    <div class="mg-ic">📱</div>
-    <h3>모바일 기기로 접속했습니다</h3>
-    <p>통합 MES는 PC 전용 화면입니다.<br>현장 업무(재고·수리·일보)는<br>모바일 화면에서 이용하세요.</p>
-    <a class="mg-btn" href="index.html">현장용 화면으로 이동 ›</a>
-    <button class="mg-skip" id="mgSkip">그래도 PC 화면 보기</button>
-  </div>
+  <div class="pl-ver">v4.0 · 통합관리</div>
 </div>
 
 <!-- 1차 메뉴 -->
 <header class="top-level-1">
-  <div class="app-mark">TJ MES</div>
+  <div class="app-mark">KI MES</div>
   <nav class="l1-menu" id="l1Menu"></nav>
   <div class="top-status">
     <div class="gs-wrap">
@@ -345,7 +240,6 @@ table.erp-grid{width:100%;border-collapse:collapse;table-layout:fixed}
   </div>
 </aside>
 
-<!-- 본문: 누적 탭 + 페이지 -->
 <main class="workspace">
   <div class="tabbar" id="tabbar"></div>
   <div class="content-shell" id="contentShell"></div>
@@ -353,259 +247,472 @@ table.erp-grid{width:100%;border-collapse:collapse;table-layout:fixed}
 
 <div class="bottom-status">
   <span id="stUser">사용자: -</span>
-  <span style="margin-left:18px">태진다이텍 통합 MES</span>
-  <span class="right">TJ MES v1.1 · Ready</span>
+  <span style="margin-left:18px">KI 통합관리시스템</span>
+  <span class="right" id="stRight">KI MES v4.0 · Ready</span>
 </div>
 
 <script>
 /* ==================== 설정 ==================== */
-const VER = 'v1.1';
+const VER = 'v3.0';
 const CHANGELOG =
-  'TJ MES 변경이력\n\n'+
-  '[v1.1] 2026-08-26\n'+
-  ' · 모바일 접속 감지 → 현장용 화면(index.html) 안내\n'+
-  ' · 금형관리 iframe 임베드 모드 (?embed=1 + 자동 주입)\n'+
-  '   - 내부 헤더/푸터/뒤로가기/PIN화면 자동 숨김 (이중 헤더 제거)\n'+
-  ' · 탭별 🌓 라이트/다크 스킨 전환 (설정 저장)\n\n'+
-  '[v1.0] 2026-08-26\n'+
-  ' · MES 상위 프레임 신규 구축 (1차/2차/좌측트리 + 누적탭)\n'+
-  ' · mm 스마트팩토리 → [금형관리] 메뉴로 통합 (탭 내 실행)\n'+
-  ' · mm_user_session 공유 로그인 (PIN 1회 인증)\n'+
-  ' · 통합 대시보드 KPI / 메뉴 전체검색 / 최근사용 메뉴\n'+
-  ' · 탭 상태 자동 저장(재접속 시 복원)';
+  'KI MES 통합관리시스템 변경이력\n\n'+
+  '[v4.0] 2026-08-26\n'+
+  ' · 외주 LOT관리 → 전사 통합관리로 확장\n'+
+  ' · 영업/수주 · 설계 · 가공/외주 · 조립 · 구매/자재 · 품질 · 원가 · 기준정보\n'+
+  ' · 스키마 자동 인식 그리드(auto) → 신규 화면 즉시 추가 가능\n'+
+  ' · 전 DB 오브젝트 ki_ 접두어 (뷰 경유)\n\n'+
+  '[v3.0] · Supabase 실데이터 연동 / PIN 서버 저장\n'+
+  '[v2.0] · 화면 프레임 신규 구축';
 
-const SUPABASE_URL = 'https://xrmwfsuitikqibwqxede.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_0mgJ2cQeYpIDcfJi_9p4pA_dlaknATN';
-const TBL_USER = 'mm_user_pin';
-const MASTER_PIN_HASH = 'ed946f65d2c785d90e827c5ffd879ce3b49c68d4c88013074176a7e73bc58bcf';
-const LK_AUTH = 'mm_user_session';
-const LK_FAIL = 'mm_pin_fail';
-const LK_TABS = 'mes_open_tabs';
-const LK_RECENT = 'mes_recent';
-const SESSION_DAYS = 7, MAX_FAIL = 5, LOCKOUT_SEC = 60;
+const SUPABASE_URL = 'https://ipggvrzxfcryzryileuv.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew';
 
-/* ==================== 메뉴 정의 ====================
-   t: dash / ext(iframe) / grid / form
-   u: ext 일 때 파일경로
-==================================================== */
+const PIN_LEN = 6;
+const DEFAULT_PIN = '123456';
+/* --- DB 오브젝트 (KI MES 전용, 모두 ki_ 접두어) ---------------
+   타 Supabase 이전 시 아래 이름만 맞춰주면 됨
+   ki_app_settings   : 자체 테이블 (PIN 등 설정)
+   ki_v_*            : 기존 시스템 테이블을 감싼 조회 전용 뷰
+------------------------------------------------------------- */
+const DB_PREFIX = 'ki_';
+const OBJ = {
+  settings : DB_PREFIX+'app_settings',
+  order    : DB_PREFIX+'v_osp_order',
+  receipt  : DB_PREFIX+'v_osp_receipt',
+  progress : DB_PREFIX+'v_lot_progress',
+  route    : DB_PREFIX+'v_std_route',
+  vendor   : DB_PREFIX+'v_vendor',
+  process  : DB_PREFIX+'v_process'
+};
+const TBL_SET = OBJ.settings;
+const K_MASTER = 'pin_master', K_USER = 'pin_user';
+
+const LK_AUTH='ki_session', LK_FAIL='ki_pin_fail', LK_TABS='ki_lot_tabs', LK_RECENT='ki_lot_recent',
+      LK_PINCACHE='ki_pin_cache';
+const SESSION_DAYS=7, MAX_FAIL=5, LOCKOUT_SEC=60;
+
+/* ==================== 메뉴 ==================== */
 const MENU = [
-  { key:'dash', name:'대시보드', second:[
-    { key:'d-main', name:'현황판', icon:'▦', groups:[
-      { name:'종합현황', items:[
-        {id:'home', n:'통합 대시보드', t:'dash', d:'전사 생산·품질·금형 현황 요약'},
-        {id:'mach-dash', n:'설비 가동현황', t:'ext', u:'counter_dashboard.html', d:'프레스 SPM/생산수 실시간 모니터링'}
-      ]},
-      { name:'업무', items:[
-        {id:'work-status', n:'인원별 업무현황', t:'ext', u:'work_status.html', d:'모바일 입력 → PC 실시간 공유'},
-        {id:'board', n:'수정요청 게시판', t:'ext', u:'board.html', d:'수정요청 · 버그신고 · 공지'}
-      ]}
-    ]}
-  ]},
-
   { key:'sales', name:'영업/수주', second:[
-    { key:'order', name:'수주', icon:'▣', groups:[
-      { name:'수주', items:[
-        {id:'order-reg', n:'수주등록', t:'form', d:'고객 발주(PO) 등록'},
-        {id:'order-status', n:'수주현황', t:'grid', d:'수주 잔량 / 진행상태 조회'},
-        {id:'delivery-plan', n:'납기현황', t:'grid', d:'납기임박 / 지연 건 조회'}
-      ]},
-      { name:'고객', items:[
-        {id:'customer', n:'고객사관리', t:'form', d:'고객사 기준정보'},
-        {id:'unit-price', n:'단가관리', t:'grid', d:'품목별 판매단가 이력'}
-      ]}
-    ]},
-    { key:'ship', name:'출하', icon:'🚚', groups:[
-      { name:'출하', items:[
-        {id:'ship-plan', n:'출하계획', t:'grid', d:'일자별 출하 계획'},
-        {id:'ship-result', n:'출하실적', t:'grid', d:'납품서 발행 / 실적'}
-      ]}
-    ]}
+    { key:'so', name:'수주', icon:'▣', groups:[{ name:'수주', items:[
+      {id:'sales-order', n:'수주등록', t:'auto', src:'ki_v_sale_orders', d:'고객 발주(PO) 등록 내역'},
+      {id:'sales-order-st', n:'수주현황', t:'auto', src:'ki_v_sale_order_status_rows', d:'수주 진행상태 현황'},
+      {id:'sales-lines', n:'수주 품목', t:'auto', src:'ki_v_order_lines', d:'수주 품목(라인) 상세'},
+      {id:'sales-status', n:'매출현황', t:'auto', src:'ki_v_sales_status_view', d:'기간별 매출 집계'}
+    ]}]},
+    { key:'sp', name:'판매계획', icon:'📈', groups:[{ name:'판매계획', items:[
+      {id:'sales-plan', n:'판매계획', t:'auto', src:'ki_v_sales_plans', d:'연간/월간 판매계획'},
+      {id:'sales-plan-st', n:'계획현황', t:'auto', src:'ki_v_sales_plan_status_rows', d:'계획 대비 진척'}
+    ]}]},
+    { key:'set', name:'SET발주', icon:'📦', groups:[{ name:'SET발주', items:[
+      {id:'set-order', n:'SET 발주현황', t:'auto', src:'ki_v_set_order_status_rows', d:'SET 발주 진행'},
+      {id:'set-receipt', n:'SET 입고', t:'auto', src:'ki_v_set_order_receipts', d:'SET 입고 실적'},
+      {id:'set-partner', n:'SET 협력사', t:'auto', src:'ki_v_set_order_partners', d:'SET 발주 거래처'}
+    ]}]}
   ]},
-
-  { key:'mfg', name:'생산관리', second:[
-    { key:'plan', name:'생산계획', icon:'▤', groups:[
-      { name:'계획', items:[
-        {id:'prod-plan', n:'생산계획', t:'grid', d:'주간/일간 생산계획 수립'},
-        {id:'work-order', n:'작업지시', t:'grid', d:'호기별 작업지시 발행'}
-      ]}
-    ]},
-    { key:'result', name:'생산실적', icon:'⚙', groups:[
-      { name:'실적', items:[
-        {id:'daily-report', n:'생산일보', t:'ext', u:'production_report.html', d:'호기별 생산수·정지·불량 실시간 작성'},
-        {id:'prod-status', n:'생산현황', t:'grid', d:'작업지시 대비 실적 진척'},
-        {id:'oee', n:'설비종합효율(OEE)', t:'grid', d:'가동률 · 성능 · 양품률'}
-      ]}
-    ]},
-    { key:'osp', name:'외주관리', icon:'↔', groups:[
-      { name:'외주', items:[
-        {id:'osp-order', n:'외주발주', t:'grid', d:'외주 공정별 발주 등록'},
-        {id:'osp-issue', n:'외주출고', t:'grid', d:'LOT 단위 외주 출고 스캔'},
-        {id:'osp-receipt', n:'외주입고', t:'grid', d:'입고 수량 · 외주 배치번호 등록'},
-        {id:'osp-stock', n:'외주재고', t:'grid', d:'외주처 보유 재공 현황'}
-      ]},
-      { name:'추적', items:[
-        {id:'lot-trace', n:'LOT 추적', t:'grid', d:'정/역방향 계보 추적'},
-        {id:'lot-tree', n:'LOT 계보도', t:'grid', d:'분할/병합 이력 조회'}
-      ]}
-    ]}
+  { key:'design', name:'설계', second:[
+    { key:'dp', name:'설계계획/실적', icon:'✎', groups:[{ name:'설계계획/실적', items:[
+      {id:'design-plan', n:'설계계획', t:'auto', src:'ki_v_design_plans', d:'JOB별 설계 계획'},
+      {id:'design-step', n:'설계 공정', t:'auto', src:'ki_v_design_plan_steps', d:'설계 단계별 일정'},
+      {id:'design-result', n:'설계실적', t:'auto', src:'ki_v_design_results', d:'설계 완료 실적'},
+      {id:'design-month', n:'월별 실적', t:'auto', src:'ki_v_design_result_monthly_view', d:'설계 월별 집계'},
+      {id:'design-team', n:'설계팀', t:'auto', src:'ki_v_design_teams', d:'설계 팀 기준정보'}
+    ]}]},
+    { key:'od', name:'외주설계', icon:'↗', groups:[{ name:'외주설계', items:[
+      {id:'odesign-st', n:'외주설계 현황', t:'auto', src:'ki_v_outsourced_design_status_view', d:'외주설계 발주·입고 현황'},
+      {id:'odesign-order', n:'외주설계 발주', t:'auto', src:'ki_v_outsourced_design_orders', d:'외주설계 발주 등록'},
+      {id:'odesign-recv', n:'외주설계 입고', t:'auto', src:'ki_v_outsourced_design_receipts', d:'외주설계 납품 입고'},
+      {id:'odesign-partner', n:'외주설계 업체', t:'auto', src:'ki_v_outsourced_design_partners', d:'외주설계 협력사'}
+    ]}]}
   ]},
-
-  { key:'quality', name:'품질관리', second:[
-    { key:'insp', name:'검사', icon:'✓', groups:[
-      { name:'검사', items:[
-        {id:'insp-in', n:'수입검사', t:'grid', d:'원자재/외주품 입고검사'},
-        {id:'insp-proc', n:'공정검사', t:'grid', d:'자주검사 / 순회검사'},
-        {id:'insp-out', n:'출하검사', t:'grid', d:'출하 전 최종검사'}
-      ]}
-    ]},
-    { key:'ncr', name:'부적합', icon:'⚠', groups:[
-      { name:'부적합 / 시정조치', items:[
-        {id:'ncr-reg', n:'부적합 등록', t:'form', d:'사내·고객 클레임 등록'},
-        {id:'capa-8d', n:'8D 보고서', t:'form', d:'시정조치 8D 작성 / 승인'},
-        {id:'improvement', n:'개선활동 보고', t:'ext', u:'improvement_report.html', d:'개선 전/후 비교 및 효과 기록'}
-      ]}
-    ]},
-    { key:'qstat', name:'품질현황', icon:'📈', groups:[
-      { name:'현황', items:[
-        {id:'q-status', n:'품질현황', t:'grid', d:'공정/품목별 불량률'},
-        {id:'q-pareto', n:'불량 파레토', t:'grid', d:'불량유형 집계'}
-      ]}
-    ]}
+  { key:'mfg', name:'가공/외주', second:[
+    { key:'osp-io', name:'외주 입출고', icon:'↔', groups:[{ name:'외주 입출고', items:[
+      {id:'osp-order', n:'외주발주', t:'grid', d:'JOB·부품(LOT)별 외주 발주 현황'},
+      {id:'osp-issue', n:'외주출고(반출)', t:'grid', d:'외주처로 반출된 부품 LOT'},
+      {id:'osp-receipt', n:'외주입고', t:'grid', d:'외주 가공 완료 입고 확인'},
+      {id:'osp-stock', n:'미입고 재공', t:'grid', d:'외주처 보유 재공 · 경과일'}
+    ]}]},
+    { key:'osp-lot', name:'LOT 추적', icon:'🔎', groups:[{ name:'LOT 추적', items:[
+      {id:'lot-trace', n:'LOT 이동이력', t:'grid', d:'부품 LOT의 외주업체 경유 이력'},
+      {id:'lot-route', n:'LOT 진행현황', t:'grid', d:'LOT별 공정 진척 · 현재 위치'},
+      {id:'std-route', n:'표준 공정경로', t:'grid', d:'표준공정별 가공공정 순서'}
+    ]}]},
+    { key:'mac', name:'가공관리', icon:'⚙', groups:[{ name:'가공관리', items:[
+      {id:'mac-plan', n:'가공계획', t:'auto', src:'ki_v_machining_plans', d:'JOB별 가공 완료 계획'},
+      {id:'mac-prog', n:'가공발주 진행', t:'auto', src:'ki_v_machining_purchase_progress_rows', d:'가공 외주 진행 원본'},
+      {id:'mac-card', n:'공정이력카드', t:'auto', src:'ki_v_process_history_cards', d:'JOB 공정 이력 카드'},
+      {id:'mac-partlist', n:'파트리스트 현황', t:'auto', src:'ki_v_partlist_status_rows', d:'부품별 진행 현황'},
+      {id:'mac-partall', n:'파트리스트 전체', t:'auto', src:'ki_v_partlist_all', d:'부품/소재/구매 통합'}
+    ]}]}
   ]},
-
-  { key:'mat', name:'자재/재고', second:[
-    { key:'mat-io', name:'입출고', icon:'📦', groups:[
-      { name:'자재', items:[
-        {id:'mat-in', n:'원자재 입고', t:'grid', d:'코일/소재 입고 · HEAT NO 등록'},
-        {id:'mat-out', n:'자재 출고', t:'grid', d:'작업지시 기준 자재 불출'}
-      ]},
-      { name:'재고', items:[
-        {id:'stock-raw', n:'원자재 재고', t:'grid', d:'소재 LOT별 잔량'},
-        {id:'stock-wip', n:'재공 재고', t:'grid', d:'공정 대기 재공품'},
-        {id:'stock-fg', n:'제품 재고', t:'grid', d:'완제품 창고 재고'}
-      ]}
-    ]}
+  { key:'assy', name:'조립', second:[
+    { key:'as', name:'조립', icon:'🔩', groups:[{ name:'조립', items:[
+      {id:'assy-pool', n:'조립 대상 JOB', t:'auto', src:'ki_v_assembly_job_pool', d:'조립 진행 대상'},
+      {id:'assy-result', n:'조립 실적', t:'auto', src:'ki_v_assembly_result_jobs', d:'조립 완료 실적'},
+      {id:'assy-step', n:'조립 공정', t:'auto', src:'ki_v_assembly_steps', d:'조립 단계 정의'},
+      {id:'board', n:'진행 상황판', t:'auto', src:'ki_v_status_board_pool', d:'전체 JOB 진행 상황판'}
+    ]}]}
   ]},
-
-  { key:'mold', name:'금형관리', second:[
-    { key:'mm-stock', name:'금형부품재고', icon:'🔧', groups:[
-      { name:'재고 (mm)', items:[
-        {id:'mm-hq', n:'금형부품 재고(본사)', t:'ext', u:'head_moldpart.html', d:'소모품 입출고 / 재고 조회'},
-        {id:'mm-f1', n:'금형부품 재고(1공장)', t:'ext', u:'first_factory.html', d:'프레스부품 입출고 / 재고 조회'},
-        {id:'mm-wy', n:'금형부품 재고(원영)', t:'ext', u:'wonyoung_factory.html', d:'원영 입출고 / 재고 조회'}
-      ]},
-      { name:'발주', items:[
-        {id:'mm-po', n:'발주 / 외주현황', t:'ext', u:'purchase_order.html', d:'외주업체별 발주·입고관리 / 보고서'}
-      ]}
-    ]},
-    { key:'mm-repair', name:'금형수리', icon:'🛠', groups:[
-      { name:'수리', items:[
-        {id:'mm-rq', n:'수리의뢰', t:'ext', u:'mold_repair_request.html', d:'금형 불량 발생 시 수리 의뢰 등록'},
-        {id:'mm-rp', n:'수리진행', t:'ext', u:'mold_repair_complete.html', d:'수리 진행/완료 처리 및 결과 등록'},
-        {id:'mm-rr', n:'이력조회·보고서', t:'ext', u:'mold_repair_report.html', d:'기간별 통계 / 보고서 인쇄 / CSV'}
-      ]}
-    ]},
-    { key:'mm-dev', name:'금형개발', icon:'🧪', groups:[
-      { name:'개발', items:[
-        {id:'mm-try', n:'Tryout 보고서', t:'ext', u:'tryout_report.html', d:'개발 단계 시작품 테스트 결과'},
-        {id:'mm-master', n:'금형마스터', t:'ext', u:'mold_master.html', d:'소재 / 매핑기종 / 금형재번 / 고객사'}
-      ]},
-      { name:'금형이력', items:[
-        {id:'mold-life', n:'금형 타발수명', t:'grid', d:'누적 SHOT / 수명 대비 잔여'}
-      ]}
-    ]}
+  { key:'pur', name:'구매/자재', second:[
+    { key:'pu', name:'구매', icon:'🛒', groups:[{ name:'구매', items:[
+      {id:'pur-status', n:'구매현황', t:'auto', src:'ki_v_purchase_status_view', d:'구매 발주·입고 통합'},
+      {id:'pur-order', n:'구매발주', t:'auto', src:'ki_v_purchase_order_status_rows', d:'구매 발주 등록'},
+      {id:'pur-cand', n:'입고 대상', t:'auto', src:'ki_v_purchase_receipt_candidates', d:'입고 예정 목록'},
+      {id:'pur-recv', n:'구매입고', t:'auto', src:'ki_v_purchase_receipt_rows', d:'구매 입고 실적'}
+    ]}]},
+    { key:'mt', name:'자재', icon:'🧱', groups:[{ name:'자재', items:[
+      {id:'mat-master', n:'소재 마스터', t:'auto', src:'ki_v_materials', d:'소재 기준정보'},
+      {id:'mat-order', n:'소재 발주현황', t:'auto', src:'ki_v_material_order_status_rows', d:'소재 발주 진행'},
+      {id:'mat-req', n:'소재 구매요청', t:'auto', src:'ki_v_material_purchase_requests', d:'구매 요청 등록'},
+      {id:'mat-recv', n:'소재 입고확인', t:'auto', src:'ki_v_material_receipt_confirm_candidates', d:'소재 입고 확인'},
+      {id:'mat-price', n:'소재 단가이력', t:'auto', src:'ki_v_material_price_changes', d:'소재 단가 변동'}
+    ]}]},
+    { key:'st', name:'재고', icon:'📦', groups:[{ name:'재고', items:[
+      {id:'stock', n:'재고조회', t:'auto', src:'ki_v_stock_inquiry_view', d:'JOB/부품 재고 현황'}
+    ]}]}
   ]},
-
+  { key:'qc', name:'품질', second:[
+    { key:'qi', name:'검사', icon:'✓', groups:[{ name:'검사', items:[
+      {id:'insp-result', n:'검사실적', t:'auto', src:'ki_v_inspection_results', d:'검사 결과 등록'},
+      {id:'insp-detail', n:'검사 상세', t:'auto', src:'ki_v_inspection_result_details', d:'항목별 측정값'},
+      {id:'insp-cat', n:'검사 분류', t:'auto', src:'ki_v_inspection_categories', d:'검사 카테고리'},
+      {id:'insp-item', n:'검사 항목', t:'auto', src:'ki_v_inspection_items', d:'검사 항목 기준'}
+    ]}]}
+  ]},
+  { key:'cost', name:'원가', second:[
+    { key:'cs', name:'제조원가', icon:'💰', groups:[{ name:'제조원가', items:[
+      {id:'cost-view', n:'원가현황', t:'auto', src:'ki_v_manufacturing_cost_view', d:'JOB별 제조원가'},
+      {id:'cost-order', n:'원가 수주', t:'auto', src:'ki_v_manufacturing_cost_orders', d:'수주 기준 원가'},
+      {id:'cost-detail', n:'원가 상세', t:'auto', src:'ki_v_manufacturing_cost_details', d:'항목별 원가 내역'},
+      {id:'proc-price', n:'공정단가 이력', t:'auto', src:'ki_v_process_price_changes', d:'공정 단가 변동'},
+      {id:'expense', n:'경비', t:'auto', src:'ki_v_expenses', d:'경비 등록'}
+    ]}]}
+  ]},
   { key:'base', name:'기준정보', second:[
-    { key:'master', name:'마스터', icon:'▥', groups:[
-      { name:'기준정보', items:[
-        {id:'item-master', n:'품목정보', t:'form', d:'품번 / 품명 / 규격 / 단위'},
-        {id:'proc-master', n:'공정정보', t:'form', d:'공정코드 / 표준 CT'},
-        {id:'mach-master', n:'설비정보', t:'form', d:'호기 / 톤수 / 설치일'},
-        {id:'vendor', n:'거래처관리', t:'form', d:'고객사 / 외주처 / 매입처'},
-        {id:'code-master', n:'공통코드', t:'form', d:'common_code 관리'}
-      ]}
-    ]},
-    { key:'sys', name:'시스템', icon:'🛡', groups:[
-      { name:'시스템', items:[
-        {id:'security', n:'보안 마스터', t:'ext', u:'security_master.html', d:'PIN 관리 / 로그인 위치 / 차단 / 알림'},
-        {id:'counter-gen', n:'카운터 생성기', t:'ext', u:'counter_generator.html', d:'ESP32 스트로크 카운터 설정'}
-      ]}
-    ]}
+    { key:'bm', name:'JOB/부품', icon:'▥', groups:[{ name:'JOB/부품', items:[
+      {id:'job-master', n:'JOB(관리번호)', t:'auto', src:'ki_v_jobs', d:'금형 제작 관리번호'},
+      {id:'part-master', n:'부품', t:'auto', src:'ki_v_parts', d:'부품 기준정보'},
+      {id:'mold-type', n:'금형 종류', t:'auto', src:'ki_v_mold_types', d:'금형 타입'},
+      {id:'mold-match', n:'금형코드 매칭', t:'auto', src:'ki_v_mold_code_matchings', d:'금형 코드 매칭'}
+    ]}]},
+    { key:'bp', name:'공정', icon:'🛠', groups:[{ name:'공정', items:[
+      {id:'proc-master', n:'공정', t:'auto', src:'ki_v_processes', d:'공정 코드 기준정보'},
+      {id:'std-proc', n:'표준공정', t:'auto', src:'ki_v_standard_processes', d:'표준공정 정의'},
+      {id:'std-step', n:'표준공정 단계', t:'auto', src:'ki_v_standard_process_steps', d:'표준공정 세부 단계'}
+    ]}]},
+    { key:'bv', name:'거래처/설비', icon:'🏭', groups:[{ name:'거래처/설비', items:[
+      {id:'vendor-list', n:'외주업체', t:'grid', src:'ki_v_vendor', d:'외주 가공 거래처'},
+      {id:'vendor-all', n:'전체 거래처', t:'auto', src:'ki_v_vendors', d:'고객사/외주/매입처'},
+      {id:'equip', n:'설비', t:'auto', src:'ki_v_equipment', d:'보유 설비'},
+      {id:'machine-spec', n:'설비 사양', t:'auto', src:'ki_v_machine_specs', d:'설비 규격'},
+      {id:'item-cat', n:'품목 분류', t:'auto', src:'ki_v_item_categories', d:'품목 카테고리'}
+    ]}]},
+    { key:'bo', name:'조직', icon:'👥', groups:[{ name:'조직', items:[
+      {id:'emp', n:'사원', t:'auto', src:'ki_v_employees', d:'사원 기준정보'},
+      {id:'dept', n:'부서', t:'auto', src:'ki_v_departments', d:'부서'},
+      {id:'pos', n:'직위', t:'auto', src:'ki_v_positions', d:'직위'},
+      {id:'bdiv', n:'사업부', t:'auto', src:'ki_v_business_divisions', d:'사업부'}
+    ]}]}
+  ]},
+  { key:'sys', name:'시스템', second:[
+    { key:'sy', name:'시스템', icon:'🛡', groups:[{ name:'시스템', items:[
+      {id:'pw-setting', n:'비밀번호 설정', t:'pw', d:'마스터 / 일반 사용자 PIN 변경'},
+      {id:'user-list', n:'사용자', t:'auto', src:'ki_v_users', d:'등록 사용자'},
+      {id:'user-perm', n:'권한', t:'auto', src:'ki_v_user_permissions', d:'메뉴별 권한'},
+      {id:'notice', n:'공지사항', t:'auto', src:'ki_v_notices', d:'공지 등록'}
+    ]}]}
   ]}
 ];
+const HOME_ID='sales-order-st';
+
+/* ==================== 화면 정의 ====================
+   f: PostgREST 필드 / k: 필터종류 / c: 셀 렌더
+==================================================== */
+const VIEWS = {
+'osp-order':{
+  table:OBJ.order, select:'*', order:'no.asc',
+  search:[['외주처','sel-vendor','vendor'],['JOB(관리번호)','text','job'],['부품번호','text','part'],
+          ['가공공정','sel-mp','mp'],['발주일','date2','odate'],['상태','sel-st','st']],
+  cols:[['No',46,'center','no'],['상태',64,'center','st','st'],['발주일',88,'center','odate'],
+        ['외주처',110,'','vendor'],['JOB(관리번호)',118,'','job'],['제품명',140,'','item'],
+        ['부품번호(LOT)',110,'','part'],['부품명',150,'','partName'],
+        ['공정',50,'center','proc'],['순서',56,'center','procName'],['가공공정',80,'center','mp','mp'],
+        ['납기',88,'center','edate'],['입고일',88,'center','idate'],['외주금액',92,'num','quote','won']]
+},
+'osp-issue':{
+  table:OBJ.order, select:'*', order:'odate.desc',
+  post:'issue',
+  search:[['외주처','sel-vendor','vendor'],['JOB(관리번호)','text','job'],['부품번호','text','part'],
+          ['가공공정','sel-mp','mp'],['반출일','date2','odate'],['상태','sel-st','st']],
+  cols:[['No',46,'center','no'],['반출일(발주)',96,'center','odate'],['외주처',120,'','vendor'],
+        ['JOB(관리번호)',118,'','job'],['부품번호(LOT)',110,'','part'],['부품명',150,'','partName'],
+        ['공정',50,'center','proc'],['가공공정',80,'center','mp','mp'],['납기',88,'center','edate'],
+        ['회수(입고)일',96,'center','idate'],['상태',64,'center','st','st'],['제품명',0,'','item']]
+},
+'osp-receipt':{
+  table:OBJ.receipt, select:'*', order:'no.asc',
+  search:[['외주처','sel-vendor','vendor'],['JOB(관리번호)','text','job'],['부품번호','text','part'],
+          ['가공공정','sel-mp','mp'],['입고일','date2','idate'],['확인상태','sel-rst','status']],
+  cols:[['No',46,'center','no'],['확인',64,'center','status','st'],['입고일',88,'center','idate'],
+        ['외주처',118,'','vendor'],['JOB(관리번호)',118,'','job'],
+        ['부품번호(LOT)',110,'','part'],['부품명',140,'','partName'],
+        ['공정',50,'center','proc'],['순서',56,'center','procName'],
+        ['가공공정',72,'center','mp'],['가공공정명',130,'','mpName'],
+        ['발주일',88,'center','odate'],['외주금액',92,'num','quote','won']]
+},
+'osp-stock':{
+  table:OBJ.order, select:'*', order:'odate.asc',
+  post:'stock',
+  search:[['외주처','sel-vendor','vendor'],['JOB(관리번호)','text','job'],['부품번호','text','part'],
+          ['가공공정','sel-mp','mp'],['발주일','date2','odate'],['경과일(이상)','num','_days']],
+  cols:[['No',46,'center','_i'],['경과',60,'num','_days','days'],['외주처',120,'','vendor'],
+        ['JOB(관리번호)',118,'','job'],['부품번호(LOT)',110,'','part'],['부품명',150,'','partName'],
+        ['공정',50,'center','proc'],['가공공정',80,'center','mp','mp'],
+        ['반출일',88,'center','odate'],['납기',88,'center','edate'],
+        ['납기상태',80,'center','_due','st'],['외주금액',92,'num','quote','won'],['제품명',0,'','item']]
+},
+'lot-trace':{
+  table:OBJ.progress, select:'*', order:'no.asc',
+  post:'trace',
+  search:[['부품번호(LOT)','text','part'],['JOB(관리번호)','text','job'],['외주처','sel-vendor','vendor'],
+          ['가공공정','sel-mp','mp'],['이동일','date2','date'],['공정','text','proc']],
+  cols:[['No',46,'center','_i'],['순번',48,'center','seq'],['JOB(관리번호)',118,'','job'],
+        ['부품번호(LOT)',110,'','part'],['공정',50,'center','proc'],
+        ['가공공정',72,'center','mp'],['가공공정명',130,'','mpName'],
+        ['외주업체',130,'','vendor'],['이동일',90,'center','date'],
+        ['전공정',80,'center','prevMp'],['다음공정',80,'center','nextMp'],['경유단계',0,'','chain','chain']]
+},
+'lot-route':{
+  table:OBJ.progress, select:'*', order:'no.asc',
+  post:'route',
+  search:[['부품번호(LOT)','text','part'],['JOB(관리번호)','text','job'],['현재 외주처','sel-vendor','vendor'],
+          ['현재 공정','sel-mp','mp'],['최근 이동일','date2','date'],['진척(%이상)','num','_rate']],
+  cols:[['No',46,'center','_i'],['JOB(관리번호)',118,'','job'],['부품번호(LOT)',110,'','part'],
+        ['공정',50,'center','proc'],['표준공정',110,'','stdName'],
+        ['현재 가공공정',96,'center','mp'],['현재 가공공정명',126,'','mpName'],
+        ['현재 외주업체',126,'','vendor'],['최근 이동일',96,'center','date'],
+        ['다음 공정',130,'','nextMp'],
+        ['완료',52,'num','done'],['총단계',56,'num','total'],['진척률',100,'','_rate','bar'],
+        ['경유 이력',0,'','chain','chain']]
+},
+'std-route':{
+  table:OBJ.route, select:'*', order:'standard_process_no.asc',
+  post:'std',
+  search:[['표준공정명','text','standard_process_name']],
+  cols:[['No',46,'center','row_no'],['표준공정번호',100,'center','standard_process_no'],
+        ['표준공정명',160,'','standard_process_name'],['단계수',60,'num','_cnt'],
+        ['가공공정 순서',0,'','_steps','chain']]
+},
+'vendor-list':{
+  table:OBJ.vendor, select:'*', order:'vendor_name.asc',
+  search:[['업체명','text','vendor_name'],['업체코드','text','vendor_code'],['구분','text','vendor_type']],
+  cols:[['No',46,'center','_i'],['업체코드',90,'','vendor_code'],['업체명',160,'','vendor_name'],
+        ['구분',90,'center','vendor_type'],['협력형태',90,'center','partner_type'],
+        ['지역',80,'center','location_type'],['대표자',90,'','ceo_name'],['전화',110,'','phone'],['비고',0,'','remark']]
+}
+};
+
+
+/* ==================== 컬럼 한글 라벨 ==================== */
+const COLMAP = {
+  no:'No', row_no:'No', seq:'No', line_id:'라인ID',
+  job:'JOB(관리번호)', job_no:'JOB(관리번호)', card_key:'카드키',
+  part:'부품번호', part_no:'부품번호', part_code:'부품번호', partName:'부품명', part_name:'부품명', part_group:'부품그룹',
+  item:'제품명', item_name:'제품명', item_code:'품목코드', product_name:'제품명',
+  model:'모델', model_name:'모델', drawing_no:'도면번호', eco:'ECO',
+  proc:'공정', process_code:'공정코드', process_name:'공정명', procName:'공정순서', process_group:'공정그룹',
+  process_sequence:'공정순서', machining_process_code:'가공공정', machining_process_name:'가공공정명',
+  mp:'가공공정', mpName:'가공공정명', steps:'단계', sort_order:'정렬',
+  vendor:'외주처', vendor_name:'거래처', vendor_code:'거래처코드', vendor_type:'거래처구분',
+  partner_name:'협력사', partner_vendor_name:'협력사', partner_type:'협력형태', location_type:'지역',
+  customer_name:'고객사', customer_code:'고객코드', cust:'고객사',
+  mass_production_vendor_name:'양산처', mass_production_vendor_code:'양산처코드',
+  st:'상태', status:'상태', order_status:'수주상태', match_status:'매칭상태', receipt_status:'입고상태',
+  judgement:'판정', result:'결과', category:'구분', type:'구분', order_type:'수주구분',
+  development_type:'개발구분', dev:'개발구분', domestic_type:'국내/해외', domestic_overseas:'국내/해외',
+  paid_supply:'유상/무상', work_type:'업무구분', status_type:'구분', area:'지역',
+  odate:'발주일', order_date:'발주일', edate:'납기', required_date:'요구일', idate:'입고일',
+  receipt_date:'입고일', cdate:'확정일', confirm_date:'확정일', expected_date:'입고예정일',
+  receipt_planned_date:'입고예정일', receipt_confirmed_date:'입고확정일', rdate:'요구일',
+  completion_date:'완료일', completion_planned_date:'완료예정일', completion_due_date:'완료납기',
+  s1_date:'S1일자', s1_planned_date:'S1예정일', s1_completed_date:'S1완료일', s1_due_date:'S1납기',
+  delivery_planned_date:'납품예정일', delivery_completed_date:'납품완료일',
+  customer_request_date:'고객요청일', issue_date:'발행일', work_date:'작업일',
+  design_date:'설계일', machining_date:'가공일', assembly_date:'조립일',
+  design_start_date:'설계시작', design_end_date:'설계완료', design_days:'설계일수',
+  machining_start_date:'가공시작', machining_end_date:'가공완료', machining_days:'가공일수',
+  assembly_start_date:'조립시작', assembly_end_date:'조립완료', assembly_days:'조립일수',
+  design_completion_planned_date:'설계완료예정', design_completed_date:'설계완료일',
+  machining_completion_date:'가공완료일', registered_date:'등록일', effective_date:'적용일',
+  posted_date:'게시일', reg_date:'등록일', reason_date:'발생일', inspection_date:'검사일',
+  created_at:'생성', updated_at:'수정', year_month:'년월',
+  qty:'수량', quantity:'수량', order_qty:'발주수량', order_quantity:'발주수량',
+  receipt_qty:'입고수량', receipt_quantity:'입고수량', set_qty:'SET수량', process_set_qty:'공정SET',
+  lot_qty:'LOT수량', sample_qty:'시료수', defect_qty:'불량수',
+  unit_price:'단가', price:'단가', quote:'견적가', quote_price:'견적가', quotation_price:'견적가',
+  confirm_price:'확정가', confirmed_price:'확정가', nego_price:'네고가', negotiated_price:'네고가',
+  nego_rate:'네고율', negotiation_rate:'네고율', rate:'비율', difference:'차액',
+  amount:'금액', receipt_amount:'입고금액', order_price:'수주금액', target_price:'목표가',
+  sales_price:'매출액', sale:'매출액', purchase_price:'매입가', purchase_amount:'매입액',
+  order_amount:'수주금액', manufacturing_cost:'제조원가', profit:'이익', profit_rate_pct:'이익률(%)',
+  target_ratio_pct:'목표비(%)', progress_rate:'진척률', execution_rate_pct:'실행률(%)',
+  material:'소재', material_code:'소재코드', material_name:'소재명', material_group:'소재그룹',
+  material_used:'사용소재', spec:'규격', order_spec:'발주규격', design_spec:'설계규격',
+  design_dimension:'설계치수', size:'사이즈', thickness:'두께', thickness_dia:'두께/지름',
+  width:'폭', height:'높이', length:'길이', density:'비중', total_weight:'총중량',
+  manager_name:'담당자', manager_code:'담당자코드', owner_name:'담당자', orderer_name:'발주자',
+  worker_name:'작업자', inspector:'검사자', registered_by:'등록자', writer:'작성자',
+  sales_manager:'영업담당', design_manager:'설계담당', machining_manager:'가공담당', assembly_manager:'조립담당',
+  employee_code:'사번', employee_name:'성명', employee_no:'사번', name:'성명',
+  user_key:'사용자키', user_id:'사용자ID', role:'권한', user_group:'그룹',
+  department_code:'부서코드', department_name:'부서', position_code:'직위코드', position_name:'직위',
+  position_level:'직급', position_group:'직위그룹', is_approver:'결재권',
+  business_division_code:'사업부코드', business_division_name:'사업부', business_division:'사업부',
+  plant_name:'공장', factory:'공장', team:'팀', members:'구성원', source:'출처', sources:'출처',
+  remark:'비고', body:'내용', code:'코드', attachment:'첨부', attachments:'첨부',
+  is_active:'사용', done:'완료', assembly_completed:'조립완료', design_completed:'설계완료',
+  step_completed:'단계완료', use_progress:'진척사용', use_plan:'계획사용',
+  plan_minutes:'계획(분)', work_minutes:'작업(분)', completion_progress:'완료진척',
+  inspection_count:'검사수', insp:'검사수', due:'납기', cust:'고객요청일',
+  inspection_no:'검사번호', inspection_item_code:'검사항목코드', inspection_item_name:'검사항목',
+  inspection_category_code:'검사분류코드', inspection_category_name:'검사분류',
+  inspection_group:'검사그룹', inspection_target:'검사대상', inspection_timing:'검사시점',
+  sampling_type:'샘플링', criteria:'기준', measured_value:'측정값', action_taken:'조치',
+  equipment_code:'설비코드', equipment_name:'설비명', equipment_group:'설비그룹',
+  machine_spec_code:'설비사양코드', machine_spec_name:'설비사양',
+  mold_type_code:'금형종류코드', mold_type_name:'금형종류',
+  standard_process_id:'표준공정ID', standard_process_no:'표준공정번호', standard_process_name:'표준공정명',
+  sequence:'순서', quotation_no:'견적번호', reason_code:'사유코드', reason_name:'사유',
+  expense_id:'경비ID', menu_name:'메뉴', menu_path:'메뉴경로',
+  can_view:'조회', can_save:'저장', can_edit:'수정', can_delete:'삭제', permission_status:'상태',
+  cost_stage:'원가단계', expense_cost:'경비', set_outsourcing_cost:'SET외주비',
+  raw_material_cost:'원자재비', purchase_item_cost:'구매품비',
+  material_cost_subtotal:'소재비계', design_cost_subtotal:'설계비계', machining_cost_subtotal:'가공비계',
+  design_cost_internal:'설계비(내)', design_cost_external:'설계비(외)',
+  machining_cost_internal:'가공비(내)', machining_cost_external:'가공비(외)',
+  set_seq:'SET순번', order_seq:'발주순번', receipt_no:'입고번호', prefix:'접두', year:'년', sub_type:'서브구분',
+  sub_no:'서브번호', is_child:'하위', source_count:'소스수', page:'페이지',
+  s1_overdue:'S1지연', completion_overdue:'완료지연', fix:'확정', set_order_partners:'SET협력사'
+};
+const label = c => COLMAP[c] || c;
+const isDateCol = c => /(_date|date$|^odate|^edate|^idate|^cdate|^rdate|year_month)/.test(c);
+const isMoneyCol = c => /(price|amount|cost|profit|quote|sale)/.test(c);
+const isNumCol = c => /(qty|quantity|rate|pct|days|minutes|count|weight|no$|_id$|seq|level|thickness|width|height|length|density|progress)/.test(c);
 
 /* ==================== 인덱스 ==================== */
-const ITEM = {};   // id -> {item, l1, l2}
+const ITEM={};
 MENU.forEach(l1=>l1.second.forEach(l2=>l2.groups.forEach(g=>g.items.forEach(it=>{
-  ITEM[it.id] = {it:it, l1:l1.key, l2:l2.key, path:l1.name+' › '+l2.name};
+  ITEM[it.id]={it:it,l1:l1.key,l2:l2.key,path:l1.name+' › '+l2.name};
 }))));
 
-let currentL1='dash', currentL2='d-main', activeTab='home';
-const openTabs = new Map();
-const pageEls  = new Map();
+let currentL1='sales', currentL2='so', activeTab=HOME_ID;
+const openTabs=new Map(), pageEls=new Map();
 let curPin='', lockTimer=null;
+let VENDORS=[], PROCS=[], PROCMAP={}, ROUTES=[], SCHEMA={};
 
-const byId = id=>document.getElementById(id);
-const getL1 = ()=>MENU.find(x=>x.key===currentL1)||MENU[0];
-const getL2 = ()=>getL1().second.find(x=>x.key===currentL2)||getL1().second[0];
-const esc = s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const byId=id=>document.getElementById(id);
+const getL1=()=>MENU.find(x=>x.key===currentL1)||MENU[0];
+const getL2=()=>getL1().second.find(x=>x.key===currentL2)||getL1().second[0];
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const HDR={apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY};
 
-/* ==================== 인증 ==================== */
+/* ==================== Supabase ==================== */
+async function sbGet(path){
+  const r=await fetch(SUPABASE_URL+'/rest/v1/'+path,{headers:HDR});
+  if(!r.ok) throw new Error('조회 실패 ('+r.status+')');
+  return await r.json();
+}
+async function sbPatch(path,body){
+  const r=await fetch(SUPABASE_URL+'/rest/v1/'+path,{
+    method:'PATCH',headers:Object.assign({'Content-Type':'application/json',Prefer:'return=representation'},HDR),
+    body:JSON.stringify(body)});
+  if(!r.ok) throw new Error('저장 실패 ('+r.status+')');
+  return await r.json();
+}
+async function sbUpsert(path,body){
+  const r=await fetch(SUPABASE_URL+'/rest/v1/'+path,{
+    method:'POST',headers:Object.assign({'Content-Type':'application/json',Prefer:'resolution=merge-duplicates,return=representation'},HDR),
+    body:JSON.stringify(body)});
+  if(!r.ok) throw new Error('저장 실패 ('+r.status+')');
+  return await r.json();
+}
+
+/* ==================== PIN (서버 저장) ==================== */
 async function sha256hex(t){
-  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+  const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));
   return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
 }
+function pinCache(){ try{return JSON.parse(localStorage.getItem(LK_PINCACHE)||'{}')}catch(e){return{}} }
+function setPinCache(o){ localStorage.setItem(LK_PINCACHE,JSON.stringify(o)); }
+
+async function loadPins(){
+  try{
+    const rows=await sbGet(TBL_SET+'?select=key,value&key=in.('+K_MASTER+','+K_USER+')');
+    const o={};
+    rows.forEach(r=>o[r.key]=r.value);
+    if(o[K_MASTER]&&o[K_USER]){ setPinCache(o); return o; }
+  }catch(e){}
+  const c=pinCache();
+  if(c[K_MASTER]&&c[K_USER]) return c;      // 오프라인 폴백
+  const d=await sha256hex(DEFAULT_PIN);
+  return {[K_MASTER]:d,[K_USER]:d};
+}
+async function savePin(key,hash,who){
+  const body={key:key,value:hash,updated_at:new Date().toISOString(),updated_by:who||'-'};
+  try{ await sbUpsert(TBL_SET,[body]); }
+  catch(e){ await sbPatch(TBL_SET+'?key=eq.'+key,{value:hash,updated_at:body.updated_at,updated_by:body.updated_by}); }
+  const c=pinCache(); c[key]=hash; setPinCache(c);
+}
+async function isDefaultPin(){
+  const d=await sha256hex(DEFAULT_PIN), p=await loadPins();
+  return {master:p[K_MASTER]===d, user:p[K_USER]===d};
+}
+
+/* ==================== 세션 ==================== */
 function getSession(){
   try{ const s=JSON.parse(localStorage.getItem(LK_AUTH)||'null');
     if(!s||!s.exp||s.exp<Date.now()){localStorage.removeItem(LK_AUTH);return null;} return s;
   }catch(e){return null}
 }
-function setSession(o){ o.exp = Date.now()+SESSION_DAYS*864e5; localStorage.setItem(LK_AUTH, JSON.stringify(o)); }
+function setSession(o){ o.exp=Date.now()+SESSION_DAYS*864e5; localStorage.setItem(LK_AUTH,JSON.stringify(o)); }
 function clearSession(){ localStorage.removeItem(LK_AUTH); }
 function getFail(){ try{return JSON.parse(localStorage.getItem(LK_FAIL)||'{"count":0,"until":0}')}catch(e){return{count:0,until:0}} }
-function setFail(f){ localStorage.setItem(LK_FAIL, JSON.stringify(f)); }
+function setFail(f){ localStorage.setItem(LK_FAIL,JSON.stringify(f)); }
 function clearFail(){ localStorage.removeItem(LK_FAIL); }
 
 function buildKeypad(){
-  const kp = byId('plKeypad'); kp.innerHTML='';
+  const kp=byId('plKeypad'); kp.innerHTML='';
   ['1','2','3','4','5','6','7','8','9','←','0','✓'].forEach(k=>{
     const b=document.createElement('button'); b.className='pl-key'; b.textContent=k;
-    b.addEventListener('click', ()=>{ if(k==='←') pinDel(); else if(k!=='✓') pinPress(k); });
+    b.addEventListener('click',()=>{ if(k==='←')pinDel(); else if(k!=='✓')pinPress(k); });
     kp.appendChild(b);
   });
 }
-function updateDots(){
-  [...byId('plDots').children].forEach((d,i)=>d.classList.toggle('on', i<curPin.length));
+function buildDots(){
+  const d=byId('plDots'); d.innerHTML='';
+  for(let i=0;i<PIN_LEN;i++){ const o=document.createElement('div'); o.className='pl-dot'; d.appendChild(o); }
 }
+function updateDots(){ [...byId('plDots').children].forEach((d,i)=>d.classList.toggle('on',i<curPin.length)); }
 function shakeDots(){ const d=byId('plDots'); d.classList.add('shake'); setTimeout(()=>d.classList.remove('shake'),350); curPin=''; updateDots(); }
 function pinPress(n){
-  if(curPin.length>=4)return;
+  if(curPin.length>=PIN_LEN)return;
   if(getFail().until>Date.now())return;
   curPin+=n; updateDots();
-  if(curPin.length===4) setTimeout(pinDone,150);
+  if(curPin.length===PIN_LEN) setTimeout(pinDone,150);
 }
 function pinDel(){ if(!curPin)return; curPin=curPin.slice(0,-1); updateDots(); }
 
 async function pinDone(){
-  const hint = byId('plHint'); hint.className='pl-hint'; hint.textContent='확인 중...';
+  const hint=byId('plHint'); hint.className='pl-hint'; hint.textContent='확인 중...';
   try{
-    const h = await sha256hex(curPin);
-    if(h===MASTER_PIN_HASH){
-      clearFail(); setSession({role:'admin',name:'관리자',factory:'',dept:'',position:''});
+    const h=await sha256hex(curPin), p=await loadPins();
+    if(h===p[K_MASTER]){
+      clearFail(); setSession({role:'admin',name:'관리자'});
       hint.classList.add('ok'); hint.textContent='✓ 관리자 인증'; setTimeout(unlock,300); return;
     }
-    const r = await fetch(SUPABASE_URL+'/rest/v1/'+TBL_USER+'?select=id,name,factory,dept,position,blocked,blocked_reason&pin_hash=eq.'+h,
-      {headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY}});
-    if(!r.ok) throw new Error('서버 응답 오류');
-    const list = await r.json();
-    if(list && list.length){
-      const u=list[0];
-      if(u.blocked){ hint.classList.add('err'); hint.textContent='🚫 차단된 계정입니다'; shakeDots(); return; }
-      clearFail();
-      setSession({role:'user',id:u.id,name:u.name,factory:u.factory||'',dept:u.dept||'',position:u.position||''});
-      hint.classList.add('ok'); hint.textContent='✓ '+u.name+'님 환영합니다';
-      setTimeout(unlock,400); return;
+    if(h===p[K_USER]){
+      clearFail(); setSession({role:'user',name:'사용자'});
+      hint.classList.add('ok'); hint.textContent='✓ 사용자 인증'; setTimeout(unlock,300); return;
     }
     const f=getFail(); f.count=(f.count||0)+1;
     if(f.count>=MAX_FAIL){ f.until=Date.now()+LOCKOUT_SEC*1000; f.count=0; setFail(f); checkLockout(); }
@@ -620,7 +727,7 @@ function checkLockout(){
     const upd=()=>{
       const s=Math.ceil((f.until-Date.now())/1000);
       if(s<=0){ msg.style.display='none'; clearFail(); clearInterval(lockTimer);
-        byId('plHint').className='pl-hint'; byId('plHint').textContent='4자리 PIN을 입력하세요'; return; }
+        byId('plHint').className='pl-hint'; byId('plHint').textContent=PIN_LEN+'자리 PIN을 입력하세요'; return; }
       msg.textContent='🔒 '+s+'초 후 재시도';
     };
     upd(); clearInterval(lockTimer); lockTimer=setInterval(upd,1000);
@@ -629,14 +736,12 @@ function checkLockout(){
 function unlock(){
   document.body.classList.remove('locked');
   byId('pinLock').style.display='none';
-  applySession();
-  bootApp();
+  applySession(); bootApp();
 }
 function applySession(){
   const s=getSession(); if(!s)return;
-  const label = s.role==='admin' ? '관리자' : (s.factory? s.factory+' · ':'')+s.name+(s.position?' '+s.position:'');
-  byId('userBtn').textContent='👤 '+label;
-  byId('stUser').textContent='사용자: '+label;
+  byId('userBtn').textContent='👤 '+(s.role==='admin'?'관리자':'사용자');
+  byId('stUser').textContent='사용자: '+(s.role==='admin'?'관리자':'사용자');
 }
 
 /* ==================== 메뉴 렌더 ==================== */
@@ -645,8 +750,7 @@ function buildL1(){
   MENU.forEach(m=>{
     const b=document.createElement('button');
     b.className='l1-btn'+(m.key===currentL1?' active':''); b.textContent=m.name;
-    b.addEventListener('click',()=>selectL1(m.key));
-    el.appendChild(b);
+    b.addEventListener('click',()=>selectL1(m.key)); el.appendChild(b);
   });
 }
 function buildL2(){
@@ -657,8 +761,7 @@ function buildL2(){
     const i=document.createElement('span'); i.className='l2-icon'; i.textContent=m.icon;
     const t=document.createElement('span'); t.className='l2-label'; t.textContent=m.name;
     b.appendChild(i); b.appendChild(t);
-    b.addEventListener('click',()=>selectL2(m.key));
-    el.appendChild(b);
+    b.addEventListener('click',()=>selectL2(m.key)); el.appendChild(b);
   });
 }
 function buildTree(){
@@ -666,14 +769,12 @@ function buildTree(){
   const el=byId('treeMenu'); el.innerHTML='';
   l2.groups.forEach(g=>{
     const gd=document.createElement('div'); gd.className='tree-group';
-    const cap=document.createElement('div'); cap.className='tree-caption'; cap.textContent=g.name;
-    gd.appendChild(cap);
+    const cap=document.createElement('div'); cap.className='tree-caption'; cap.textContent=g.name; gd.appendChild(cap);
     g.items.forEach(it=>{
       const b=document.createElement('button');
-      b.className='tree-item'+(it.t==='ext'?' ext':'')+(it.id===activeTab?' active':'');
+      b.className='tree-item'+(it.id===activeTab?' active':'');
       b.textContent=it.n; b.title=it.d||it.n;
-      b.addEventListener('click',()=>openPage(it.id));
-      gd.appendChild(b);
+      b.addEventListener('click',()=>openPage(it.id)); gd.appendChild(b);
     });
     el.appendChild(gd);
   });
@@ -681,22 +782,21 @@ function buildTree(){
 function selectL1(k){ currentL1=k; currentL2=getL1().second[0].key; buildL1(); buildL2(); buildTree(); }
 function selectL2(k){ currentL2=k; buildL2(); buildTree(); }
 
-/* ==================== 탭 / 페이지 ==================== */
+/* ==================== 탭 ==================== */
 function openPage(id){
   const def=ITEM[id]; if(!def)return;
   if(!openTabs.has(id)){ openTabs.set(id,{id:id,title:def.it.n}); ensurePage(id); }
   activateTab(id);
   currentL1=def.l1; currentL2=def.l2;
-  buildL1(); buildL2(); buildTree();
-  pushRecent(id); saveTabs();
+  buildL1(); buildL2(); buildTree(); pushRecent(id); saveTabs();
 }
 function activateTab(id){
   activeTab=id;
-  pageEls.forEach((el,k)=>el.classList.toggle('active', k===id));
+  pageEls.forEach((el,k)=>el.classList.toggle('active',k===id));
   renderTabs(); buildTree(); saveTabs();
 }
 function closePage(id){
-  if(openTabs.size<=1) return;
+  if(openTabs.size<=1)return;
   openTabs.delete(id);
   const el=pageEls.get(id); if(el){ el.remove(); pageEls.delete(id); }
   if(activeTab===id) activateTab([...openTabs.keys()].pop());
@@ -704,20 +804,18 @@ function closePage(id){
 }
 function renderTabs(){
   const bar=byId('tabbar'); bar.innerHTML='';
-  [...openTabs.values()].forEach((t,i)=>{
-    const d=document.createElement('div');
-    d.className='tab'+(t.id===activeTab?' active':'')+(i===0?' tab-home':'');
+  const only=openTabs.size<=1;
+  [...openTabs.values()].forEach(t=>{
+    const d=document.createElement('div'); d.className='tab'+(t.id===activeTab?' active':'');
     const s=document.createElement('span'); s.className='tab-title'; s.textContent=t.title;
-    const c=document.createElement('button'); c.className='close'; c.textContent='×'; c.title='닫기';
+    const c=document.createElement('button'); c.className='close'+(only?' hide':''); c.textContent='×';
     c.addEventListener('click',ev=>{ev.stopPropagation();closePage(t.id);});
     d.appendChild(s); d.appendChild(c);
-    d.addEventListener('click',()=>activateTab(t.id));
-    bar.appendChild(d);
+    d.addEventListener('click',()=>activateTab(t.id)); bar.appendChild(d);
   });
   requestAnimationFrame(()=>{ const a=bar.querySelector('.tab.active'); if(a)a.scrollIntoView({block:'nearest',inline:'nearest'}); });
 }
-
-function pageHead(it, extra){
+function pageHead(it,extra){
   const h=document.createElement('div'); h.className='page-title';
   const t=document.createElement('h2'); t.textContent=it.n;
   const s=document.createElement('span'); s.className='sub'; s.textContent=it.d||'';
@@ -728,212 +826,438 @@ function pageHead(it, extra){
   });
   const close=document.createElement('button'); close.className='erp-btn'; close.textContent='닫기';
   close.addEventListener('click',()=>closePage(it.id)); a.appendChild(close);
-  h.appendChild(t); h.appendChild(s); h.appendChild(a);
-  return h;
+  h.appendChild(t); h.appendChild(s); h.appendChild(a); return h;
+}
+
+/* ==================== 검색 패널 ==================== */
+function optList(kind){
+  if(kind==='sel-vendor') return ['전체'].concat(VENDORS);
+  if(kind==='sel-mp')     return ['전체'].concat(PROCS.map(p=>p.code+' · '+p.name));
+  if(kind==='sel-st')     return ['전체','발주','진행','완료','취소'];
+  if(kind==='sel-rst')    return ['전체','대기','확인','완료'];
+  return ['전체'];
+}
+function makeField(kind,field){
+  const w=document.createElement('div'); w.className='search-field';
+  if(kind==='date2'){
+    const a=document.createElement('input'); a.type='date'; a.dataset.f=field; a.dataset.op='gte';
+    const t=document.createElement('span'); t.textContent='~'; t.style.color='#8894a0';
+    const b=document.createElement('input'); b.type='date'; b.dataset.f=field; b.dataset.op='lte';
+    w.appendChild(a); w.appendChild(t); w.appendChild(b);
+  }else if(kind==='num'){
+    const i=document.createElement('input'); i.type='number'; i.placeholder='이상'; i.dataset.f=field; i.dataset.op='min'; w.appendChild(i);
+  }else if(kind==='text'){
+    const i=document.createElement('input'); i.placeholder='포함 검색'; i.dataset.f=field; i.dataset.op='like'; w.appendChild(i);
+  }else{
+    const s=document.createElement('select'); s.dataset.f=field; s.dataset.op='eq'; s.dataset.kind=kind;
+    optList(kind).forEach(v=>{ const o=document.createElement('option'); o.textContent=v; s.appendChild(o); });
+    w.appendChild(s);
+  }
+  return w;
+}
+function buildSearchPanel(def){
+  const sp=document.createElement('div'); sp.className='search-panel';
+  let row=null;
+  def.search.forEach((f,i)=>{
+    if(i%3===0){ row=document.createElement('div'); row.className='search-row'; sp.appendChild(row); }
+    const lb=document.createElement('div'); lb.className='search-label'+(i%3===2?' hide-sm':''); lb.textContent=f[0];
+    const fd=makeField(f[1],f[2]); if(i%3===2) fd.classList.add('hide-sm');
+    row.appendChild(lb); row.appendChild(fd);
+  });
+  return sp;
+}
+function readFilters(sp){
+  const out=[];
+  sp.querySelectorAll('input,select').forEach(el=>{
+    let v=(el.value||'').trim();
+    if(!v||v==='전체')return;
+    if(el.dataset.kind==='sel-mp') v=v.split(' · ')[0];
+    out.push({f:el.dataset.f,op:el.dataset.op,v:v});
+  });
+  return out;
+}
+
+/* ==================== 데이터 가공 ==================== */
+const today=()=>new Date();
+function dayDiff(s){
+  if(!s)return null;
+  const d=new Date(s+'T00:00:00'); if(isNaN(d))return null;
+  return Math.floor((today()-d)/864e5);
+}
+function procName(code){ return PROCMAP[code]||''; }
+
+function postStock(rows){
+  return rows.filter(r=>!r.idate)
+    .map((r,i)=>Object.assign({},r,{
+      _i:i+1, _days:dayDiff(r.odate),
+      _due: !r.edate ? '-' : (dayDiff(r.edate)>0 ? '지연' : '정상')
+    }));
+}
+function postTrace(rows){
+  const out=[];
+  rows.forEach(r=>{
+    const steps=Array.isArray(r.steps)?r.steps:[];
+    const chain=steps.map(s=>s.mp).join(' → ');
+    steps.forEach((s,i)=>{
+      out.push({
+        job:r.job, part:r.part, proc:r.proc, seq:i+1,
+        mp:s.mp, mpName:procName(s.mp), vendor:s.vendor, date:s.date,
+        prevMp: i>0?steps[i-1].mp:'-', nextMp: i<steps.length-1?steps[i+1].mp:'-',
+        chain:chain
+      });
+    });
+  });
+  out.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  out.forEach((r,i)=>r._i=i+1);
+  return out;
+}
+/* 진행 공정열과 가장 잘 맞는 표준공정 경로 추정 */
+function matchRoute(mps){
+  let best=null, bestScore=-1;
+  ROUTES.forEach(rt=>{
+    const st=Array.isArray(rt.steps)?rt.steps:[];
+    let hit=0, pos=0;
+    mps.forEach(m=>{ const k=st.indexOf(m,pos); if(k>=0){ hit++; pos=k+1; } });
+    const score=hit*100 - st.length;           // 많이 맞고 짧은 경로 우선
+    if(hit>0 && score>bestScore){ bestScore=score; best=rt; }
+  });
+  return best;
+}
+function postRoute(rows){
+  return rows.map((r,i)=>{
+    const steps=Array.isArray(r.steps)?r.steps:[];
+    const last=steps[steps.length-1]||{};
+    const mps=steps.map(s=>s.mp);
+    const rt=matchRoute(mps);
+    const stdSteps=rt?rt.steps:[];
+    const total=stdSteps.length||steps.length||1;
+    const done=Math.min(steps.length,total);
+    const nextMp=stdSteps[done]||'';
+    return {
+      _i:i+1, job:r.job, part:r.part, proc:r.proc,
+      mp:last.mp||'-', mpName:procName(last.mp), vendor:last.vendor||'-', date:last.date||'',
+      stdName: rt?rt.standard_process_name:'(미매칭)',
+      nextMp: nextMp ? nextMp+(procName(nextMp)?' · '+procName(nextMp):'') : '완료',
+      done:done, total:total, _rate:total?Math.round(done/total*100):0,
+      chain:steps.map(s=>s.mp+'('+(s.vendor||'')+')').join(' → ')
+    };
+  });
+}
+function postStd(rows){
+  return rows.map(r=>{
+    const st=Array.isArray(r.steps)?r.steps:[];
+    return Object.assign({},r,{_cnt:st.length,_steps:st.join(' → ')});
+  });
+}
+function postIssue(rows){
+  return rows.filter(r=>r.odate).map((r,i)=>Object.assign({_i:i+1},r));
+}
+const POST={stock:postStock,issue:postIssue,trace:postTrace,route:postRoute,std:postStd};
+
+function applyLocalFilter(rows,filters){
+  return rows.filter(r=>filters.every(f=>{
+    const v=r[f.f];
+    if(f.op==='like') return String(v==null?'':v).toLowerCase().includes(f.v.toLowerCase());
+    if(f.op==='eq')   return String(v==null?'':v)===f.v;
+    if(f.op==='gte')  return String(v==null?'':v)>=f.v;
+    if(f.op==='lte')  return String(v==null?'':v)<=f.v;
+    if(f.op==='min')  return Number(v||0)>=Number(f.v);
+    return true;
+  }));
+}
+
+/* ==================== 셀 렌더 ==================== */
+function cellHtml(row,col){
+  const [label,w,cls,field,ctype]=col;
+  const v=row[field];
+  if(ctype==='won')  return v?Number(v).toLocaleString():'';
+  if(ctype==='days') return v==null?'-':v+'일';
+  if(ctype==='mp')   return v?esc(v)+(procName(v)?' · '+esc(procName(v)):''):'';
+  if(ctype==='st'){
+    const s=String(v==null?'':v);
+    const k = /완료|확인|정상/.test(s)?'b-done' : /지연|취소/.test(s)?'b-late' : /대기/.test(s)?'b-wait':'b-run';
+    return s?'<span class="badge '+k+'">'+esc(s)+'</span>':'';
+  }
+  if(ctype==='bar'){
+    const p=Number(v||0);
+    return '<div class="bar" title="'+p+'%"><i style="width:'+Math.max(0,Math.min(100,p))+'%"></i></div>';
+  }
+  if(ctype==='bool') return v===true?'<span class="badge b-done">✓</span>':(v===false?'<span style="color:#a7b3bf">–</span>':'');
+  if(ctype==='json'){
+    if(v==null)return '';
+    const s=Array.isArray(v)?v.map(x=>typeof x==='object'?JSON.stringify(x):x).join(' → '):JSON.stringify(v);
+    return '<span class="trace-chain">'+esc(s.length>120?s.slice(0,120)+'…':s)+'</span>';
+  }
+  if(ctype==='chain') return '<span class="trace-chain">'+esc(String(v==null?'':v)).replace(/→/g,'<b>→</b>')+'</span>';
+  return esc(String(v==null?'':v));
+}
+
+
+/* ==================== 스키마 자동 인식 ==================== */
+async function loadSchema(){
+  try{
+    const r=await fetch(SUPABASE_URL+'/rest/v1/',{headers:HDR});
+    if(!r.ok) return;
+    const spec=await r.json();
+    const defs=spec.definitions||(spec.components&&spec.components.schemas)||{};
+    Object.keys(defs).forEach(k=>{
+      const props=defs[k].properties||{};
+      SCHEMA[k]=Object.keys(props).map(c=>({name:c,type:props[c].type,format:props[c].format}));
+    });
+  }catch(e){}
+}
+function colWidth(c,t){
+  if(isDateCol(c)) return 92;
+  if(t==='boolean') return 58;
+  if(isMoneyCol(c)) return 100;
+  if(isNumCol(c))   return 78;
+  const L=label(c).length;
+  return Math.min(180, Math.max(72, L*15));
+}
+function autoCols(list){
+  const cols=list.map(f=>{
+    const c=f.name, t=f.type;
+    const cls = (t==='number'||t==='integer') ? 'num' : (t==='boolean'||isDateCol(c)) ? 'center' : '';
+    const ctype = t==='boolean' ? 'bool'
+                : isMoneyCol(c) && (t==='number'||t==='integer') ? 'won'
+                : (t==='object'||t==='array'||f.format==='jsonb') ? 'json'
+                : /(status|판정|judgement|^st$|order_status|match_status|result)/.test(c) ? 'st' : '';
+    return [label(c), colWidth(c,t), cls, c, ctype];
+  });
+  if(cols.length) cols[cols.length-1][1]=0;   // 마지막 컬럼 가변폭
+  return cols;
+}
+const SEARCH_PRIORITY=[/^job/,/^part/,/vendor/,/customer/,/^item/,/^model/,/status$|^st$/,/name$/,/code$/,/^proc|^mp$/];
+function autoSearch(list){
+  const out=[], used={};
+  const dateCol=list.find(f=>isDateCol(f.name));
+  if(dateCol){ out.push([label(dateCol.name),'date2',dateCol.name]); used[dateCol.name]=1; }
+  SEARCH_PRIORITY.forEach(rx=>{
+    if(out.length>=6) return;
+    list.forEach(f=>{
+      if(out.length>=6||used[f.name]) return;
+      if(f.type!=='string'||isDateCol(f.name)) return;
+      if(!rx.test(f.name)) return;
+      used[f.name]=1;
+      out.push([label(f.name), /^(vendor|vendor_name)$/.test(f.name)?'sel-vendor':'text', f.name]);
+    });
+  });
+  list.forEach(f=>{
+    if(out.length>=6||used[f.name]||f.type!=='string'||isDateCol(f.name))return;
+    used[f.name]=1; out.push([label(f.name),'text',f.name]);
+  });
+  return out.length?out:[['검색','text','__none']];
+}
+function autoDef(it,rows){
+  let list=SCHEMA[it.src];
+  if((!list||!list.length) && rows && rows.length){
+    const r0=rows[0];
+    list=Object.keys(r0).map(c=>({name:c,type:typeof r0[c]==='number'?'number':(typeof r0[c]==='boolean'?'boolean':'string')}));
+  }
+  list=list||[];
+  const order = list.length ? list[0].name+'.asc' : null;
+  return { table:it.src, select:'*', order:order, cols:autoCols(list), search:autoSearch(list), auto:true };
+}
+
+/* ==================== 그리드 페이지 ==================== */
+function buildGridPage(p,it){
+  const def = VIEWS[it.id] || autoDef(it,null);
+  if(!def || !def.table){
+    p.appendChild(pageHead(it,[]));
+    const w=document.createElement('div'); w.className='info-box';
+    w.innerHTML='<b>'+esc(it.n)+'</b> — 연결된 데이터 오브젝트가 없습니다.';
+    p.appendChild(w); return;
+  }
+  const state={rows:[]};
+  const head=pageHead(it,[
+    ['조회','primary',b=>run(b.target)],
+    ['초기화','',()=>{ sp.querySelectorAll('input').forEach(i=>i.value=''); sp.querySelectorAll('select').forEach(s=>s.selectedIndex=0); }],
+    ['엑셀(CSV)','',()=>exportCsv(it,def,state.rows)],
+    ['인쇄','',()=>window.print()]
+  ]);
+  p.appendChild(head);
+  const sp=buildSearchPanel(def); p.appendChild(sp);
+
+  const gw=document.createElement('div'); gw.className='grid-wrap';
+  const tb=document.createElement('div'); tb.className='grid-toolbar';
+  const info=document.createElement('span'); info.textContent=def.table;
+  info.style.color='#94a1ae'; info.style.fontSize='10px';
+  const cnt=document.createElement('span'); cnt.className='right'; cnt.textContent='총 0건';
+  tb.appendChild(info); tb.appendChild(cnt); gw.appendChild(tb);
+
+  const tbl=document.createElement('table'); tbl.className='erp-grid';
+  const thead=document.createElement('thead'); const tr=document.createElement('tr');
+  def.cols.forEach(([n,w])=>{ const th=document.createElement('th'); th.textContent=n; if(w)th.style.width=w+'px'; tr.appendChild(th); });
+  thead.appendChild(tr); tbl.appendChild(thead);
+  const tbody=document.createElement('tbody'); tbl.appendChild(tbody);
+  gw.appendChild(tbl); p.appendChild(gw);
+
+  function msg(txt){
+    tbody.innerHTML='';
+    const r=document.createElement('tr'), d=document.createElement('td');
+    d.colSpan=def.cols.length; d.className='center'; d.style.color='#8894a0'; d.style.height='60px'; d.textContent=txt;
+    r.appendChild(d); tbody.appendChild(r);
+  }
+  async function run(btn){
+    const old=btn?btn.textContent:''; if(btn){btn.textContent='조회중...';btn.disabled=true;}
+    msg('조회중...');
+    try{
+      const filters=readFilters(sp);
+      let q=def.table+'?select='+(def.select||'*');
+      if(def.where) q+='&'+def.where;
+      if(def.order) q+='&order='+def.order;
+      q+='&limit=2000';
+      let rows=await sbGet(q);
+      if(def.auto && !def.cols.length && rows.length){
+        const nd=autoDef(it,rows); def.cols=nd.cols;
+        tr.innerHTML=''; def.cols.forEach(([n,w])=>{ const th=document.createElement('th'); th.textContent=n; if(w)th.style.width=w+'px'; tr.appendChild(th); });
+      }
+      if(def.post) rows=POST[def.post](rows);
+      else rows=rows.map((r,i)=>Object.assign({_i:i+1},r));
+      rows=applyLocalFilter(rows,filters);
+      state.rows=rows;
+      tbody.innerHTML='';
+      if(!rows.length){ msg('조회 결과가 없습니다'); }
+      else rows.forEach(r=>{
+        const trr=document.createElement('tr');
+        def.cols.forEach(c=>{
+          const td=document.createElement('td'); td.className=c[2]||'';
+          td.innerHTML=cellHtml(r,c);
+          td.title=td.textContent;
+          trr.appendChild(td);
+        });
+        trr.addEventListener('click',()=>{
+          tbody.querySelectorAll('tr.selected').forEach(x=>x.classList.remove('selected'));
+          trr.classList.add('selected');
+        });
+        tbody.appendChild(trr);
+      });
+      cnt.textContent='총 '+rows.length.toLocaleString()+'건';
+    }catch(e){ msg('❌ '+e.message); cnt.textContent='총 0건'; }
+    if(btn){btn.textContent=old;btn.disabled=false;}
+  }
+  msg('조회 조건을 입력한 후 [조회] 버튼을 누르세요');
+  setTimeout(()=>run(null),100);
+}
+function exportCsv(it,def,rows){
+  if(!rows.length){ alert('내보낼 데이터가 없습니다.'); return; }
+  const head=def.cols.map(c=>c[0]);
+  const body=rows.map(r=>def.cols.map(c=>{
+    const v=r[c[3]]; return '"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  }).join(','));
+  const csv='\ufeff'+head.join(',')+'\n'+body.join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=it.n+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* ==================== 비밀번호 설정 ==================== */
+function pwRow(id,label,ph){
+  return '<div class="set-row"><label>'+label+'</label>'+
+         '<input type="password" id="'+id+'" maxlength="'+PIN_LEN+'" inputmode="numeric" autocomplete="new-password" placeholder="'+ph+'"></div>';
+}
+function buildPwPage(p,it){
+  p.appendChild(pageHead(it,[]));
+  const w=document.createElement('div'); w.className='set-wrap';
+  w.innerHTML=
+    '<div class="set-note">비밀번호는 <b>'+PIN_LEN+'자리 숫자</b>이며 초기값은 <b>'+DEFAULT_PIN+'</b> 입니다. '+
+      'SHA-256 해시로 <b>Supabase(app_settings)</b>에 저장되어 <b>모든 PC에 공통 적용</b>됩니다.</div>'+
+    '<div id="pwWarn"></div>'+
+    '<div class="set-card"><h3>🔑 마스터 비밀번호<span class="tag">관리자</span></h3><div class="set-body">'+
+      pwRow('mCur','현재 마스터 PIN','현재 비밀번호')+pwRow('mNew','새 마스터 PIN','새 비밀번호')+pwRow('mChk','새 PIN 확인','한번 더 입력')+
+      '<div class="set-foot"><button class="erp-btn primary" id="mSave">마스터 PIN 변경</button><span class="set-msg" id="mMsg"></span></div>'+
+    '</div></div>'+
+    '<div class="set-card"><h3>👤 일반 사용자 비밀번호<span class="tag">현장 공용</span></h3><div class="set-body">'+
+      pwRow('uMst','마스터 PIN(권한확인)','마스터 비밀번호')+pwRow('uNew','새 사용자 PIN','새 비밀번호')+pwRow('uChk','새 PIN 확인','한번 더 입력')+
+      '<div class="set-foot"><button class="erp-btn primary" id="uSave">사용자 PIN 변경</button><span class="set-msg" id="uMsg"></span></div>'+
+    '</div></div>'+
+    '<div class="set-card"><h3>♻ 초기화</h3><div class="set-body">'+
+      pwRow('rMst','마스터 PIN','마스터 비밀번호')+
+      '<div class="set-foot"><button class="erp-btn" id="rSave">초기 비밀번호('+DEFAULT_PIN+')로 되돌리기</button><span class="set-msg" id="rMsg"></span></div>'+
+    '</div></div>';
+  p.appendChild(w);
+  setTimeout(()=>bindPwPage(w),0);
+}
+function pwMsg(el,txt,ok){ el.className='set-msg '+(ok?'ok':'err'); el.textContent=txt; }
+function validPin(v){ return new RegExp('^\\d{'+PIN_LEN+'}$').test(v||''); }
+async function refreshPwWarn(box){
+  const d=await isDefaultPin(), el=box.querySelector('#pwWarn'); el.innerHTML='';
+  const w=[]; if(d.master)w.push('마스터'); if(d.user)w.push('일반 사용자');
+  if(w.length) el.innerHTML='<div class="set-warn">⚠ '+w.join(' / ')+' 비밀번호가 초기값('+DEFAULT_PIN+') 상태입니다. 변경을 권장합니다.</div>';
+}
+function bindPwPage(box){
+  const q=id=>box.querySelector('#'+id);
+  const who=()=>{ const s=getSession(); return s?(s.role==='admin'?'관리자':'사용자'):'-'; };
+  ['mCur','mNew','mChk','uMst','uNew','uChk','rMst'].forEach(id=>{
+    q(id).addEventListener('input',e=>{ e.target.value=e.target.value.replace(/\D/g,'').slice(0,PIN_LEN); });
+  });
+  refreshPwWarn(box);
+
+  q('mSave').addEventListener('click',async()=>{
+    const msg=q('mMsg'); pwMsg(msg,'처리중...',true);
+    try{
+      const p=await loadPins(), cur=q('mCur').value, nw=q('mNew').value, ck=q('mChk').value;
+      if(await sha256hex(cur)!==p[K_MASTER]) return pwMsg(msg,'현재 마스터 PIN이 일치하지 않습니다',false);
+      if(!validPin(nw)) return pwMsg(msg,PIN_LEN+'자리 숫자로 입력하세요',false);
+      if(nw!==ck)       return pwMsg(msg,'새 PIN 확인값이 다릅니다',false);
+      await savePin(K_MASTER,await sha256hex(nw),who());
+      ['mCur','mNew','mChk'].forEach(id=>q(id).value='');
+      pwMsg(msg,'✓ 마스터 PIN이 변경되었습니다 (전 PC 공통)',true); refreshPwWarn(box);
+    }catch(e){ pwMsg(msg,'❌ '+e.message,false); }
+  });
+
+  q('uSave').addEventListener('click',async()=>{
+    const msg=q('uMsg'); pwMsg(msg,'처리중...',true);
+    try{
+      const p=await loadPins(), mst=q('uMst').value, nw=q('uNew').value, ck=q('uChk').value;
+      if(await sha256hex(mst)!==p[K_MASTER]) return pwMsg(msg,'마스터 PIN이 일치하지 않습니다',false);
+      if(!validPin(nw)) return pwMsg(msg,PIN_LEN+'자리 숫자로 입력하세요',false);
+      if(nw!==ck)       return pwMsg(msg,'새 PIN 확인값이 다릅니다',false);
+      if(await sha256hex(nw)===p[K_MASTER]) return pwMsg(msg,'마스터 PIN과 동일하게 설정할 수 없습니다',false);
+      await savePin(K_USER,await sha256hex(nw),who());
+      ['uMst','uNew','uChk'].forEach(id=>q(id).value='');
+      pwMsg(msg,'✓ 사용자 PIN이 변경되었습니다 (전 PC 공통)',true); refreshPwWarn(box);
+    }catch(e){ pwMsg(msg,'❌ '+e.message,false); }
+  });
+
+  q('rSave').addEventListener('click',async()=>{
+    const msg=q('rMsg');
+    try{
+      const p=await loadPins();
+      if(await sha256hex(q('rMst').value)!==p[K_MASTER]) return pwMsg(msg,'마스터 PIN이 일치하지 않습니다',false);
+      if(!confirm('마스터/사용자 PIN을 모두 '+DEFAULT_PIN+' 로 초기화합니다.\n계속할까요?'))return;
+      const d=await sha256hex(DEFAULT_PIN);
+      await savePin(K_MASTER,d,who()); await savePin(K_USER,d,who());
+      q('rMst').value='';
+      pwMsg(msg,'✓ 초기 비밀번호로 되돌렸습니다',true); refreshPwWarn(box);
+    }catch(e){ pwMsg(msg,'❌ '+e.message,false); }
+  });
 }
 
 function ensurePage(id){
   if(pageEls.has(id))return pageEls.get(id);
   const it=ITEM[id].it;
   const p=document.createElement('section'); p.className='page'; p.dataset.page=id;
-  if(it.t==='ext')      buildExtPage(p,it);
-  else if(it.t==='dash')buildDashPage(p,it);
-  else                  buildStubPage(p,it);
-  byId('contentShell').appendChild(p);
-  pageEls.set(id,p);
-  return p;
+  if(it.t==='pw') buildPwPage(p,it); else buildGridPage(p,it);
+  byId('contentShell').appendChild(p); pageEls.set(id,p); return p;
 }
 
-/* --- iframe 임베드 모드 : 내부 헤더/푸터/PIN 자동 숨김 --- */
-const LK_THEME='mes_embed_theme';
-let embedTheme = localStorage.getItem(LK_THEME) || 'dark';
-const extFrames = [];
-
-const EMBED_CSS =
-  '.header,.footer,.back-btn,.pin-lock,#pinLock,.lang-tabs{display:none!important}'+
-  'body{padding-top:0!important;overflow:auto!important}'+
-  '.container,.wrap,main{padding-top:10px!important}';
-
-const LIGHT_CSS =
-  ':root{--bg-dark:#eef2f6;--bg-card:#ffffff;--bg-card-hi:#e7edf3;--border:#c8d2dc;--border-hi:#a9b6c4;'+
-  '--text:#25313d;--text-mid:#3c4b5a;--text-sub:#5f6f7e;--text-dim:#8593a1;'+
-  '--ice:#1f4f8c;--ice-lt:#2d66ad;--orange:#b45309;--green:#15803d;--rose:#b91c1c}'+
-  'html,body{background:#eef2f6!important;color:#25313d!important}'+
-  'input,select,textarea{background:#fff!important;color:#25313d!important;border-color:#aeb9c4!important}';
-
-function injectEmbed(fr){
-  let doc=null;
-  try{ doc = fr.contentDocument; }catch(e){ return; }
-  if(!doc || !doc.body) return;
-  try{
-    doc.body.classList.remove('locked');
-    let st=doc.getElementById('__mesEmbed');
-    if(!st){ st=doc.createElement('style'); st.id='__mesEmbed'; (doc.head||doc.documentElement).appendChild(st); }
-    st.textContent = EMBED_CSS + (embedTheme==='light' ? LIGHT_CSS : '');
-  }catch(e){}
-}
-function applyThemeAll(){
-  localStorage.setItem(LK_THEME, embedTheme);
-  extFrames.forEach(injectEmbed);
-}
-function extUrl(u){ return u + (u.indexOf('?')<0?'?':'&') + 'embed=1&theme=' + embedTheme; }
-
-function buildExtPage(p,it){
-  const fr=document.createElement('iframe');
-  fr.className='ext-frame'; fr.src=extUrl(it.u); fr.setAttribute('allow','camera;clipboard-write');
-  fr.addEventListener('load',()=>injectEmbed(fr));
-  extFrames.push(fr);
-  p.appendChild(pageHead(it,[
-    ['🌓 스킨','',b=>{ embedTheme = (embedTheme==='light'?'dark':'light'); applyThemeAll();
-                      b.target.textContent = embedTheme==='light' ? '🌓 라이트' : '🌓 다크'; }],
-    ['새로고침','',()=>{ fr.src=extUrl(it.u); }],
-    ['새창열기','',()=>window.open(it.u,'_blank')]
-  ]));
-  p.appendChild(fr);
-}
-
-function buildStubPage(p,it){
-  p.appendChild(pageHead(it,[['조회','primary',b=>fakeSearch(b.target)],['신규','',()=>{}],['엑셀','',()=>{}]]));
-  const sp=document.createElement('div'); sp.className='search-panel';
-  sp.innerHTML =
-    '<div class="search-row">'+
-      '<div class="search-label">기간</div><div class="search-field"><input type="date"></div>'+
-      '<div class="search-label">공장</div><div class="search-field"><select><option>전체</option><option>본사</option><option>1공장</option><option>원영</option></select></div>'+
-      '<div class="search-label hide-sm">담당자</div><div class="search-field hide-sm"><input placeholder="담당자"></div>'+
-    '</div>'+
-    '<div class="search-row">'+
-      '<div class="search-label">품번/품명</div><div class="search-field"><input placeholder="품번 또는 품명"></div>'+
-      '<div class="search-label">LOT</div><div class="search-field"><input placeholder="LOT NO"></div>'+
-      '<div class="search-label hide-sm">상태</div><div class="search-field hide-sm"><select><option>전체</option><option>진행</option><option>완료</option></select></div>'+
-    '</div>';
-  p.appendChild(sp);
-  const gw=document.createElement('div'); gw.className='grid-wrap';
-  gw.innerHTML =
-    '<div class="grid-toolbar"><button class="erp-btn">상세보기</button><button class="erp-btn">인쇄</button><span class="right">총 0건</span></div>'+
-    '<table class="erp-grid"><thead><tr>'+
-      '<th style="width:42px">No</th><th style="width:110px">일자</th><th style="width:120px">품번</th>'+
-      '<th style="width:180px">품명</th><th style="width:130px">LOT NO</th><th style="width:80px">공정</th>'+
-      '<th style="width:80px">수량</th><th style="width:80px">상태</th><th>비고</th>'+
-    '</tr></thead><tbody></tbody></table>';
-  p.appendChild(gw);
-  const ib=document.createElement('div'); ib.className='info-box';
-  ib.innerHTML='<b>'+esc(it.n)+'</b> — 화면 프레임만 배치된 상태입니다. (기능 개발 예정)<br>'+
-               '연결 대상: Supabase MES 스키마 · 좌측 트리에서 다른 메뉴를 열면 이 탭은 유지된 채 새 탭으로 누적됩니다.';
-  p.appendChild(ib);
-}
-function fakeSearch(btn){
-  const old=btn.textContent; btn.textContent='조회중...'; btn.disabled=true;
-  setTimeout(()=>{btn.textContent=old;btn.disabled=false;},450);
-}
-
-/* ==================== 대시보드 ==================== */
-function buildDashPage(p,it){
-  p.appendChild(pageHead(it,[['새로고침','primary',()=>loadDash()]]));
-  const w=document.createElement('div'); w.className='dash-wrap';
-  w.innerHTML =
-    '<div class="kpi-row" id="kpiRow">'+
-      kpiHtml('kMold','등록 금형','건')+
-      kpiHtml('kRepair','수리 진행중','건','warn')+
-      kpiHtml('kPart','금형부품 품목','품목')+
-      kpiHtml('kTry','Tryout 이력','건')+
-      kpiHtml('kImp','개선활동','건','ok')+
-      kpiHtml('kUser','등록 사용자','명')+
-    '</div>'+
-    '<div class="dash-cols">'+
-      '<div class="dash-card"><h3>진행중 금형수리 <span class="r" id="repTime">-</span></h3>'+
-        '<div class="dash-body"><table class="erp-grid" id="repTbl"><thead><tr>'+
-        '<th style="width:110px">의뢰번호</th><th style="width:90px">의뢰일</th><th>내용</th><th style="width:80px">상태</th>'+
-        '</tr></thead><tbody><tr><td colspan="4" class="center">로딩중...</td></tr></tbody></table></div></div>'+
-      '<div class="dash-card"><h3>바로가기</h3><div class="quick" id="quickBox"></div></div>'+
-    '</div>';
-  p.appendChild(w);
-  setTimeout(()=>{ buildQuick(); loadDash(); },50);
-}
-function kpiHtml(id,label,unit,cls){
-  return '<div class="kpi'+(cls?' '+cls:'')+'"><div class="k-label">'+label+'</div>'+
-         '<div class="k-val" id="'+id+'">-<small>'+unit+'</small></div></div>';
-}
-function buildQuick(){
-  const box=byId('quickBox'); if(!box)return; box.innerHTML='';
-  [['daily-report','생산일보','오늘 생산 실적 입력'],
-   ['mm-rq','금형 수리의뢰','불량 발생 시 즉시 등록'],
-   ['mm-f1','1공장 부품재고','입출고 / 재고 조회'],
-   ['mm-po','금형부품 발주','외주 발주·입고 현황'],
-   ['mm-try','Tryout 보고서','시작품 테스트 결과'],
-   ['work-status','업무현황','인원별 업무 공유']].forEach(([id,t,d])=>{
-    const b=document.createElement('button');
-    b.appendChild(document.createTextNode(t));
-    const s=document.createElement('span'); s.textContent=d; b.appendChild(s);
-    b.addEventListener('click',()=>openPage(id));
-    box.appendChild(b);
-  });
-}
-async function sbCount(path){
-  try{
-    const r=await fetch(SUPABASE_URL+'/rest/v1/'+path,{headers:{
-      apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,Prefer:'count=exact',Range:'0-0'}});
-    if(!r.ok)return null;
-    const cr=r.headers.get('content-range')||'';
-    const n=parseInt((cr.split('/')[1]||'0'),10);
-    return isNaN(n)?null:n;
-  }catch(e){ return null; }
-}
-function setKpi(id,v,unit){
-  const el=byId(id); if(!el)return;
-  el.innerHTML = (v==null?'-':v.toLocaleString())+'<small>'+unit+'</small>';
-}
-async function loadDash(){
-  const jobs = [
-    sbCount('mm_mold_master?select=*').then(v=>setKpi('kMold',v,'건')),
-    sbCount('mm_mold_repair?select=*&status=in.(requested,in_progress)').then(v=>setKpi('kRepair',v,'건')),
-    Promise.all([sbCount('press_inventory_items?select=*'),sbCount('f1_inventory_items?select=*'),sbCount('wy_inventory_items?select=*')])
-      .then(a=>setKpi('kPart', a.every(x=>x==null)?null:a.reduce((s,x)=>s+(x||0),0),'품목')),
-    sbCount('tryout_logs?select=*').then(v=>setKpi('kTry',v,'건')),
-    sbCount('improvement_logs?select=*').then(v=>setKpi('kImp',v,'건')),
-    sbCount(TBL_USER+'?select=*').then(v=>setKpi('kUser',v,'명')),
-    loadRepairList()
-  ];
-  await Promise.all(jobs.map(p=>p.catch(()=>null)));
-  const t=byId('repTime'); if(t)t.textContent=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
-}
-async function loadRepairList(){
-  const tb=document.querySelector('#repTbl tbody'); if(!tb)return;
-  try{
-    const r=await fetch(SUPABASE_URL+'/rest/v1/mm_mold_repair?status=in.(requested,in_progress)&order=request_date.desc,id.desc&limit=12',
-      {headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY}});
-    const list = r.ok ? await r.json() : [];
-    tb.innerHTML='';
-    if(!list.length){ tb.innerHTML='<tr><td colspan="4" class="center">진행중인 수리 건이 없습니다</td></tr>'; return; }
-    list.forEach(x=>{
-      const tr=document.createElement('tr');
-      const desc = x.mold_name || x.item_name || x.trouble || x.content || x.remark || '-';
-      const st = x.status==='requested' ? '의뢰' : (x.status==='in_progress' ? '진행중' : (x.status||'-'));
-      [[x.repair_no||'-',''],[(x.request_date||'').substring(0,10),'center'],[desc,''],[st,'status center']]
-        .forEach(([v,cls])=>{ const td=document.createElement('td'); td.className=cls; td.textContent=v; td.title=v; tr.appendChild(td); });
-      tr.addEventListener('click',()=>openPage('mm-rp'));
-      tb.appendChild(tr);
-    });
-  }catch(e){ tb.innerHTML='<tr><td colspan="4" class="center">조회 실패</td></tr>'; }
-}
-
-/* ==================== 메뉴 전체검색 ==================== */
+/* ==================== 메뉴 검색 / 최근 ==================== */
 function initSearch(){
   const inp=byId('gsInput'), pop=byId('gsPop');
   const render=()=>{
-    const q=inp.value.trim().toLowerCase();
-    pop.innerHTML='';
+    const q=inp.value.trim().toLowerCase(); pop.innerHTML='';
     if(!q){ pop.classList.remove('on'); return; }
     const hits=Object.keys(ITEM).filter(id=>{
-      const d=ITEM[id];
-      return (d.it.n+' '+(d.it.d||'')+' '+d.path).toLowerCase().includes(q);
+      const d=ITEM[id]; return (d.it.n+' '+(d.it.d||'')+' '+d.path).toLowerCase().includes(q);
     }).slice(0,20);
     if(!hits.length){ pop.classList.remove('on'); return; }
     hits.forEach(id=>{
-      const d=ITEM[id];
-      const it=document.createElement('div'); it.className='gs-item';
-      it.innerHTML='<b>'+esc(d.it.n)+'</b><div class="p">'+esc(d.path)+'</div>';
-      it.addEventListener('click',()=>{ openPage(id); inp.value=''; pop.classList.remove('on'); });
-      pop.appendChild(it);
+      const d=ITEM[id], el=document.createElement('div'); el.className='gs-item';
+      el.innerHTML='<b>'+esc(d.it.n)+'</b><div class="p">'+esc(d.path)+'</div>';
+      el.addEventListener('click',()=>{ openPage(id); inp.value=''; pop.classList.remove('on'); });
+      pop.appendChild(el);
     });
     pop.classList.add('on');
   };
@@ -944,13 +1268,10 @@ function initSearch(){
   });
   document.addEventListener('click',e=>{ if(!e.target.closest('.gs-wrap')) pop.classList.remove('on'); });
 }
-
-/* ==================== 최근 사용 ==================== */
 function pushRecent(id){
   let list=[]; try{ list=JSON.parse(localStorage.getItem(LK_RECENT)||'[]'); }catch(e){}
   list=[id].concat(list.filter(x=>x!==id)).slice(0,6);
-  localStorage.setItem(LK_RECENT,JSON.stringify(list));
-  renderRecent();
+  localStorage.setItem(LK_RECENT,JSON.stringify(list)); renderRecent();
 }
 function renderRecent(){
   let list=[]; try{ list=JSON.parse(localStorage.getItem(LK_RECENT)||'[]'); }catch(e){}
@@ -960,19 +1281,14 @@ function renderRecent(){
     b.addEventListener('click',()=>openPage(id)); box.appendChild(b);
   });
 }
-
-/* ==================== 상태 저장/복원 ==================== */
-function saveTabs(){
-  localStorage.setItem(LK_TABS, JSON.stringify({tabs:[...openTabs.keys()], active:activeTab}));
-}
+function saveTabs(){ localStorage.setItem(LK_TABS,JSON.stringify({tabs:[...openTabs.keys()],active:activeTab})); }
 function restoreTabs(){
   let st=null; try{ st=JSON.parse(localStorage.getItem(LK_TABS)||'null'); }catch(e){}
-  const ids = (st && st.tabs && st.tabs.length) ? st.tabs.filter(id=>ITEM[id]) : ['home'];
-  if(!ids.includes('home')) ids.unshift('home');
+  let ids=(st&&st.tabs&&st.tabs.length)?st.tabs.filter(id=>ITEM[id]):[];
+  if(!ids.length) ids=[HOME_ID];
   ids.forEach(id=>{ openTabs.set(id,{id:id,title:ITEM[id].it.n}); ensurePage(id); });
-  const act = (st && ITEM[st.active]) ? st.active : 'home';
-  const d=ITEM[act]; currentL1=d.l1; currentL2=d.l2;
-  activateTab(act);
+  const act=(st&&ITEM[st.active])?st.active:ids[0];
+  const d=ITEM[act]; currentL1=d.l1; currentL2=d.l2; activateTab(act);
 }
 
 /* ==================== 부팅 ==================== */
@@ -980,14 +1296,29 @@ function tick(){
   byId('clock').textContent=new Date().toLocaleString('ko-KR',{hour12:false,month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
 }
 async function checkNet(){
-  const ok = (await sbCount(TBL_USER+'?select=*')) !== null;
+  let ok=true;
+  try{ await sbGet(TBL_SET+'?select=key&limit=1'); }catch(e){ ok=false; }
   byId('netDot').classList.toggle('off',!ok);
-  byId('netTxt').textContent = ok?'Connected':'Offline';
+  byId('netTxt').textContent=ok?'Connected':'Offline';
 }
-function bootApp(){
+async function loadMasters(){
+  try{
+    const v=await sbGet(OBJ.vendor+'?select=vendor_name&order=vendor_name.asc');
+    VENDORS=[...new Set(v.map(x=>x.vendor_name).filter(Boolean))];
+  }catch(e){ VENDORS=[]; }
+  try{
+    const p=await sbGet(OBJ.process+'?select=process_code,process_name,process_group,sort_order&order=sort_order.asc');
+    PROCS=p.filter(x=>x.process_group==='가공').map(x=>({code:x.process_code,name:x.process_name}));
+    p.forEach(x=>PROCMAP[x.process_code]=x.process_name);
+  }catch(e){ PROCS=[]; }
+  try{
+    ROUTES=await sbGet(OBJ.route+'?select=standard_process_no,standard_process_name,steps&order=standard_process_no.asc');
+  }catch(e){ ROUTES=[]; }
+}
+async function bootApp(){
   buildL1(); buildL2();
-  restoreTabs();
-  buildTree(); renderRecent(); initSearch();
+  await Promise.all([loadSchema(), loadMasters()]);
+  restoreTabs(); buildTree(); renderRecent(); initSearch();
   tick(); setInterval(tick,30000);
   checkNet(); setInterval(checkNet,120000);
 }
@@ -999,34 +1330,15 @@ byId('logoutBtn').addEventListener('click',()=>{
 byId('userBtn').addEventListener('click',()=>{
   const s=getSession(); if(!s)return;
   const days=Math.max(0,Math.ceil((s.exp-Date.now())/864e5));
-  alert('👤 '+(s.role==='admin'?'관리자':s.name)+'\n'+
-        (s.factory?'🏭 공장: '+s.factory+'\n':'')+(s.dept?'📂 부서: '+s.dept+'\n':'')+
-        (s.position?'🎖 직위: '+s.position+'\n':'')+'\n⏱ 자동 잠금까지: '+days+'일');
+  alert('👤 '+(s.role==='admin'?'관리자 (마스터 PIN)':'사용자 (일반 PIN)')+'\n\n⏱ 자동 잠금까지: '+days+'일');
 });
 document.addEventListener('keydown',e=>{
-  if(e.ctrlKey && e.key.toLowerCase()==='k'){ e.preventDefault(); byId('gsInput').focus(); }
+  if(e.ctrlKey&&e.key.toLowerCase()==='k'){ e.preventDefault(); byId('gsInput').focus(); }
 });
 
-/* --- 모바일 감지 --- */
-function isMobileClient(){
-  if(localStorage.getItem('mes_force_pc')==='1') return false;
-  const narrow = window.matchMedia('(max-width:820px)').matches;
-  const coarse = window.matchMedia('(pointer:coarse)').matches && window.innerWidth < 1100;
-  return narrow || coarse;
-}
-function checkMobile(){
-  document.body.classList.toggle('mobile-block', isMobileClient());
-}
-byId('mgSkip').addEventListener('click',()=>{
-  localStorage.setItem('mes_force_pc','1');
-  document.body.classList.remove('mobile-block');
-});
-window.addEventListener('resize',checkMobile);
-
-/* 시작 */
-(function init(){
-  checkMobile();
-  buildKeypad(); updateDots(); checkLockout();
+(async function init(){
+  buildKeypad(); buildDots(); updateDots(); checkLockout();
+  try{ const d=await isDefaultPin(); if(!d.master&&!d.user) byId('plNotice').style.display='none'; }catch(e){}
   const s=getSession();
   if(s){ document.body.classList.remove('locked'); byId('pinLock').style.display='none'; applySession(); bootApp(); }
 })();
