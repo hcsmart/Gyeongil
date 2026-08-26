@@ -3,82 +3,131 @@
 ============================================================ */
 const KI = (function(){
 const C = KI_CFG;
-const HDR = {apikey:C.SUPABASE_KEY, Authorization:'Bearer '+C.SUPABASE_KEY};
-const LK = {auth:'ki_session', fail:'ki_pin_fail', pin:'ki_pin_cache', recent:'ki_recent'};
-const K_MASTER='pin_master', K_USER='pin_user';
+const LK = {sess:'ki_sess', fail:'ki_login_fail', left:'ki_left_w'};
 
 const $  = (s,r)=>(r||document).querySelector(s);
 const el = (t,c,x)=>{const e=document.createElement(t); if(c)e.className=c; if(x!=null)e.textContent=x; return e;};
 const esc= s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-/* ---------- Supabase ---------- */
+/* ============================================================
+   인증 : Supabase Auth (아이디 + 비밀번호)
+   · 공개키(anon)만으로는 DB 접근 불가 — RLS 에서 차단
+   · 로그인 후 발급된 access_token 으로만 조회/등록 가능
+============================================================ */
+let SESS=null, ME=null, PERM={};
+
+function loadSess(){ try{ SESS=JSON.parse(localStorage.getItem(LK.sess)||'null'); }catch(e){ SESS=null; } return SESS; }
+function saveSess(o){ SESS=o; if(o) localStorage.setItem(LK.sess,JSON.stringify(o)); else localStorage.removeItem(LK.sess); }
+function token(){ return SESS && SESS.access_token; }
+function HDR(){ return {apikey:C.SUPABASE_KEY, Authorization:'Bearer '+(token()||C.SUPABASE_KEY)}; }
+const emailOf = id => String(id||'').includes('@') ? String(id).trim().toLowerCase()
+                                                  : String(id||'').trim().toLowerCase()+'@'+C.AUTH_DOMAIN;
+
+async function signIn(userId,password){
+  const r=await fetch(C.SUPABASE_URL+'/auth/v1/token?grant_type=password',{
+    method:'POST',headers:{apikey:C.SUPABASE_KEY,'Content-Type':'application/json'},
+    body:JSON.stringify({email:emailOf(userId),password:password})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error_description||d.msg||d.error||'아이디 또는 비밀번호가 올바르지 않습니다.');
+  saveSess({access_token:d.access_token,refresh_token:d.refresh_token,
+            exp:Date.now()+(d.expires_in||3600)*1000,uid:d.user&&d.user.id,email:d.user&&d.user.email});
+  await loadMe();
+  if(!ME){ await signOut(); throw new Error('등록되지 않았거나 사용 중지된 사원입니다. 관리자에게 문의하세요.'); }
+  return ME;
+}
+async function refresh(){
+  if(!SESS||!SESS.refresh_token) return false;
+  const r=await fetch(C.SUPABASE_URL+'/auth/v1/token?grant_type=refresh_token',{
+    method:'POST',headers:{apikey:C.SUPABASE_KEY,'Content-Type':'application/json'},
+    body:JSON.stringify({refresh_token:SESS.refresh_token})});
+  if(!r.ok){ saveSess(null); return false; }
+  const d=await r.json();
+  saveSess({access_token:d.access_token,refresh_token:d.refresh_token,
+            exp:Date.now()+(d.expires_in||3600)*1000,uid:SESS.uid,email:SESS.email});
+  return true;
+}
+async function signOut(){
+  try{ await fetch(C.SUPABASE_URL+'/auth/v1/logout',{method:'POST',headers:HDR()}); }catch(e){}
+  saveSess(null); ME=null; PERM={};
+}
+function logout(){ signOut().then(()=>{ location.href='index.html'; }); }
+
+async function changePassword(newPw){
+  const r=await fetch(C.SUPABASE_URL+'/auth/v1/user',{method:'PUT',
+    headers:Object.assign({'Content-Type':'application/json'},HDR()),
+    body:JSON.stringify({password:newPw})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.msg||d.error_description||d.message||'변경 실패');
+  return true;
+}
+async function adminFn(payload){
+  const r=await fetch(C.SUPABASE_URL+'/functions/v1/'+C.ADMIN_FN,{method:'POST',
+    headers:Object.assign({'Content-Type':'application/json'},HDR()),
+    body:JSON.stringify(payload)});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok||d.error) throw new Error(d.error||('요청 실패 ('+r.status+')'));
+  return d;
+}
+
+async function loadMe(){
+  try{
+    const rows=await get(OBJ.employee+'?select=*&auth_uid=eq.'+SESS.uid+'&limit=1');
+    ME=rows[0]||null;
+    if(!ME||ME.is_active===false){ ME=null; return null; }
+    PERM={};
+    const ps=await get(OBJ.permission+'?select=menu_id,can_view,can_save,can_edit,can_delete&emp_no=eq.'+
+                       encodeURIComponent(ME.emp_no));
+    ps.forEach(p=>PERM[p.menu_id]={v:p.can_view,s:p.can_save,e:p.can_edit,d:p.can_delete});
+  }catch(e){ ME=null; }
+  return ME;
+}
+const isAdmin = ()=>!!(ME&&ME.role==='관리자');
+function can(menuId,act){
+  if(isAdmin()) return true;
+  const p=PERM[menuId]; if(!p) return false;
+  return act==='save'?!!p.s : act==='edit'?!!p.e : act==='delete'?!!p.d : !!p.v;
+}
+function session(){ return ME?{role:isAdmin()?'admin':'user',name:ME.emp_name,emp_no:ME.emp_no,
+                               exp:(SESS&&SESS.exp)||0}:null; }
+function toLogin(){
+  const f=location.pathname.split('/').pop();
+  location.href='index.html'+(f&&f!=='index.html'?'?r='+encodeURIComponent(f):'');
+}
+async function guard(menuId){
+  loadSess();
+  if(!SESS){ toLogin(); return false; }
+  if(SESS.exp&&SESS.exp<Date.now()+60000){ if(!await refresh()){ toLogin(); return false; } }
+  if(!ME) await loadMe();
+  if(!ME){ await signOut(); toLogin(); return false; }
+  if(menuId&&!can(menuId,'view')){
+    alert('이 화면에 대한 조회 권한이 없습니다.\n관리자에게 문의하세요.');
+    location.href=C.LANDING; return false;
+  }
+  return true;
+}
+
+/* ---------- Supabase REST ---------- */
 async function get(path){
-  const r=await fetch(C.SUPABASE_URL+'/rest/v1/'+path,{headers:HDR});
+  let r=await fetch(C.SUPABASE_URL+'/rest/v1/'+path,{headers:HDR()});
+  if(r.status===401&&await refresh()) r=await fetch(C.SUPABASE_URL+'/rest/v1/'+path,{headers:HDR()});
+  if(r.status===401||r.status===403) throw new Error('접근 권한이 없습니다. 관리자에게 권한을 요청하세요.');
   if(!r.ok) throw new Error('조회 실패 ('+r.status+')');
   return await r.json();
 }
-async function ins(table,body){
-  const r=await fetch(C.SUPABASE_URL+'/rest/v1/'+table,{method:'POST',
-    headers:Object.assign({'Content-Type':'application/json',Prefer:'return=representation'},HDR),
-    body:JSON.stringify(body)});
-  if(!r.ok) throw new Error('등록 실패 ('+r.status+') '+(await r.text()).slice(0,120));
-  return await r.json();
+async function send(method,path,body,prefer){
+  const build=()=>({method:method,headers:Object.assign({'Content-Type':'application/json',
+      Prefer:prefer||'return=representation'},HDR()),
+      body:body===undefined?undefined:JSON.stringify(body)});
+  let r=await fetch(C.SUPABASE_URL+'/rest/v1/'+path,build());
+  if(r.status===401&&await refresh()) r=await fetch(C.SUPABASE_URL+'/rest/v1/'+path,build());
+  if(r.status===401||r.status===403) throw new Error('권한이 없습니다. (관리자에게 권한 요청)');
+  if(!r.ok) throw new Error('처리 실패 ('+r.status+') '+(await r.text()).slice(0,120));
+  return method==='DELETE'?true:await r.json().catch(()=>true);
 }
-async function upd(table,filter,body){
-  const r=await fetch(C.SUPABASE_URL+'/rest/v1/'+table+'?'+filter,{method:'PATCH',
-    headers:Object.assign({'Content-Type':'application/json',Prefer:'return=representation'},HDR),
-    body:JSON.stringify(body)});
-  if(!r.ok) throw new Error('수정 실패 ('+r.status+') '+(await r.text()).slice(0,120));
-  return await r.json();
-}
-async function del(table,filter){
-  const r=await fetch(C.SUPABASE_URL+'/rest/v1/'+table+'?'+filter,{method:'DELETE',headers:HDR});
-  if(!r.ok) throw new Error('삭제 실패 ('+r.status+')');
-  return true;
-}
-async function upsert(table,body){
-  const r=await fetch(C.SUPABASE_URL+'/rest/v1/'+table,{method:'POST',
-    headers:Object.assign({'Content-Type':'application/json',Prefer:'resolution=merge-duplicates,return=representation'},HDR),
-    body:JSON.stringify(body)});
-  if(!r.ok) throw new Error('저장 실패 ('+r.status+')');
-  return await r.json();
-}
-
-/* ---------- 인증 ---------- */
-async function sha256(t){
-  const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));
-  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
-}
-function session(){
-  try{ const s=JSON.parse(localStorage.getItem(LK.auth)||'null');
-    if(!s||!s.exp||s.exp<Date.now()){localStorage.removeItem(LK.auth);return null;} return s;
-  }catch(e){return null}
-}
-function setSession(o){ o.exp=Date.now()+C.SESSION_DAYS*864e5; localStorage.setItem(LK.auth,JSON.stringify(o)); }
-function logout(){ localStorage.removeItem(LK.auth); location.href='index.html'; }
-function pinCache(){ try{return JSON.parse(localStorage.getItem(LK.pin)||'{}')}catch(e){return{}} }
-async function loadPins(){
-  try{
-    const rows=await get(OBJ.settings+'?select=key,value&key=in.('+K_MASTER+','+K_USER+')');
-    const o={}; rows.forEach(r=>o[r.key]=r.value);
-    if(o[K_MASTER]&&o[K_USER]){ localStorage.setItem(LK.pin,JSON.stringify(o)); return o; }
-  }catch(e){}
-  const c=pinCache(); if(c[K_MASTER]&&c[K_USER]) return c;
-  const d=await sha256(C.DEFAULT_PIN); return {[K_MASTER]:d,[K_USER]:d};
-}
-async function savePin(key,hash,who){
-  await upsert(OBJ.settings,[{key:key,value:hash,updated_at:new Date().toISOString(),updated_by:who||'-'}]);
-  const c=pinCache(); c[key]=hash; localStorage.setItem(LK.pin,JSON.stringify(c));
-}
-async function isDefaultPin(){
-  const d=await sha256(C.DEFAULT_PIN), p=await loadPins();
-  return {master:p[K_MASTER]===d, user:p[K_USER]===d};
-}
-function guard(){                       // 로그인 안 되어 있으면 홈으로
-  if(session()) return true;
-  location.href='index.html?r='+encodeURIComponent(location.pathname.split('/').pop());
-  return false;
-}
+const ins    = (t,b)=>send('POST',t,b);
+const upd    = (t,f,b)=>send('PATCH',t+'?'+f,b);
+const del    = (t,f)=>send('DELETE',t+'?'+f,undefined,'return=minimal');
+const upsert = (t,b)=>send('POST',t,b,'resolution=merge-duplicates,return=representation');
 
 /* ---------- 화면 크롬 (1차 모듈 / 2차 아이콘 / 좌측 트리 / 상태바) ---------- */
 const LK_LEFT='ki_left_w';
@@ -118,7 +167,7 @@ function chrome(curId){
   const s=session();
   st.innerHTML='<span id="kiTime"></span>'+
     '<span class="msg" id="kiMsg">'+esc(cur.path)+'</span>'+
-    '<span class="right">'+esc(s?(s.role==='admin'?'관리자':'사용자'):'-')+' · '+C.APP_NAME+' '+C.VER+'</span>';
+    '<span class="right">'+esc(s?s.name:'-')+' · '+C.APP_NAME+' '+C.VER+'</span>';
   document.body.appendChild(st);
 
   /* --- 렌더 --- */
@@ -126,8 +175,11 @@ function chrome(curId){
   const mod=()=>MENU.find(m=>m.key===curMod)||MENU[0];
   const sec=()=>mod().second.find(x=>x.key===curSec)||mod().second[0];
 
+  const okItem = it => can(it.id,'view');
+  const okSec  = s2 => s2.groups.some(g=>g.items.some(okItem));
+  const okMod  = m1 => m1.second.some(okSec);
   function drawMod(){
-    $('#kiMod').innerHTML = MENU.map(m=>
+    $('#kiMod').innerHTML = MENU.filter(okMod).map(m=>
       '<button class="module'+(m.key===curMod?' on':'')+'" data-k="'+m.key+'">'+esc(m.name)+'</button>').join('');
     $('#kiMod').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
       curMod=b.dataset.k; curSec=mod().second[0].key; drawMod(); drawSec(); drawTree();
@@ -135,7 +187,7 @@ function chrome(curId){
     }));
   }
   function drawSec(){
-    $('#kiSec').innerHTML = mod().second.map(x=>
+    $('#kiSec').innerHTML = mod().second.filter(okSec).map(x=>
       '<button class="tool'+(x.key===curSec?' on':'')+'" data-k="'+x.key+'">'+
       '<span class="ico">'+x.icon+'</span><span>'+esc(x.name)+'</span></button>').join('');
     $('#kiSec').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
@@ -146,7 +198,7 @@ function chrome(curId){
     const box=$('#kiTree');
     if(q){                                   /* 검색 : 전 모듈 평면 결과 */
       const hit=Object.keys(FLAT).map(k=>FLAT[k])
-        .filter(f=>(f.it.n+' '+(f.it.d||'')+' '+f.path).toLowerCase().includes(q));
+        .filter(f=>okItem(f.it) && (f.it.n+' '+(f.it.d||'')+' '+f.path).toLowerCase().includes(q));
       box.innerHTML = hit.length
         ? '<div class="group"><div class="group-title">검색결과 '+hit.length+'건</div>'+
           hit.map(f=>'<a class="item'+(f.it.id===curId?' on':'')+'" href="'+f.it.f+'">'+esc(f.it.n)+
@@ -154,10 +206,12 @@ function chrome(curId){
         : '<div style="padding:16px;color:#7a8793">검색 결과가 없습니다.</div>';
       return;
     }
-    box.innerHTML = sec().groups.map(g=>
-      '<div class="group"><div class="group-title">'+esc(g.name)+'</div>'+
-      g.items.map(x=>'<a class="item'+(x.id===curId?' on':'')+'" href="'+x.f+'" title="'+esc(x.d||'')+'">'+
-        esc(x.n)+'<small>'+esc(x.d||'')+'</small></a>').join('')+'</div>').join('');
+    box.innerHTML = sec().groups.map(g=>{
+      const its=g.items.filter(okItem); if(!its.length) return '';
+      return '<div class="group"><div class="group-title">'+esc(g.name)+'</div>'+
+        its.map(x=>'<a class="item'+(x.id===curId?' on':'')+'" href="'+x.f+'" title="'+esc(x.d||'')+'">'+
+          esc(x.n)+'<small>'+esc(x.d||'')+'</small></a>').join('')+'</div>';
+    }).join('') || '<div style="padding:16px;color:#7a8793">권한이 있는 메뉴가 없습니다.</div>';
   }
   drawMod(); drawSec(); drawTree();
 
@@ -192,17 +246,20 @@ function chrome(curId){
   })();
 
   /* --- 사용자 / 시계 / 접속 --- */
-  $('#kiUser').textContent='👤 '+(s?(s.role==='admin'?'관리자':'사용자'):'-');
+  $('#kiUser').textContent='👤 '+(s?s.name+(s.role==='admin'?' (관리자)':''):'-');
   $('#kiUser').addEventListener('click',()=>{ if(!s)return;
-    alert('👤 '+(s.role==='admin'?'관리자 (마스터 PIN)':'사용자 (일반 PIN)')+
-          '\n⏱ 자동 잠금까지: '+Math.max(0,Math.ceil((s.exp-Date.now())/864e5))+'일'); });
+    const m=ME||{};
+    alert('👤 '+s.name+' ('+s.emp_no+')\n'+
+          '권한: '+(s.role==='admin'?'관리자 — 전 화면 사용 가능':'사용자')+'\n'+
+          '부서: '+(m.dept||'-')+' / 직급: '+(m.position||'-')+'\n'+
+          '계정: '+(m.login_email||'-')); });
   $('#kiOut').addEventListener('click',()=>{ if(confirm('로그아웃 하시겠습니까?')) logout(); });
 
   const tick=()=>{ const d=new Date();
     $('#kiClock').textContent=d.toLocaleString('ko-KR',{hour12:false,month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
     $('#kiTime').textContent=d.toLocaleString('sv-SE',{hour12:false}).replace(',',''); };
   tick(); setInterval(tick,1000);
-  const net=async()=>{ let ok=true; try{ await get(OBJ.settings+'?select=key&limit=1'); }catch(e){ ok=false; }
+  const net=async()=>{ let ok=true; try{ await get(OBJ.employee+'?select=emp_no&limit=1'); }catch(e){ ok=false; }
     $('#kiDot').classList.toggle('off',!ok); $('#kiNet').textContent=ok?'Connected':'Offline'; };
   net(); setInterval(net,120000);
   return cur;
@@ -313,14 +370,14 @@ function applyFilter(rows,fs){
 const dayDiff=s=>{ if(!s)return null; const d=new Date(s+'T00:00:00'); return isNaN(d)?null:Math.floor((new Date()-d)/864e5); };
 const pName=c=>M.procmap[c]||'';
 function matchRoute(mps){
-  let best=null,bs=-1;
+  let best=null,bs=-1,bhit=0;
   M.routes.forEach(rt=>{
     const st=Array.isArray(rt.steps)?rt.steps:[]; let hit=0,pos=0;
     mps.forEach(m=>{ const k=st.indexOf(m,pos); if(k>=0){hit++;pos=k+1;} });
     const sc=hit*100-st.length;
-    if(hit>0&&sc>bs){ bs=sc; best=rt; }
+    if(hit>0&&sc>bs){ bs=sc; best=rt; bhit=hit; }
   });
-  return best;
+  return best?{rt:best,hit:bhit}:null;
 }
 const POST={
   issue: rows=>rows.filter(r=>r.odate).map((r,i)=>Object.assign({_i:i+1},r)),
@@ -334,17 +391,30 @@ const POST={
       st.forEach((s,i)=>out.push({job:r.job,part:r.part,proc:r.proc,seq:i+1,mp:s.mp,mpName:pName(s.mp),
         vendor:s.vendor,date:s.date,prevMp:i>0?st[i-1].mp:'-',nextMp:i<st.length-1?st[i+1].mp:'-',chain:chain}));
     });
-    out.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    /* 최신순 : 날짜 내림차순, 같은 날짜면 공정 순번 뒤인 것이 먼저 */
+    out.sort((a,b)=>(b.date||'').localeCompare(a.date||'') || (b.seq-a.seq));
     out.forEach((r,i)=>r._i=i+1); return out;
   },
   route: rows=>rows.map((r,i)=>{
     const st=Array.isArray(r.steps)?r.steps:[], last=st[st.length-1]||{};
-    const rt=matchRoute(st.map(s=>s.mp)), sd=rt?rt.steps:[];
-    const total=sd.length||st.length||1, done=Math.min(st.length,total), nx=sd[done]||'';
+    const m=matchRoute(st.map(s=>s.mp));
+    const sd=m?m.rt.steps:[];
+    const seen=new Set(st.map(s=>s.mp));
+    /* 진척 = 표준공정 중 실제로 거친 단계 수 */
+    const hit   = sd.filter(x=>seen.has(x));
+    const total = sd.length || st.length || 1;
+    const done  = m ? hit.length : st.length;
+    /* 다음 공정 = 아직 거치지 않은 표준공정 중 가장 앞선 것 (건너뛴 공정 우선) */
+    const rest  = sd.filter(x=>!seen.has(x));
+    const nx    = rest[0]||'';
+    const skip  = rest.length>1 ? rest.length-1 : 0;      /* 미진행 잔여 */
+    const extra = st.length - done;                        /* 표준경로 밖 공정 수 */
     return {_i:i+1,job:r.job,part:r.part,proc:r.proc,mp:last.mp||'-',mpName:pName(last.mp),
-      vendor:last.vendor||'-',date:last.date||'',stdName:rt?rt.standard_process_name:'(미매칭)',
-      nextMp:nx?nx+(pName(nx)?' · '+pName(nx):''):'완료',
-      done:done,total:total,_rate:total?Math.round(done/total*100):0,
+      vendor:last.vendor||'-',date:last.date||'',
+      stdName: m ? m.rt.standard_process_name + (extra>0?' (+'+extra+')':'') : '(미매칭)',
+      nextMp: nx ? nx+(pName(nx)?' · '+pName(nx):'')+(skip?' 외 '+skip+'건':'') : (m?'완료':'-'),
+      done:done,total:total,steps:st.length,
+      _rate: total?Math.round(done/total*100):0,
       chain:st.map(s=>s.mp+'('+(s.vendor||'')+')').join(' → ')};
   }),
   std: rows=>rows.map(r=>{ const st=Array.isArray(r.steps)?r.steps:[];
@@ -391,17 +461,126 @@ function cell(row,col){
   }
 }
 
+
+/* ============================================================
+   공용 편집 모달 : def.edit = {table, pk, auto, fields:[[key,label,type,opt]]}
+   type : text | num | date | datetime | bool | area | sel | ref
+============================================================ */
+const REFCACHE={};
+async function refOpts(o){
+  const k=o.table+'|'+o.v;
+  if(!REFCACHE[k]){
+    try{ REFCACHE[k]=await get(o.table+'?select='+o.v+(o.t?','+o.t:'')+'&order='+(o.order||o.v)+'.asc'); }
+    catch(e){ REFCACHE[k]=[]; }
+  }
+  return REFCACHE[k];
+}
+function makeModal(def, onSaved){
+  const E=def.edit;
+  const mask=el('div','mask');
+  const rows=E.fields.map(f=>{
+    const [k,lb,ty]=f;
+    let ctl;
+    if(ty==='bool')      ctl='<select id="e_'+k+'"><option value="true">사용</option><option value="false">미사용</option></select>';
+    else if(ty==='area') ctl='<textarea id="e_'+k+'" maxlength="300"></textarea>';
+    else if(ty==='sel'||ty==='ref') ctl='<select id="e_'+k+'"></select>';
+    else if(ty==='num')  ctl='<input id="e_'+k+'" type="number" step="any">';
+    else if(ty==='date') ctl='<input id="e_'+k+'" type="date">';
+    else if(ty==='datetime') ctl='<input id="e_'+k+'" type="datetime-local">';
+    else                 ctl='<input id="e_'+k+'" type="text" maxlength="120">';
+    return '<div class="mrow"><label>'+esc(lb)+(f[4]==='req'?' *':'')+'</label>'+ctl+'</div>';
+  }).join('');
+  mask.innerHTML='<div class="modal"><h3 id="eTitle">등록<button class="x" id="eX">✕</button></h3>'+
+    '<div class="bd" style="max-height:60vh;overflow:auto">'+rows+'</div>'+
+    '<div class="mfoot"><button class="btn primary" id="eSave">저장</button>'+
+    '<button class="btn" id="eCancel">취소</button><span class="msg" id="eMsg"></span></div></div>';
+  document.body.appendChild(mask);
+
+  /* 옵션 채우기 */
+  E.fields.forEach(async f=>{
+    const [k,,ty,opt]=f;
+    if(ty==='sel'){
+      const s=$('#e_'+k,mask); s.appendChild(el('option',null,''));
+      (opt||[]).forEach(v=>{ const o=el('option',null,v); o.value=v; s.appendChild(o); });
+    }else if(ty==='ref'){
+      const s=$('#e_'+k,mask); s.appendChild(el('option',null,''));
+      (await refOpts(opt)).forEach(r=>{
+        const o=el('option',null, opt.t ? (r[opt.v]+' · '+(r[opt.t]||'')) : r[opt.v]); o.value=r[opt.v]; s.appendChild(o);
+      });
+    }
+  });
+
+  let editKey=null;
+  const close=()=>mask.classList.remove('on');
+  $('#eX',mask).addEventListener('click',close);
+  $('#eCancel',mask).addEventListener('click',close);
+  mask.addEventListener('click',e=>{ if(e.target===mask) close(); });
+
+  function open(row){
+    editKey = row ? row[E.pk] : null;
+    $('#eTitle',mask).childNodes[0].nodeValue = row ? '수정 — '+(row[E.pk]??'') : '신규 등록';
+    E.fields.forEach(f=>{
+      const [k,,ty]=f, c=$('#e_'+k,mask); if(!c)return;
+      let v = row ? row[k] : (f[3]&&f[3].def!==undefined?f[3].def:'');
+      if(ty==='bool') c.value = String(v!==false);
+      else if(ty==='datetime') c.value = v?String(v).replace(' ','T').substring(0,16):'';
+      else if(ty==='date') c.value = v?String(v).substring(0,10):'';
+      else c.value = (v==null?'':v);
+    });
+    if(E.auto && !row){ const c=$('#e_'+E.pk,mask); if(c){ c.value=''; } }
+    const pk=$('#e_'+E.pk,mask); if(pk) pk.readOnly = !!row;
+    $('#eMsg',mask).textContent='';
+    mask.classList.add('on');
+    setTimeout(()=>{ const first=mask.querySelector('input,select,textarea'); if(first)first.focus(); },50);
+  }
+  $('#eSave',mask).addEventListener('click',async()=>{
+    const m=$('#eMsg',mask), body={};
+    for(const f of E.fields){
+      const [k,lb,ty]=f, c=$('#e_'+k,mask); if(!c)continue;
+      let v=c.value;
+      if(ty==='bool') v = (v==='true');
+      else if(ty==='num') v = (v===''?null:Number(v));
+      else if(ty==='datetime') v = (v===''?null:new Date(v).toISOString());
+      else { v=String(v).trim(); if(v==='') v=null; }
+      if(f[4]==='req' && (v===null||v==='')){ m.className='msg err'; m.textContent=lb+' 항목은 필수입니다.'; return; }
+      body[k]=v;
+    }
+    if(E.auto && !editKey) delete body[E.pk];
+    m.className='msg'; m.textContent='저장중...';
+    try{
+      if(editKey!=null) await upd(E.table, E.pk+'=eq.'+encodeURIComponent(editKey), body);
+      else              await ins(E.table, [body]);
+      close(); await onSaved(editKey!=null?'수정':'등록');
+    }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
+  });
+  return {open:open, close:close};
+}
+
 /* ---------- 그리드 화면 ---------- */
 async function grid(id, need){
-  if(!guard())return;
+  if(!await guard(id))return;
   const cur=chrome(id), def=VIEWS[id];
-  const ui=page(cur,[
-    ['조회','primary',b=>run(b.target)],
-    ['초기화','',()=>{ sp.querySelectorAll('input').forEach(i=>i.value=''); sp.querySelectorAll('select').forEach(s=>s.selectedIndex=0); }],
-    ['엑셀(CSV)','',()=>csv(cur.it,def,state.rows)],
-    ['인쇄','',()=>window.print()]
-  ]);
-  const state={rows:[]};
+  const acts=[['조회','primary',b=>run(b.target)]];
+  if(def.edit){
+    if(can(id,'save'))   acts.push(['＋ 등록','',()=>modal.open(null)]);
+    if(can(id,'edit'))   acts.push(['수정','',()=>{ if(!state.sel) return msg('수정할 행을 선택하세요.'); modal.open(state.sel); }]);
+    if(can(id,'delete')) acts.push(['삭제','danger',()=>removeRow()]);
+  }
+  acts.push(['초기화','',()=>{ sp.querySelectorAll('input').forEach(i=>i.value=''); sp.querySelectorAll('select').forEach(s=>s.selectedIndex=0); }]);
+  acts.push(['엑셀(CSV)','',()=>csv(cur.it,def,state.rows)]);
+  acts.push(['인쇄','',()=>window.print()]);
+  const ui=page(cur,acts);
+  const state={rows:[],sel:null};
+  let modal=null;
+  const editable = def.edit && (can(id,'save')||can(id,'edit'));
+  if(editable) modal=makeModal(def, async(what)=>{ await run(null); msg('✓ '+what+'되었습니다.'); });
+  async function removeRow(){
+    if(!state.sel) return msg('삭제할 행을 선택하세요.');
+    const E=def.edit, k=state.sel[E.pk];
+    if(!confirm('선택한 항목('+k+')을 삭제하시겠습니까?'))return;
+    try{ await del(E.table, E.pk+'=eq.'+encodeURIComponent(k)); state.sel=null; await run(null); msg('✓ 삭제되었습니다.'); }
+    catch(e){ msg('❌ '+e.message); }
+  }
   await masters(need);
 
   if(def.note){
@@ -434,7 +613,8 @@ async function grid(id, need){
       else rows.forEach(r=>{
         const t=el('tr');
         def.cols.forEach(c=>{ const td=el('td',c[2]||''); td.innerHTML=cell(r,c); td.title=td.textContent; t.appendChild(td); });
-        t.addEventListener('click',()=>{ tbody.querySelectorAll('tr.sel').forEach(x=>x.classList.remove('sel')); t.classList.add('sel'); });
+        t.addEventListener('click',()=>{ tbody.querySelectorAll('tr.sel').forEach(x=>x.classList.remove('sel')); t.classList.add('sel'); state.sel=r; });
+        if(editable && can(id,'edit')) t.addEventListener('dblclick',()=>modal.open(r));
         tbody.appendChild(t);
       });
       cnt.textContent='총 '+rows.length.toLocaleString()+'건';
@@ -452,9 +632,11 @@ function csv(cur,def,rows){
   a.download=cur.n+'_'+new Date().toISOString().slice(0,10)+'.csv'; a.click(); URL.revokeObjectURL(a.href);
 }
 
-return {CFG:C, $:$, el:el, esc:esc, get:get, upsert:upsert, ins:ins, upd:upd, del:del, sha256:sha256,
-        session:session, setSession:setSession, logout:logout, loadPins:loadPins, savePin:savePin,
-        isDefaultPin:isDefaultPin, guard:guard, header:header, chrome:chrome, page:page,
-        masters:masters, M:M, msg:msg,
-        grid:grid, csv:csv, POST:POST, cell:cell, LK:LK};
+return {CFG:C, $:$, el:el, esc:esc,
+        get:get, ins:ins, upd:upd, del:del, upsert:upsert, adminFn:adminFn,
+        signIn:signIn, signOut:signOut, logout:logout, refresh:refresh,
+        changePassword:changePassword, loadSess:loadSess, loadMe:loadMe,
+        me:()=>ME, isAdmin:isAdmin, can:can, session:session, guard:guard,
+        header:chrome, chrome:chrome, page:page, masters:masters, M:M, msg:msg,
+        grid:grid, csv:csv, POST:POST, cell:cell, LK:LK, emailOf:emailOf};
 })();

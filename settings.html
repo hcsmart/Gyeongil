@@ -7,20 +7,22 @@
 <link rel="stylesheet" href="ki_style.css">
 <style>
 .set{flex:1;min-height:0;overflow:auto;padding:12px;background:#eef2f6}
-.box{max-width:640px;border:1px solid #a0aebc;background:#fff;margin-bottom:12px}
+.box{max-width:620px;border:1px solid #a0aebc;background:#fff;margin-bottom:12px}
 .box h3{margin:0;height:30px;display:flex;align-items:center;gap:6px;padding:0 10px;font-size:12px;color:#41556a;
   background:linear-gradient(#f4f7fa,#e5ebf1);border-bottom:1px solid #b3bfca}
 .box h3 .tag{margin-left:auto;font-size:10px;font-weight:400;padding:1px 6px;border:1px solid #c3ccd6;background:#fff;color:#7b8794}
 .bd{padding:12px}
-.row{display:grid;grid-template-columns:140px 1fr;align-items:center;gap:8px;margin-bottom:8px}
+.row{display:grid;grid-template-columns:150px 1fr;align-items:center;gap:8px;margin-bottom:8px}
 .row label{color:#526171;font-weight:700}
-.row input{height:28px;border:1px solid #aeb9c4;padding:0 8px;color:#42515f;letter-spacing:4px;font-size:14px}
+.row input{height:28px;border:1px solid #aeb9c4;padding:0 8px;color:#42515f}
 .foot{display:flex;gap:6px;align-items:center;padding-top:6px;border-top:1px solid #e3e8ed;margin-top:10px}
 .msg{font-size:11px;font-weight:700}
 .msg.ok{color:#15803d}.msg.err{color:#b91c1c}
-.note{max-width:640px;margin:0 0 10px;padding:8px 10px;border:1px solid #d8c48a;background:#fdf7e3;color:#7a6321;line-height:1.7}
-.note b{color:#a4761a}
-.warn{max-width:640px;margin:0 0 10px;padding:8px 10px;border:1px solid #e0a9a9;background:#fdecec;color:#8c2b2b;line-height:1.7}
+.info{max-width:620px;margin:0 0 10px;padding:9px 11px;border:1px solid #bcd0e4;border-left:3px solid #2e77bd;
+  background:#f2f7fc;color:#3d5063;line-height:1.8}
+.info b{color:#1d568c}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:4px 8px;color:#4d5a68}
+.kv b{color:#22537f}
 </style>
 <script src="ki_config.js"></script>
 <script src="ki_core.js"></script>
@@ -28,77 +30,50 @@
 <body>
 <script>
 (async function(){
-  if(!KI.guard())return;
-  const $=KI.$, C=KI.CFG, N=C.PIN_LEN, D=C.DEFAULT_PIN;
+  if(!await KI.guard('settings'))return;
+  const $=KI.$, C=KI.CFG, me=KI.me();
   const cur=KI.chrome('settings');
   const ui=KI.page(cur,[]);
-  const row=(id,l,p)=>'<div class="row"><label>'+l+'</label><input type="password" id="'+id+'" maxlength="'+N+
-    '" inputmode="numeric" autocomplete="new-password" placeholder="'+p+'"></div>';
   const w=KI.el('div','set');
   w.innerHTML=
-    '<div class="note">비밀번호는 <b>'+N+'자리 숫자</b>이며 초기값은 <b>'+D+'</b> 입니다. '+
-      'SHA-256 해시로 <b>'+OBJ.settings+'</b> 테이블에 저장되어 <b>모든 PC에 공통 적용</b>됩니다.</div>'+
-    '<div id="warn"></div>'+
-    '<div class="box"><h3>🔑 마스터 비밀번호<span class="tag">관리자</span></h3><div class="bd">'+
-      row('mCur','현재 마스터 PIN','현재 비밀번호')+row('mNew','새 마스터 PIN','새 비밀번호')+row('mChk','새 PIN 확인','한번 더 입력')+
-      '<div class="foot"><button class="btn primary" id="mSave">마스터 PIN 변경</button><span class="msg" id="mMsg"></span></div></div></div>'+
-    '<div class="box"><h3>👤 일반 사용자 비밀번호<span class="tag">현장 공용</span></h3><div class="bd">'+
-      row('uMst','마스터 PIN(권한확인)','마스터 비밀번호')+row('uNew','새 사용자 PIN','새 비밀번호')+row('uChk','새 PIN 확인','한번 더 입력')+
-      '<div class="foot"><button class="btn primary" id="uSave">사용자 PIN 변경</button><span class="msg" id="uMsg"></span></div></div></div>'+
-    '<div class="box"><h3>♻ 초기화</h3><div class="bd">'+
-      row('rMst','마스터 PIN','마스터 비밀번호')+
-      '<div class="foot"><button class="btn" id="rSave">초기 비밀번호('+D+')로 되돌리기</button><span class="msg" id="rMsg"></span></div></div></div>';
+    '<div class="info">비밀번호는 <b>Supabase Auth</b>에 안전하게 저장됩니다(해시). '+
+      '최소 <b>'+C.MIN_PW+'자</b> 이상이어야 하며, 변경 후에는 모든 기기에서 새 비밀번호로 로그인합니다.</div>'+
+    '<div class="box"><h3>👤 내 계정 정보</h3><div class="bd"><div class="kv">'+
+      '<span>사번</span><b>'+KI.esc(me.emp_no||'-')+'</b>'+
+      '<span>성명</span><b>'+KI.esc(me.emp_name||'-')+'</b>'+
+      '<span>부서 / 직급</span><b>'+KI.esc((me.dept||'-')+' / '+(me.position||'-'))+'</b>'+
+      '<span>권한</span><b>'+KI.esc(me.role||'-')+'</b>'+
+      '<span>로그인 계정</span><b>'+KI.esc(me.login_email||'-')+'</b>'+
+    '</div></div></div>'+
+    '<div class="box"><h3>🔑 내 비밀번호 변경<span class="tag">본인</span></h3><div class="bd">'+
+      '<div class="row"><label>현재 비밀번호</label><input type="password" id="cur" autocomplete="current-password"></div>'+
+      '<div class="row"><label>새 비밀번호</label><input type="password" id="np" autocomplete="new-password" placeholder="'+C.MIN_PW+'자 이상"></div>'+
+      '<div class="row"><label>새 비밀번호 확인</label><input type="password" id="np2" autocomplete="new-password"></div>'+
+      '<div class="foot"><button class="btn primary" id="save">비밀번호 변경</button><span class="msg" id="msg"></span></div>'+
+    '</div></div>'+
+    (KI.isAdmin()
+      ? '<div class="box"><h3>🛡 관리자 안내<span class="tag">관리자</span></h3><div class="bd" style="line-height:1.9;color:#4d5a68">'+
+        '다른 사용자의 계정 생성 · 비밀번호 재설정 · 사용중지는 '+
+        '<b><a href="user_info.html" style="color:#1d568c">시스템 › 사용자정보</a></b> 화면에서 처리합니다.<br>'+
+        '화면별 조회/저장/수정/삭제 권한도 같은 화면의 권한 매트릭스에서 지정합니다.</div></div>'
+      : '');
   ui.pg.appendChild(w);
 
-  const ok=v=>new RegExp('^\\d{'+N+'}$').test(v||'');
-  const say=(el,t,good)=>{ el.className='msg '+(good?'ok':'err'); el.textContent=t; };
-  const who=()=>{ const s=KI.session(); return s?(s.role==='admin'?'관리자':'사용자'):'-'; };
-  ['mCur','mNew','mChk','uMst','uNew','uChk','rMst'].forEach(id=>
-    $('#'+id).addEventListener('input',e=>e.target.value=e.target.value.replace(/\D/g,'').slice(0,N)));
-
-  async function warn(){
-    const d=await KI.isDefaultPin(), a=[];
-    if(d.master)a.push('마스터'); if(d.user)a.push('일반 사용자');
-    $('#warn').innerHTML = a.length
-      ? '<div class="warn">⚠ '+a.join(' / ')+' 비밀번호가 초기값('+D+') 상태입니다. 변경을 권장합니다.</div>' : '';
-  }
-  warn();
-
-  $('#mSave').addEventListener('click',async()=>{
-    const m=$('#mMsg'); say(m,'처리중...',true);
+  const say=(t,ok)=>{ const m=$('#msg'); m.className='msg '+(ok?'ok':'err'); m.textContent=t; KI.msg(t); };
+  $('#save').addEventListener('click',async()=>{
+    const cu=$('#cur').value, np=$('#np').value, np2=$('#np2').value;
+    if(!cu) return say('현재 비밀번호를 입력하세요.');
+    if(np.length<C.MIN_PW) return say('새 비밀번호는 '+C.MIN_PW+'자 이상이어야 합니다.');
+    if(np!==np2) return say('새 비밀번호 확인값이 다릅니다.');
+    if(np===cu) return say('현재 비밀번호와 동일합니다.');
+    say('처리중...',true);
     try{
-      const p=await KI.loadPins();
-      if(await KI.sha256($('#mCur').value)!==p.pin_master) return say(m,'현재 마스터 PIN이 일치하지 않습니다');
-      if(!ok($('#mNew').value)) return say(m,N+'자리 숫자로 입력하세요');
-      if($('#mNew').value!==$('#mChk').value) return say(m,'새 PIN 확인값이 다릅니다');
-      await KI.savePin('pin_master', await KI.sha256($('#mNew').value), who());
-      ['mCur','mNew','mChk'].forEach(i=>$('#'+i).value='');
-      say(m,'✓ 마스터 PIN이 변경되었습니다 (전 PC 공통)',true); warn();
-    }catch(e){ say(m,'❌ '+e.message); }
-  });
-  $('#uSave').addEventListener('click',async()=>{
-    const m=$('#uMsg'); say(m,'처리중...',true);
-    try{
-      const p=await KI.loadPins();
-      if(await KI.sha256($('#uMst').value)!==p.pin_master) return say(m,'마스터 PIN이 일치하지 않습니다');
-      if(!ok($('#uNew').value)) return say(m,N+'자리 숫자로 입력하세요');
-      if($('#uNew').value!==$('#uChk').value) return say(m,'새 PIN 확인값이 다릅니다');
-      if(await KI.sha256($('#uNew').value)===p.pin_master) return say(m,'마스터 PIN과 동일하게 설정할 수 없습니다');
-      await KI.savePin('pin_user', await KI.sha256($('#uNew').value), who());
-      ['uMst','uNew','uChk'].forEach(i=>$('#'+i).value='');
-      say(m,'✓ 사용자 PIN이 변경되었습니다 (전 PC 공통)',true); warn();
-    }catch(e){ say(m,'❌ '+e.message); }
-  });
-  $('#rSave').addEventListener('click',async()=>{
-    const m=$('#rMsg');
-    try{
-      const p=await KI.loadPins();
-      if(await KI.sha256($('#rMst').value)!==p.pin_master) return say(m,'마스터 PIN이 일치하지 않습니다');
-      if(!confirm('마스터/사용자 PIN을 모두 '+D+' 로 초기화합니다.\n계속할까요?'))return;
-      const h=await KI.sha256(D);
-      await KI.savePin('pin_master',h,who()); await KI.savePin('pin_user',h,who());
-      $('#rMst').value=''; say(m,'✓ 초기 비밀번호로 되돌렸습니다',true); warn();
-    }catch(e){ say(m,'❌ '+e.message); }
+      /* 현재 비밀번호 재확인 */
+      await KI.signIn(me.login_email||me.user_id, cu);
+      await KI.changePassword(np);
+      ['cur','np','np2'].forEach(i=>$('#'+i).value='');
+      say('✓ 비밀번호가 변경되었습니다.',true);
+    }catch(e){ say('❌ '+e.message); }
   });
 })();
 </script>

@@ -38,7 +38,7 @@ svg.tw .sn{cursor:pointer}
 <body>
 <script>
 (async function(){
-  if(!KI.guard())return;
+  if(!await KI.guard('twin-map'))return;
   const $=KI.$, esc=KI.esc;
   const cur=KI.chrome('twin-map');
   const ui=KI.page(cur,[['새로고침','primary',()=>load()]]);

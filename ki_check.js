@@ -29,18 +29,18 @@ const DEFAULTS = {
 };
 const CYCLES=['','일','주','월','분기','반기','연간'];
 
-function init(target, pageId){
-  if(!KI.guard())return;
+async function init(target, pageId){
+  if(!await KI.guard(pageId))return;
   const $=KI.$, el=KI.el, esc=KI.esc;
   const cur=KI.chrome(pageId);
   let type='일상', ROWS=[], editId=null;
 
-  const ui=KI.page(cur,[
-    ['＋ 항목 등록','primary',()=>open(null)],
-    ['기본항목 불러오기','',()=>loadDefaults()],
-    ['QR 라벨 출력','green',()=>printQr()],
-    ['새로고침','',()=>load()]
-  ]);
+  const acts=[];
+  if(KI.can(pageId,'save')) acts.push(['＋ 항목 등록','primary',()=>open(null)],
+                                      ['기본항목 불러오기','',()=>loadDefaults()]);
+  acts.push(['QR 라벨 출력','green',()=>printQr()],['새로고침','',()=>load()]);
+  const ui=KI.page(cur,acts);
+  const CAN_E=KI.can(pageId,'edit'), CAN_D=KI.can(pageId,'delete');
 
   /* 안내 */
   const nt=el('div','ck-note');
@@ -212,10 +212,10 @@ function init(target, pageId){
         '<td class="center">'+qr+lk+'</td>'+
         '<td class="center">'+(r.is_active===false?'<span style="color:#a7b3bf">미사용</span>':'<span class="badge b-done">✓</span>')+'</td>';
       const td=el('td','center');
-      const e=el('button','mini-btn2','수정'); e.addEventListener('click',ev=>{ev.stopPropagation();open(r);});
-      const d=el('button','mini-btn2 del','삭제'); d.addEventListener('click',ev=>{ev.stopPropagation();remove(r);});
-      td.appendChild(e); td.appendChild(d); t.appendChild(td);
-      t.addEventListener('dblclick',()=>open(r));
+      if(CAN_E){ const e=el('button','mini-btn2','수정'); e.addEventListener('click',ev=>{ev.stopPropagation();open(r);}); td.appendChild(e); }
+      if(CAN_D){ const d=el('button','mini-btn2 del','삭제'); d.addEventListener('click',ev=>{ev.stopPropagation();remove(r);}); td.appendChild(d); }
+      t.appendChild(td);
+      if(CAN_E) t.addEventListener('dblclick',()=>open(r));
       tbody.appendChild(t);
     });
     $('#ckCnt').textContent = list.length+'항목 · '+target+' '+type+'점검';

@@ -4,20 +4,29 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v6.6',
+  VER      : 'v8.0',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
   LANDING      : 'mold_due.html',   // 로그인 후 기본 화면
-  PIN_LEN      : 6,
-  DEFAULT_PIN  : '123456',
-  SESSION_DAYS : 7,
+  AUTH_DOMAIN  : 'ki.local',        // 아이디 → 로그인 이메일 : <아이디>@ki.local
+  ADMIN_FN     : 'ki-admin-user',   // 계정관리 Edge Function
+  MIN_PW       : 8,
   MAX_FAIL     : 5,
   LOCKOUT_SEC  : 60
 };
 
 /* --- DB 오브젝트 --- */
 const P = KI_CFG.DB_PREFIX;
+const TBL = {                      /* 편집 대상 원천 테이블 */
+  mold:'ki_mold', inspItem:'ki_inspection_item', inspResult:'ki_inspection_result',
+  factory:'ki_factory', zone:'ki_zone', asset:'ki_asset',
+  sensor:'ki_sensor', envAlert:'ki_env_alert', machine:'ki_machine',
+  /* 외주 LOT (원천 테이블) */
+  ospOrder:'outsourcing_order_status_rows',
+  ospRecv :'outsourcing_receipt_confirm_candidates',
+  lotProg :'machining_purchase_progress_rows'
+};
 const OBJ = {
   settings : P+'app_settings',
   /* 금형 정기점검 */
@@ -167,6 +176,17 @@ const VIEWS = {
 },
 'mold-insp':{
   table:OBJ.inspHist, order:'inspection_date.desc',
+  edit:{ table:TBL.inspResult, pk:'inspection_no', auto:true, fields:[
+    ['mold_code','금형코드','ref',{table:OBJ.moldMst,v:'mold_code',t:'mold_name'},'req'],
+    ['inspection_date','점검일','date',null,'req'],
+    ['inspector','점검자','text',null,'req'],
+    ['shot_count','타발수','num'],
+    ['judgement','판정','sel',['합격','조건부합격','불합격'],'req'],
+    ['defect_count','부적합 건수','num',{def:0}],
+    ['action_taken','조치내용','area'],
+    ['next_inspection','다음 점검예정','date'],
+    ['remark','비고','area']
+  ]},
   search:[['금형코드','text','mold_code'],['금형명','text','mold_name'],['점검자','text','inspector'],
           ['판정','sel-judge','judgement'],['점검일','date2','inspection_date'],['고객사','text','customer_name']],
   cols:[['점검번호',72,'center','inspection_no'],['점검일',92,'center','inspection_date'],
@@ -187,6 +207,22 @@ const VIEWS = {
 },
 'mold-master':{
   table:OBJ.moldMst, order:'mold_code.asc',
+  edit:{ table:TBL.mold, pk:'mold_code', fields:[
+    ['mold_code','금형코드','text',null,'req'],
+    ['mold_name','금형명','text',null,'req'],
+    ['customer_name','고객사','text'],
+    ['model','모델','text'],
+    ['mold_type','금형종류','sel',['프로그레시브','트랜스퍼','단발','SEMI+단발','TPL','TR']],
+    ['factory_code','공장','ref',{table:OBJ.factory,v:'factory_code',t:'factory_name'}],
+    ['location','보관위치','text'],
+    ['shot_count','타발수','num'],
+    ['shot_limit','수명(SHOT)','num'],
+    ['cycle_days','점검주기(일)','num',{def:90}],
+    ['last_inspection','최근점검','date'],
+    ['next_inspection','점검예정','date'],
+    ['status','상태','sel',['정상','주의','점검필요','폐기']],
+    ['remark','비고','area']
+  ]},
   search:[['금형코드','text','mold_code'],['금형명','text','mold_name'],['고객사','text','customer_name'],
           ['금형종류','text','mold_type'],['상태','sel-mst','status'],['보관위치','text','location']],
   cols:[['금형코드',92,'','mold_code'],['금형명',150,'','mold_name'],['고객사',100,'','customer_name'],
@@ -197,6 +233,16 @@ const VIEWS = {
 },
 'insp-item':{
   table:OBJ.inspItem, order:'sort_order.asc',
+  edit:{ table:TBL.inspItem, pk:'item_code', fields:[
+    ['item_code','항목코드','text',null,'req'],
+    ['item_name','점검항목','text',null,'req'],
+    ['category','분류','sel',['외관','기구','윤활','전장','이력']],
+    ['method','점검방법','sel',['육안','측정','토크','카운터','통전']],
+    ['criteria','기준','area'],
+    ['unit','단위','sel',['-','mm','N·m','SHOT','%']],
+    ['sort_order','순서','num'],
+    ['is_active','사용','bool']
+  ]},
   search:[['항목코드','text','item_code'],['점검항목','text','item_name'],['분류','text','category']],
   cols:[['항목코드',80,'center','item_code'],['점검항목',180,'','item_name'],['분류',80,'center','category'],
         ['점검방법',90,'center','method'],['기준',220,'','criteria'],['단위',60,'center','unit'],
@@ -205,6 +251,22 @@ const VIEWS = {
 
 'osp-order':{
   table:OBJ.ospOrder, order:'no.asc',
+  note:'<b>입고일</b>을 입력하면 해당 LOT의 이동이력이 자동으로 기록됩니다. (LOT 이동이력 · 진행현황에 즉시 반영)',
+  edit:{ table:TBL.ospOrder, pk:'no', auto:true, fields:[
+    ['st','상태','sel',['발주','진행','완료','취소'],'req'],
+    ['job','JOB(관리번호)','text',null,'req'],
+    ['item','제품명','text'],
+    ['part','부품번호(LOT)','text',null,'req'],
+    ['partName','부품명','text'],
+    ['proc','공정','text'],
+    ['procName','공정순서','text'],
+    ['mp','가공공정','ref',{table:OBJ.process,v:'process_code',t:'process_name'},'req'],
+    ['vendor','외주처','ref',{table:OBJ.vendor,v:'vendor_name',order:'vendor_name'},'req'],
+    ['odate','발주일','date'],
+    ['edate','납기','date'],
+    ['idate','입고일','date'],
+    ['quote','외주금액','num']
+  ]},
   search:[['외주처','sel-vendor','vendor'],['JOB(관리번호)','text','job'],['부품번호','text','part'],
           ['가공공정','sel-mp','mp'],['발주일','date2','odate'],['상태','sel-ost','st']],
   cols:[['No',46,'center','no'],['상태',64,'center','st','st'],['발주일',88,'center','odate'],
@@ -215,6 +277,21 @@ const VIEWS = {
 },
 'osp-issue':{
   table:OBJ.ospOrder, order:'odate.desc', post:'issue',
+  edit:{ table:TBL.ospOrder, pk:'no', auto:true, fields:[
+    ['st','상태','sel',['발주','진행','완료','취소'],'req'],
+    ['job','JOB(관리번호)','text',null,'req'],
+    ['item','제품명','text'],
+    ['part','부품번호(LOT)','text',null,'req'],
+    ['partName','부품명','text'],
+    ['proc','공정','text'],
+    ['procName','공정순서','text'],
+    ['mp','가공공정','ref',{table:OBJ.process,v:'process_code',t:'process_name'},'req'],
+    ['vendor','외주처','ref',{table:OBJ.vendor,v:'vendor_name',order:'vendor_name'},'req'],
+    ['odate','발주일','date'],
+    ['edate','납기','date'],
+    ['idate','입고일','date'],
+    ['quote','외주금액','num']
+  ]},
   search:[['외주처','sel-vendor','vendor'],['JOB(관리번호)','text','job'],['부품번호','text','part'],
           ['가공공정','sel-mp','mp'],['반출일','date2','odate'],['상태','sel-ost','st']],
   cols:[['No',46,'center','_i'],['반출일(발주)',96,'center','odate'],['외주처',120,'','vendor'],
@@ -224,6 +301,23 @@ const VIEWS = {
 },
 'osp-receipt':{
   table:OBJ.ospRecv, order:'no.asc',
+  note:'입고 확인 결과를 등록합니다. <b>입고일</b> 입력 시 LOT 이동이력에 자동 반영됩니다.',
+  edit:{ table:TBL.ospRecv, pk:'no', auto:true, fields:[
+    ['status','확인상태','sel',['대기','확인','완료'],'req'],
+    ['job','JOB(관리번호)','text',null,'req'],
+    ['item','제품명','text'],
+    ['part','부품번호(LOT)','text',null,'req'],
+    ['partName','부품명','text'],
+    ['proc','공정','text'],
+    ['procName','공정순서','text'],
+    ['mp','가공공정','ref',{table:OBJ.process,v:'process_code',t:'process_name'},'req'],
+    ['mpName','가공공정명','text'],
+    ['vendor','외주처','ref',{table:OBJ.vendor,v:'vendor_name',order:'vendor_name'},'req'],
+    ['odate','발주일','date'],
+    ['idate','입고일','date'],
+    ['cdate','확정일','date'],
+    ['quote','외주금액','num']
+  ]},
   search:[['외주처','sel-vendor','vendor'],['JOB(관리번호)','text','job'],['부품번호','text','part'],
           ['가공공정','sel-mp','mp'],['입고일','date2','idate'],['확인상태','sel-rst','status']],
   cols:[['No',46,'center','no'],['확인',64,'center','status','st'],['입고일',88,'center','idate'],
@@ -235,6 +329,22 @@ const VIEWS = {
 },
 'osp-stock':{
   table:OBJ.ospOrder, order:'odate.asc', post:'stock',
+  note:'외주처가 보유 중인 재공입니다. 행을 선택해 <b>수정</b>에서 입고일을 넣으면 입고 처리되고 LOT 이동이력이 기록됩니다.',
+  edit:{ table:TBL.ospOrder, pk:'no', auto:true, fields:[
+    ['st','상태','sel',['발주','진행','완료','취소'],'req'],
+    ['job','JOB(관리번호)','text',null,'req'],
+    ['item','제품명','text'],
+    ['part','부품번호(LOT)','text',null,'req'],
+    ['partName','부품명','text'],
+    ['proc','공정','text'],
+    ['procName','공정순서','text'],
+    ['mp','가공공정','ref',{table:OBJ.process,v:'process_code',t:'process_name'},'req'],
+    ['vendor','외주처','ref',{table:OBJ.vendor,v:'vendor_name',order:'vendor_name'},'req'],
+    ['odate','발주일','date'],
+    ['edate','납기','date'],
+    ['idate','입고일','date'],
+    ['quote','외주금액','num']
+  ]},
   search:[['외주처','sel-vendor','vendor'],['JOB(관리번호)','text','job'],['부품번호','text','part'],
           ['가공공정','sel-mp','mp'],['반출일','date2','odate'],['경과일(이상)','num','_days']],
   cols:[['No',46,'center','_i'],['경과',62,'num','_days','days'],['외주처',120,'','vendor'],
@@ -255,13 +365,15 @@ const VIEWS = {
 },
 'lot-route':{
   table:OBJ.lotProg, order:'no.asc', post:'route',
+  note:'외주발주 화면에서 <b>입고일</b>을 입력하면 경유 이력이 자동으로 쌓입니다. 진척률은 표준공정 대비 실제 거친 단계 수입니다.',
   search:[['부품번호(LOT)','text','part'],['JOB(관리번호)','text','job'],['현재 외주처','sel-vendor','vendor'],
           ['현재 공정','sel-mp','mp'],['최근 이동일','date2','date'],['진척(%이상)','num','_rate']],
   cols:[['No',46,'center','_i'],['JOB(관리번호)',118,'','job'],['부품번호(LOT)',110,'','part'],
         ['공정',50,'center','proc'],['표준공정',110,'','stdName'],
         ['현재 가공공정',96,'center','mp'],['현재 가공공정명',126,'','mpName'],
         ['현재 외주업체',126,'','vendor'],['최근 이동일',96,'center','date'],
-        ['다음 공정',130,'','nextMp'],['완료',52,'num','done'],['총단계',56,'num','total'],
+        ['다음 공정',130,'','nextMp'],['표준완료',60,'num','done'],['표준단계',60,'num','total'],
+        ['실제단계',60,'num','steps'],
         ['진척률',100,'','_rate','bar'],['경유 이력',0,'','chain','chain']]
 },
 'std-route':{
@@ -290,12 +402,28 @@ const VIEWS = {
 },
 'factory':{
   table:OBJ.factory, order:'factory_code.asc',
+  edit:{ table:TBL.factory, pk:'factory_code', fields:[
+    ['factory_code','공장코드','text',null,'req'],
+    ['factory_name','공장명','text',null,'req'],
+    ['width_m','가로(m)','num',{def:100}],
+    ['height_m','세로(m)','num',{def:60}],
+    ['remark','비고','area']
+  ]},
   search:[['공장코드','text','factory_code'],['공장명','text','factory_name']],
   cols:[['공장코드',90,'center','factory_code'],['공장명',200,'','factory_name'],
         ['가로(m)',80,'num','width_m'],['세로(m)',80,'num','height_m'],['비고',0,'','remark']]
 },
 'zone':{
   table:OBJ.zone, order:'zone_code.asc',
+  note:'X · Y 는 구역 좌측상단 좌표, 폭 · 높이는 구역 크기입니다(단위 m). 트윈팩토리 배치도에 그대로 반영됩니다.',
+  edit:{ table:TBL.zone, pk:'zone_code', fields:[
+    ['zone_code','구역코드','text',null,'req'],
+    ['factory_code','공장','ref',{table:OBJ.factory,v:'factory_code',t:'factory_name'},'req'],
+    ['zone_name','구역명','text',null,'req'],
+    ['x','X','num'],['y','Y','num'],['w','폭','num'],['h','높이','num'],
+    ['color','색상','sel',['#dbe9f8','#e2f0e6','#f6ecd9','#eee3f2','#fbe4e4','#eef2f6']],
+    ['remark','비고','area']
+  ]},
   search:[['구역코드','text','zone_code'],['구역명','text','zone_name'],['공장','sel-fac','factory_code']],
   cols:[['구역코드',90,'center','zone_code'],['공장',70,'center','factory_code'],['구역명',170,'','zone_name'],
         ['X',60,'num','x'],['Y',60,'num','y'],['폭',60,'num','w'],['높이',60,'num','h'],
@@ -303,6 +431,18 @@ const VIEWS = {
 },
 'asset':{
   table:OBJ.asset, order:'asset_code.asc',
+  note:'X · Y 는 배치도 상의 설비 중심 좌표(m)입니다. 상태를 바꾸면 트윈팩토리 화면 색상이 즉시 반영됩니다.',
+  edit:{ table:TBL.asset, pk:'asset_code', fields:[
+    ['asset_code','설비코드','text',null,'req'],
+    ['asset_name','설비명','text',null,'req'],
+    ['asset_type','설비구분','sel',['MCT','연삭','방전','와이어','조립','검사','시험','보관','기타']],
+    ['factory_code','공장','ref',{table:OBJ.factory,v:'factory_code',t:'factory_name'},'req'],
+    ['zone_code','구역','ref',{table:OBJ.zone,v:'zone_code',t:'zone_name'}],
+    ['x','X','num'],['y','Y','num'],
+    ['status','상태','sel',['가동','정지','경고','정상','고장'],'req'],
+    ['spec','사양','text'],
+    ['remark','비고','area']
+  ]},
   search:[['설비코드','text','asset_code'],['설비명','text','asset_name'],['공장','sel-fac','factory_code'],
           ['구역코드','text','zone_code'],['설비구분','text','asset_type'],['상태','sel-asset','status']],
   cols:[['설비코드',90,'','asset_code'],['설비명',160,'','asset_name'],['구분',80,'center','asset_type'],
@@ -320,6 +460,14 @@ const VIEWS = {
 },
 'env-alert':{
   table:OBJ.envAlert, order:'occurred_at.desc',
+  edit:{ table:TBL.envAlert, pk:'alert_id', auto:true, fields:[
+    ['sensor_code','센서','ref',{table:OBJ.sensor,v:'sensor_code',t:'sensor_name'},'req'],
+    ['occurred_at','발생시각','datetime',null,'req'],
+    ['alert_type','알람구분','sel',['고온','저온','고습','저습','무신호'],'req'],
+    ['value','측정값','num'],['threshold','임계값','num'],
+    ['status','처리상태','sel',['발생','조치중','해제'],'req'],
+    ['action','조치내용','area']
+  ]},
   search:[['센서','sel-sensor','sensor_code'],['알람구분','sel-alert','alert_type'],
           ['처리상태','sel-astat','status'],['발생시각','date2','occurred_at']],
   cols:[['발생시각',150,'center','occurred_at','dt'],['센서',86,'','sensor_code'],['센서명',160,'','sensor_name'],
@@ -329,6 +477,14 @@ const VIEWS = {
 },
 'machine':{
   table:OBJ.machine, order:'sort_order.asc',
+  edit:{ table:TBL.machine, pk:'machine_no', fields:[
+    ['machine_no','호기번호','text',null,'req'],
+    ['machine_name','호기명','text',null,'req'],
+    ['tonnage','톤수','num'],
+    ['sort_order','순서','num'],
+    ['is_active','사용','bool'],
+    ['remark','비고','area']
+  ]},
   search:[['호기번호','text','machine_no'],['호기명','text','machine_name']],
   cols:[['호기번호',100,'center','machine_no'],['호기명',220,'','machine_name'],
         ['톤수',80,'num','tonnage'],['순서',60,'num','sort_order'],
@@ -336,6 +492,18 @@ const VIEWS = {
 },
 'sensor':{
   table:OBJ.sensor, order:'sensor_code.asc',
+  note:'상·하한을 벗어나면 실시간 현황에서 <b>고온/저온/고습/저습</b>으로 표시됩니다.',
+  edit:{ table:TBL.sensor, pk:'sensor_code', fields:[
+    ['sensor_code','센서코드','text',null,'req'],
+    ['sensor_name','센서명','text',null,'req'],
+    ['factory_code','공장','ref',{table:OBJ.factory,v:'factory_code',t:'factory_name'},'req'],
+    ['zone_code','구역','ref',{table:OBJ.zone,v:'zone_code',t:'zone_name'}],
+    ['x','X','num'],['y','Y','num'],
+    ['temp_min','온도 하한','num',{def:15}],['temp_max','온도 상한','num',{def:30}],
+    ['humi_min','습도 하한','num',{def:30}],['humi_max','습도 상한','num',{def:70}],
+    ['is_active','사용','bool'],
+    ['remark','비고','area']
+  ]},
   search:[['센서코드','text','sensor_code'],['센서명','text','sensor_name'],['공장','sel-fac','factory_code'],
           ['구역코드','text','zone_code']],
   cols:[['센서코드',90,'','sensor_code'],['센서명',170,'','sensor_name'],

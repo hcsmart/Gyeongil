@@ -6,27 +6,25 @@
 <title>KI MES - 로그인</title>
 <link rel="stylesheet" href="ki_style.css">
 <style>
-body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
   background:linear-gradient(160deg,#233c5c,#12233a);overflow:hidden}
-.lg{color:#e8f0fa;font-size:26px;font-weight:900;letter-spacing:1px}
+.lg{color:#e8f0fa;font-size:26px;font-weight:900;letter-spacing:1px;margin-bottom:2px}
 .lg span{color:#7fb3ea}
-.nt{margin:2px 0 4px;padding:7px 14px;border:1px solid #3d6ea8;border-radius:4px;
-  background:rgba(45,102,173,.22);color:#cfe0f2;font-size:12px}
-.nt b{color:#ffd166;font-size:13px;letter-spacing:1px}
-.hint{color:#cfe0f2;font-size:12px;height:16px}
-.hint.ok{color:#7ee3a6}.hint.err{color:#ff9a9a}
-.dots{display:flex;gap:10px;margin:4px 0 2px}
-.dt{width:13px;height:13px;border-radius:50%;border:1px solid #6f8fb5}
-.dt.on{background:#7fb3ea;border-color:#7fb3ea}
-.dots.shake{animation:shk .35s}
-@keyframes shk{25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
-.kp{display:grid;grid-template-columns:repeat(3,64px);gap:8px}
-.kp button{height:52px;border:1px solid #48688f;border-radius:4px;
-  background:linear-gradient(#2f4f74,#24405f);color:#e8f1fa;font-size:18px;font-weight:700}
-.kp button:hover{background:#365a83}
-.lo{color:#ff9a9a;font-size:12px}
+.card{width:320px;background:rgba(255,255,255,.06);border:1px solid #3d6ea8;border-radius:5px;padding:16px 18px}
+.f{margin-bottom:10px}
+.f label{display:block;color:#a9c2da;font-size:11px;font-weight:700;margin-bottom:4px}
+.f input{width:100%;height:34px;border:1px solid #48688f;border-radius:3px;background:#1b2f49;
+  color:#e8f1fa;padding:0 10px;font-size:14px}
+.f input:focus{outline:none;border-color:#7fb3ea;background:#22395a}
+.f .dm{color:#6f8fb5;font-size:11px;margin-top:3px}
+.go{width:100%;height:38px;border:0;border-radius:3px;background:linear-gradient(#3f7ab4,#2b5c96);
+  color:#fff;font-size:14px;font-weight:700}
+.go:hover{background:#3a6ea6}
+.go:disabled{opacity:.55}
+.hint{height:32px;color:#cfe0f2;font-size:12px;text-align:center;line-height:1.5;padding-top:6px}
+.hint.err{color:#ff9a9a}.hint.ok{color:#7ee3a6}
 .ver{position:fixed;bottom:12px;color:#5f7994;font-size:11px}
-.err{max-width:520px;margin-top:6px;padding:12px 14px;border:1px solid #a3524f;border-radius:4px;
+.err{max-width:520px;padding:12px 14px;border:1px solid #a3524f;border-radius:4px;
   background:rgba(160,60,55,.22);color:#ffd9d9;font-size:12px;line-height:1.9;text-align:left}
 .err b{color:#ffb3b3}
 .err code{display:block;margin-top:6px;padding:7px 9px;background:rgba(0,0,0,.28);color:#cfe0f2;
@@ -36,89 +34,61 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 <script src="ki_core.js"></script>
 </head>
 <body>
-
 <div class="lg">KI <span>MES</span></div>
-<div class="nt" id="notice">초기 비밀번호 : <b>123456</b> (6자리) · 접속 후 [시스템 &gt; 비밀번호 설정]에서 변경하세요</div>
-<div class="hint" id="hint">6자리 PIN을 입력하세요</div>
-<div class="dots" id="dots"></div>
-<div class="lo" id="lock2" style="display:none"></div>
-<div class="kp" id="pad"></div>
+<div id="app"></div>
 <div class="ver" id="ver">KI MES</div>
 
 <script>
 if(typeof KI==='undefined' || typeof KI_CFG==='undefined'){
-  document.getElementById('hint').textContent='';
-  document.getElementById('notice').style.display='none';
   const box=document.createElement('div'); box.className='err';
   box.innerHTML='<b>⚠ 공통 스크립트를 불러오지 못했습니다.</b><br>'+
     'index.html 과 같은 폴더에 아래 파일이 함께 있어야 합니다.'+
-    '<code>index.html<br>ki_style.css<br>ki_config.js<br>ki_core.js</code>'+
-    'index.html 하나만 열었거나 미리보기로 실행한 경우 이 메시지가 표시됩니다.';
-  document.body.insertBefore(box, document.getElementById('pad'));
+    '<code>index.html<br>ki_style.css<br>ki_config.js<br>ki_core.js</code>';
+  document.getElementById('app').appendChild(box);
   throw new Error('KI core not loaded');
 }
-
-const C=KI.CFG, LK=KI.LK, $=KI.$;
-const LANDING=C.LANDING||'mold_due.html';       /* 로그인 후 기본 화면 */
+const C=KI.CFG, $=KI.$;
 document.getElementById('ver').textContent='KI MES '+C.VER;
-let pin='', timer=null;
 
-function go(){
+document.getElementById('app').innerHTML=
+  '<div class="card">'+
+    '<div class="f"><label>아이디</label><input id="uid" autocomplete="username" placeholder="예: admin">'+
+      '<div class="dm">로그인 계정 : <span id="dm">-</span></div></div>'+
+    '<div class="f"><label>비밀번호</label><input id="pw" type="password" autocomplete="current-password"></div>'+
+    '<button class="go" id="go">로그인</button>'+
+  '</div>'+
+  '<div class="hint" id="hint">아이디와 비밀번호를 입력하세요</div>';
+
+const uid=$('#uid'), pw=$('#pw'), hint=$('#hint');
+uid.addEventListener('input',()=>$('#dm').textContent = uid.value.trim()?KI.emailOf(uid.value):'-');
+[uid,pw].forEach(i=>i.addEventListener('keydown',e=>{ if(e.key==='Enter') go(); }));
+$('#go').addEventListener('click',go);
+
+function dest(){
   const r=new URLSearchParams(location.search).get('r');
-  location.href = (r && /^[a-z_]+\.html$/.test(r)) ? r : LANDING;
+  return (r && /^[a-z_]+\.html$/.test(r)) ? r : (C.LANDING||'mold_due.html');
 }
-if(KI.session()) go();
-
-function fail(){ try{return JSON.parse(localStorage.getItem(LK.fail)||'{"count":0,"until":0}')}catch(e){return{count:0,until:0}} }
-function setFail(f){ localStorage.setItem(LK.fail,JSON.stringify(f)); }
-function dots(){ [...$('#dots').children].forEach((d,i)=>d.classList.toggle('on',i<pin.length)); }
-function shake(){ const d=$('#dots'); d.classList.add('shake'); setTimeout(()=>d.classList.remove('shake'),350); pin=''; dots(); }
-function press(n){
-  if(pin.length>=C.PIN_LEN||fail().until>Date.now())return;
-  pin+=n; dots(); if(pin.length===C.PIN_LEN) setTimeout(done,150);
-}
-async function done(){
-  const h=$('#hint'); h.className='hint'; h.textContent='확인 중...';
+async function go(){
+  const id=uid.value.trim(), p=pw.value;
+  if(!id){ hint.className='hint err'; hint.textContent='아이디를 입력하세요.'; uid.focus(); return; }
+  if(!p){ hint.className='hint err'; hint.textContent='비밀번호를 입력하세요.'; pw.focus(); return; }
+  $('#go').disabled=true; hint.className='hint'; hint.textContent='확인 중...';
   try{
-    const hash=await KI.sha256(pin), p=await KI.loadPins();
-    if(hash===p.pin_master||hash===p.pin_user){
-      localStorage.removeItem(LK.fail);
-      KI.setSession({role:hash===p.pin_master?'admin':'user'});
-      h.classList.add('ok'); h.textContent=hash===p.pin_master?'✓ 관리자 인증':'✓ 사용자 인증';
-      setTimeout(go,300); return;
-    }
-    const f=fail(); f.count=(f.count||0)+1;
-    if(f.count>=C.MAX_FAIL){ f.until=Date.now()+C.LOCKOUT_SEC*1000; f.count=0; setFail(f); lockout(); }
-    else { setFail(f); h.classList.add('err'); h.textContent='PIN 불일치 ('+f.count+'/'+C.MAX_FAIL+')'; }
-    shake();
-  }catch(e){ h.classList.add('err'); h.textContent='❌ '+e.message; shake(); }
+    const me=await KI.signIn(id,p);
+    hint.className='hint ok';
+    hint.textContent='✓ '+me.emp_name+'님 ('+(me.role==='관리자'?'관리자':'사용자')+') 로그인';
+    setTimeout(()=>location.href=dest(),350);
+  }catch(e){
+    hint.className='hint err'; hint.textContent='❌ '+e.message;
+    pw.value=''; pw.focus(); $('#go').disabled=false;
+  }
 }
-function lockout(){
-  const f=fail(), m=$('#lock2');
-  if(f.until>Date.now()){
-    m.style.display='block';
-    const up=()=>{ const s=Math.ceil((f.until-Date.now())/1000);
-      if(s<=0){ m.style.display='none'; localStorage.removeItem(LK.fail); clearInterval(timer);
-        $('#hint').className='hint'; $('#hint').textContent=C.PIN_LEN+'자리 PIN을 입력하세요'; return; }
-      m.textContent='🔒 '+s+'초 후 재시도'; };
-    up(); clearInterval(timer); timer=setInterval(up,1000);
-  } else m.style.display='none';
-}
-(function(){
-  const d=$('#dots'); for(let i=0;i<C.PIN_LEN;i++) d.appendChild(KI.el('div','dt'));
-  const pad=$('#pad');
-  ['1','2','3','4','5','6','7','8','9','←','0','✓'].forEach(k=>{
-    const b=KI.el('button',null,k);
-    b.addEventListener('click',()=>{ if(k==='←'){ pin=pin.slice(0,-1); dots(); } else if(k!=='✓') press(k); });
-    pad.appendChild(b);
-  });
-  document.addEventListener('keydown',e=>{
-    if(/^[0-9]$/.test(e.key)) press(e.key);
-    if(e.key==='Backspace'){ pin=pin.slice(0,-1); dots(); }
-  });
-  dots(); lockout();
-  KI.isDefaultPin().then(x=>{ if(!x.master&&!x.user) $('#notice').style.display='none'; }).catch(()=>{});
+/* 이미 로그인 상태면 통과 */
+(async()=>{
+  if(!KI.loadSess())return;
+  if(await KI.loadMe()) location.href=dest(); else await KI.signOut();
 })();
+uid.focus();
 </script>
 </body>
 </html>

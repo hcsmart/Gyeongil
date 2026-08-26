@@ -11,20 +11,20 @@
 <body>
 <script>
 (async function(){
-  if(!KI.guard())return;
+  if(!await KI.guard('mold-spec'))return;
   const $=KI.$, el=KI.el, esc=KI.esc;
   const cur=KI.chrome('mold-spec');
 
   const T_MOLD='ki_mold_master', T_TYPE='ki_mold_type', T_MAT='ki_material';
   let TYPES=[], MATS=[], ROWS=[], key=null;      // key : 수정중인 금형제번
 
-  const ui=KI.page(cur,[
-    ['저장','primary',()=>save()],
-    ['새로입력','',()=>clearForm()],
-    ['삭제','danger',()=>remove()],
-    ['새로고침','',()=>loadAll()],
-    ['엑셀(CSV)','',()=>exportCsv()]
-  ]);
+  const CAN_S=KI.can('mold-spec','save'), CAN_E=KI.can('mold-spec','edit'), CAN_D=KI.can('mold-spec','delete');
+  const acts=[];
+  if(CAN_S||CAN_E) acts.push(['저장','primary',()=>save()]);
+  if(CAN_S)        acts.push(['새로입력','',()=>clearForm()]);
+  if(CAN_D)        acts.push(['삭제','danger',()=>remove()]);
+  acts.push(['새로고침','',()=>loadAll()],['엑셀(CSV)','',()=>exportCsv()]);
+  const ui=KI.page(cur,acts);
 
   /* ---------- 입력 폼 ---------- */
   const F=el('div','form');
@@ -154,6 +154,9 @@
   $('#b_save').addEventListener('click',save);
   $('#b_new').addEventListener('click',clearForm);
   $('#b_del').addEventListener('click',remove);
+  if(!(CAN_S||CAN_E)){ $('#b_save').disabled=true; $('#b_save').style.opacity=.5; }
+  if(!CAN_S){ $('#b_new').disabled=true; $('#b_new').style.opacity=.5; $('#t_add').disabled=true; $('#m_add').disabled=true; }
+  if(!CAN_D){ $('#b_del').disabled=true; $('#b_del').style.opacity=.5; }
 
   /* ---------- 목록 렌더 ---------- */
   function draw(){
