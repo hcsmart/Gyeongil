@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v6.4',
+  VER      : 'v6.5',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -334,28 +334,6 @@ const VIEWS = {
   cols:[['호기번호',100,'center','machine_no'],['호기명',220,'','machine_name'],
         ['톤수',80,'num','tonnage'],['순서',60,'num','sort_order'],
         ['사용',60,'center','is_active','bool'],['비고',0,'','remark']]
-},
-'chk-mach':{
-  table:OBJ.chkMach, order:'sort_order.asc',
-  note:'여기서 등록한 항목이 <b>일상점검 · 정기점검</b> 화면에 그대로 표시됩니다. '+
-       'QR코드값을 넣으면 해당 항목은 QR 스캔 후에만 판정할 수 있고, 연동번호를 넣으면 스캔 시 함께 열립니다.',
-  search:[['점검구분','sel-ctype','check_type'],['점검항목','text','item_name'],
-          ['판정기준','text','criteria'],['주기','text','cycle'],['QR코드','text','qr_code']],
-  cols:[['NO',54,'center','sort_order'],['구분',66,'center','check_type','st'],
-        ['점검항목',260,'','item_name'],['판정기준',300,'','criteria'],
-        ['주기',80,'center','cycle'],['QR / 연동',150,'center','qr_code','qr'],
-        ['사용',56,'center','is_active','bool'],['비고',0,'','remark']]
-},
-'chk-mold':{
-  table:OBJ.chkMold, order:'sort_order.asc',
-  note:'여기서 등록한 항목이 <b>일상점검 · 정기점검</b> 화면에 그대로 표시됩니다. '+
-       'QR코드값을 넣으면 해당 항목은 QR 스캔 후에만 판정할 수 있고, 연동번호를 넣으면 스캔 시 함께 열립니다.',
-  search:[['점검구분','sel-ctype','check_type'],['점검항목','text','item_name'],
-          ['판정기준','text','criteria'],['주기','text','cycle'],['QR코드','text','qr_code']],
-  cols:[['NO',54,'center','sort_order'],['구분',66,'center','check_type','st'],
-        ['점검항목',260,'','item_name'],['판정기준',300,'','criteria'],
-        ['주기',80,'center','cycle'],['QR / 연동',150,'center','qr_code','qr'],
-        ['사용',56,'center','is_active','bool'],['비고',0,'','remark']]
 },
 'employee':{
   table:OBJ.employee, order:'emp_no.asc',
