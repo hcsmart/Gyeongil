@@ -4,10 +4,11 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v6.2',
+  VER      : 'v6.3',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
+  LANDING      : 'mold_due.html',   // 로그인 후 기본 화면
   PIN_LEN      : 6,
   DEFAULT_PIN  : '123456',
   SESSION_DAYS : 7,
@@ -37,7 +38,9 @@ const OBJ = {
   moldSpec : P+'v_mold_master', moldType : P+'v_mold_type',
   material : P+'v_material',    machine  : P+'v_machine',
   /* 기준정보 — 점검기준 */
-  chkMach  : P+'v_check_machine', chkMold : P+'v_check_mold'
+  chkMach  : P+'v_check_machine', chkMold : P+'v_check_mold',
+  /* 시스템 */
+  employee : P+'v_employee',   permission : P+'v_permission'
 };
 
 /* ============================================================
@@ -130,14 +133,11 @@ const MENU = [
   ]},
 
   { key:'sys', name:'시스템', second:[
-    { key:'s-home', name:'홈', icon:'🏠', groups:[
-      { name:'현황', items:[
-        {id:'home', f:'index.html', n:'통합 현황', d:'요약 KPI · 전체 메뉴'}
-      ]}
-    ]},
-    { key:'s-set', name:'설정', icon:'⚙', groups:[
+    { key:'s-sys', name:'시스템', icon:'⚙', groups:[
       { name:'시스템', items:[
-        {id:'settings', f:'settings.html', n:'비밀번호 설정', d:'마스터 / 사용자 PIN'}
+        {id:'settings',   f:'settings.html',   n:'비밀번호 설정', d:'마스터 / 사용자 PIN'},
+        {id:'employee',   f:'employee.html',   n:'사원등록',     d:'사번 · 성명 · 부서 · 직위'},
+        {id:'permission', f:'permission.html', n:'권한설정',     d:'사원별 화면 조회/저장/수정/삭제'}
       ]}
     ]}
   ]}
@@ -383,6 +383,27 @@ const VIEWS = {
         ['점검항목',260,'','item_name'],['판정기준',300,'','criteria'],
         ['주기',80,'center','cycle'],['QR / 연동',150,'center','qr_code','qr'],
         ['사용',56,'center','is_active','bool'],['비고',0,'','remark']]
+},
+'employee':{
+  table:OBJ.employee, order:'emp_no.asc',
+  search:[['사번','text','emp_no'],['성명','text','emp_name'],['부서','text','dept'],
+          ['직위','text','position'],['권한','sel-role','role'],['공장','sel-fac','factory']],
+  cols:[['사번',90,'center','emp_no'],['성명',110,'','emp_name'],['부서',120,'','dept'],
+        ['직위',90,'center','position'],['공장',70,'center','factory'],
+        ['권한',80,'center','role','st'],['입사일',96,'center','hire_date'],
+        ['연락처',130,'','phone'],['사용',56,'center','is_active','bool'],['비고',0,'','remark']]
+},
+'permission':{
+  table:OBJ.permission, order:'emp_no.asc',
+  note:'사원별 화면 접근 권한입니다. <b>조회</b> 권한이 없는 화면은 메뉴에서 숨겨집니다.',
+  search:[['사번','text','emp_no'],['성명','text','emp_name'],['화면명','text','menu_name'],
+          ['부서','text','dept'],['권한','sel-role','role']],
+  cols:[['사번',86,'center','emp_no'],['성명',96,'','emp_name'],['부서',110,'','dept'],
+        ['직위',80,'center','position'],['권한',76,'center','role','st'],
+        ['화면ID',110,'','menu_id'],['화면명',170,'','menu_name'],
+        ['조회',60,'center','can_view','bool'],['저장',60,'center','can_save','bool'],
+        ['수정',60,'center','can_edit','bool'],['삭제',60,'center','can_delete','bool'],
+        ['수정일시',150,'center','updated_at','dt']]
 },
 'sensor':{
   table:OBJ.sensor, order:'sensor_code.asc',

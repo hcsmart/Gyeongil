@@ -71,7 +71,7 @@ function chrome(curId){
   /* 1차 */
   const t1=el('div','top1');
   t1.innerHTML =
-    '<a class="logo" href="index.html"><b>KI</b>MES<i>(Mold)</i></a>'+
+    '<a class="logo" href="'+(KI_CFG.LANDING||'mold_due.html')+'"><b>KI</b>MES<i>(Mold)</i></a>'+
     '<nav class="modules" id="kiMod"></nav>'+
     '<div class="user">'+
       '<button class="mini" id="kiUser">👤</button>'+
@@ -237,6 +237,7 @@ function opts(kind){
     case 'sel-alert':  return ['전체','고온','저온','고습','저습','무신호'];
     case 'sel-astat':  return ['전체','발생','조치중','해제'];
     case 'sel-ctype':  return ['전체','일상','정기'];
+    case 'sel-role':   return ['전체','관리자','사용자'];
     default: return ['전체'];
   }
 }
