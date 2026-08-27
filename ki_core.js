@@ -617,43 +617,92 @@ function makeModal(def, onSaved){
 }
 
 /* ============================================================
-   엑셀 붙여넣기 (머리글 제외 · 본문만)
-   · 엑셀에서 셀 범위를 복사 → 붙여넣기 창에 Ctrl+V
-   · 열 순서 = 아래 안내표 순서 (편집 불가 'ro' 항목은 제외)
+   엑셀 템플릿 업로드 / 다운로드
+   · [양식 받기] 머리글 + 작성안내 시트가 포함된 템플릿 내려받기
+   · [현재자료 받기] 조회된 자료를 템플릿 형식으로 내려받아 수정 후 재업로드
+   · [파일 선택 / 끌어놓기] xlsx · xls · csv · txt 업로드 → 검증 → 저장
 ============================================================ */
-function pasteFields(E){
+const XLSX_SRC='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+let XLSXP=null;
+function loadXLSX(){
+  if(window.XLSX) return Promise.resolve(window.XLSX);
+  if(!XLSXP) XLSXP=new Promise(res=>{
+    const s=document.createElement('script');
+    s.src=XLSX_SRC; s.onload=()=>res(window.XLSX||null); s.onerror=()=>res(null);
+    document.head.appendChild(s);
+  });
+  return XLSXP;
+}
+function upFields(E){
   return E.fields.filter(f=>f[4]!=='ro' && !(E.auto && f[0]===E.pk));
 }
-/* 엑셀 클립보드(TSV) 파서 : 큰따옴표 안의 탭/줄바꿈 보존 */
-function splitTSV(text){
+const upLabel = f => f[1]+(f[4]==='req'?'*':'');
+const normKey = s => String(s==null?'':s).replace(/[*＊\s()（）·]/g,'').toLowerCase();
+const typeName = t => ({text:'문자',num:'숫자',date:'날짜(YYYY-MM-DD)',datetime:'일시',
+                        bool:'사용 / 미사용',area:'문자(장문)',sel:'목록선택',ref:'코드'}[t]||'문자');
+function allowText(f){
+  if(f[2]==='sel') return (f[3]||[]).join(' / ');
+  if(f[2]==='bool') return '사용 / 미사용';
+  if(f[2]==='ref')  return '기준정보 코드';
+  return '';
+}
+/* ---------- 파일 읽기 ---------- */
+function parseDelim(text,d){
   const rows=[]; let row=[], cur='', q=false;
-  const s=String(text||'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  const s=String(text||'').replace(/^\ufeff/,'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
   for(let i=0;i<s.length;i++){
     const c=s[i];
-    if(q){
-      if(c==='"'){ if(s[i+1]==='"'){ cur+='"'; i++; } else q=false; }
-      else cur+=c;
-    }else{
-      if(c==='"'&&cur==='') q=true;
-      else if(c==='\t'){ row.push(cur); cur=''; }
-      else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
-      else cur+=c;
-    }
+    if(q){ if(c==='"'){ if(s[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else if(c==='"'&&cur==='') q=true;
+    else if(c===d){ row.push(cur); cur=''; }
+    else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+    else cur+=c;
   }
   if(cur!==''||row.length){ row.push(cur); rows.push(row); }
-  return rows.filter(r=>r.some(c=>String(c).trim()!==''));
+  return rows;
 }
+function decodeText(buf){
+  let t=new TextDecoder('utf-8').decode(buf);
+  if(t.indexOf('\ufffd')>=0){                       /* 한글 윈도우 CSV(CP949) 대응 */
+    try{ t=new TextDecoder('euc-kr').decode(buf); }catch(e){}
+  }
+  return t;
+}
+async function readSheet(file){
+  const name=(file.name||'').toLowerCase();
+  const buf=await file.arrayBuffer();
+  if(/\.(xlsx|xlsm|xlsb|xls)$/.test(name)){
+    const X=await loadXLSX();
+    if(!X) throw new Error('엑셀(xlsx) 해석 모듈을 불러오지 못했습니다. 파일을 CSV로 저장한 뒤 업로드하세요.');
+    const wb=X.read(buf,{type:'array',cellDates:true});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    return X.utils.sheet_to_json(ws,{header:1,defval:'',blankrows:false});
+  }
+  const txt=decodeText(buf);
+  const head=(txt.split('\n')[0]||'');
+  const d=(head.split('\t').length>head.split(',').length)?'\t':',';
+  return parseDelim(txt,d);
+}
+/* ---------- 값 변환 ---------- */
+function pad2(n){ return ('0'+n).slice(-2); }
+function dstr(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
 function normDate(v){
+  if(v instanceof Date) return isNaN(v)?null:dstr(v);
   const s=String(v).trim();
   let m=s.match(/^(\d{4})\s*[.\-\/]\s*(\d{1,2})\s*[.\-\/]\s*(\d{1,2})/);
-  if(m) return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
+  if(m) return m[1]+'-'+pad2(+m[2])+'-'+pad2(+m[3]);
   if(/^\d{8}$/.test(s)) return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);
+  if(/^\d{5}$/.test(s)){                                    /* 엑셀 날짜 일련번호 */
+    const d=new Date(Date.UTC(1899,11,30)+Number(s)*864e5); return dstr(d);
+  }
   const d=new Date(s.replace(/\./g,'-'));
-  return isNaN(d)?null:d.toISOString().slice(0,10);
+  return isNaN(d)?null:dstr(d);
 }
-/* 셀 값 → DB 값. 반환 {v:값, e:오류메시지|null, w:경고|null} */
-function pcell(f,raw){
+/* 반환 {v:값, e:오류, w:경고} */
+function ucell(f,raw){
   const ty=f[2], req=(f[4]==='req'), lb=f[1];
+  if(ty==='date'&&raw instanceof Date) return {v:dstr(raw),e:null};
+  if(ty==='datetime'&&raw instanceof Date) return {v:raw.toISOString(),e:null};
   let s=String(raw==null?'':raw).trim();
   if(s===''||s==='-') return req?{v:null,e:lb+' 필수'}:{v:null,e:null};
   if(ty==='bool')  return {v:!/^(false|미사용|중지|n|no|0|x|아니오)$/i.test(s),e:null};
@@ -673,75 +722,148 @@ function pcell(f,raw){
   }
   return {v:s,e:null};
 }
-function makePaste(def, onSaved){
-  const E=def.edit, FS=pasteFields(E);
+function outVal(f,v){
+  if(v==null) return '';
+  if(f[2]==='bool') return v===false?'미사용':'사용';
+  if(f[2]==='date') return String(v).substring(0,10);
+  if(f[2]==='datetime') return String(v).replace('T',' ').substring(0,16);
+  return v;
+}
+/* ---------- 템플릿 파일 생성 ---------- */
+async function makeTemplate(title, FS, rows){
+  const head=FS.map(upLabel);
+  const body=(rows||[]).map(r=>FS.map(f=>outVal(f,r[f[0]])));
+  const X=await loadXLSX();
+  if(X){
+    const wb=X.utils.book_new();
+    const ws=X.utils.aoa_to_sheet([head].concat(body));
+    ws['!cols']=FS.map(f=>({wch:Math.max(10,Math.min(28,f[1].length*2+6))}));
+    X.utils.book_append_sheet(wb,ws,'DATA');
+    const g=[['항목','필수','형식','입력 가능 값','DB 컬럼']].concat(
+      FS.map(f=>[f[1], f[4]==='req'?'필수':'', typeName(f[2]), allowText(f), f[0]]));
+    const wg=X.utils.aoa_to_sheet(g);
+    wg['!cols']=[{wch:20},{wch:8},{wch:20},{wch:44},{wch:20}];
+    X.utils.book_append_sheet(wb,wg,'작성안내');
+    X.writeFile(wb, title+'.xlsx');
+    return 'xlsx';
+  }
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const csvT='\ufeff'+[head.map(q).join(',')].concat(body.map(r=>r.map(q).join(','))).join('\n');
+  const a=el('a'); a.href=URL.createObjectURL(new Blob([csvT],{type:'text/csv'}));
+  a.download=title+'.csv'; a.click(); URL.revokeObjectURL(a.href);
+  return 'csv';
+}
+/* ---------- 업로드 모달 ---------- */
+function makeUpload(def, title, getRows, onSaved){
+  const E=def.edit, FS=upFields(E), TITLE=(title||E.table);
   const mask=el('div','mask');
   mask.innerHTML=
-    '<div class="modal wide"><h3>📋 엑셀 붙여넣기<button class="x" id="pX">✕</button></h3>'+
+    '<div class="modal wide"><h3>📊 엑셀 템플릿 업로드<button class="x" id="uX">✕</button></h3>'+
     '<div class="bd">'+
-      '<div class="paste-guide">엑셀에서 <b>머리글(제목행)을 제외한 본문만</b> 복사하여 아래 칸에 붙여넣으세요. '+
-      '열 순서는 다음과 같습니다. (＊=필수)<div class="paste-order">'+
-      FS.map((f,i)=>'<span>'+(i+1)+'. '+esc(f[1])+(f[4]==='req'?'<b>＊</b>':'')+'</span>').join('')+
-      '</div></div>'+
-      '<textarea id="pTxt" class="paste-txt" placeholder="여기를 클릭한 뒤 Ctrl+V"></textarea>'+
-      '<div class="paste-bar">'+
-        '<button class="btn" id="pChk">미리보기 · 검증</button>'+
-        '<button class="btn" id="pTpl">양식 내려받기(CSV)</button>'+
-        '<label class="paste-opt"><input type="checkbox" id="pUp" checked> 기존 키는 덮어쓰기(UPSERT)</label>'+
-        '<span class="right" id="pCnt">0건</span>'+
+      '<div class="up-step">'+
+        '<div class="up-num">1</div><div class="up-txt"><b>양식 내려받기</b> — 머리글과 작성안내가 포함된 파일을 받습니다.'+
+        '<div class="up-btns"><button class="btn" id="uTpl">📥 빈 양식 받기</button>'+
+        '<button class="btn" id="uCur">📥 현재자료 받기</button></div></div>'+
       '</div>'+
-      '<div class="paste-prev" id="pPrev"></div>'+
+      '<div class="up-step">'+
+        '<div class="up-num">2</div><div class="up-txt"><b>엑셀에서 작성</b> — 첫 행(머리글)은 <u>지우지 말고</u> 둘째 행부터 입력하세요. '+
+        '＊ 표시는 필수 항목입니다. 열 순서를 바꿔도 머리글 이름으로 자동 인식합니다.'+
+        '<div class="up-order">'+FS.map(f=>'<span>'+esc(f[1])+(f[4]==='req'?'<b>＊</b>':'')+'</span>').join('')+'</div></div>'+
+      '</div>'+
+      '<div class="up-step">'+
+        '<div class="up-num">3</div><div class="up-txt"><b>업로드</b> — xlsx · xls · csv 파일을 올리면 자동 검증됩니다.'+
+        '<div class="up-drop" id="uDrop"><input type="file" id="uFile" accept=".xlsx,.xls,.xlsm,.csv,.txt" hidden>'+
+        '<span id="uDropTxt">파일을 이곳에 끌어놓거나 <b>클릭</b>하여 선택</span></div></div>'+
+      '</div>'+
+      '<div class="up-bar">'+
+        '<label class="up-opt"><input type="checkbox" id="uUp" checked> 기존 키는 덮어쓰기(UPSERT)</label>'+
+        '<span class="right" id="uCnt">0건</span>'+
+      '</div>'+
+      '<div class="up-prev" id="uPrev"></div>'+
     '</div>'+
-    '<div class="mfoot"><button class="btn primary" id="pSave">저장</button>'+
-    '<button class="btn" id="pCancel">닫기</button><span class="msg" id="pMsg"></span></div></div>';
+    '<div class="mfoot"><button class="btn primary" id="uSave">저장</button>'+
+    '<button class="btn" id="uCancel">닫기</button><span class="msg" id="uMsg"></span></div></div>';
   document.body.appendChild(mask);
 
   let parsed=[];
   const close=()=>mask.classList.remove('on');
-  const setMsg=(t,k)=>{ const m=$('#pMsg',mask); m.className='msg'+(k?' '+k:''); m.textContent=t||''; };
-  $('#pX',mask).addEventListener('click',close);
-  $('#pCancel',mask).addEventListener('click',close);
+  const setMsg=(t,k)=>{ const m=$('#uMsg',mask); m.className='msg'+(k?' '+k:''); m.textContent=t||''; };
+  const reset=()=>{ parsed=[]; $('#uPrev',mask).innerHTML=''; $('#uCnt',mask).textContent='0건'; };
+  $('#uX',mask).addEventListener('click',close);
+  $('#uCancel',mask).addEventListener('click',close);
   mask.addEventListener('click',e=>{ if(e.target===mask) close(); });
 
-  $('#pTpl',mask).addEventListener('click',()=>{
-    const h=FS.map(f=>f[1]+(f[4]==='req'?'*':'')).join(',');
-    const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+h+'\n'],{type:'text/csv'}));
-    a.download=E.table+'_양식.csv'; a.click(); URL.revokeObjectURL(a.href);
+  $('#uTpl',mask).addEventListener('click',async()=>{
+    setMsg('양식 생성중...');
+    const k=await makeTemplate(TITLE+'_양식',FS,[]);
+    setMsg('✓ 빈 양식('+k+')을 내려받았습니다.','ok');
+  });
+  $('#uCur',mask).addEventListener('click',async()=>{
+    const rows=getRows()||[];
+    if(!rows.length) return setMsg('내려받을 조회 자료가 없습니다. 먼저 [조회] 하세요.','err');
+    setMsg('생성중...');
+    const k=await makeTemplate(TITLE+'_'+new Date().toISOString().slice(0,10),FS,rows);
+    setMsg('✓ 현재자료 '+rows.length+'건을 '+k+'로 내려받았습니다. 수정 후 그대로 업로드하세요.','ok');
   });
 
-  function build(){
-    const raw=splitTSV($('#pTxt',mask).value);
-    parsed=[]; let skipHead=0;
-    raw.forEach((cells,ri)=>{
-      /* 실수로 머리글을 함께 붙여넣은 경우 1행만 자동 제외 */
-      if(ri===0 && cells.length>1 &&
-         cells.slice(0,FS.length).every((c,i)=>FS[i]&&String(c).replace(/[*＊\s]/g,'')===FS[i][1])){ skipHead=1; return; }
+  /* --- 파일 선택 / 드래그앤드롭 --- */
+  const drop=$('#uDrop',mask), fin=$('#uFile',mask);
+  drop.addEventListener('click',()=>fin.click());
+  fin.addEventListener('change',()=>{ if(fin.files[0]) handle(fin.files[0]); });
+  ['dragenter','dragover'].forEach(t=>drop.addEventListener(t,e=>{ e.preventDefault(); drop.classList.add('on'); }));
+  ['dragleave','drop'].forEach(t=>drop.addEventListener(t,e=>{ e.preventDefault(); drop.classList.remove('on'); }));
+  drop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) handle(f); });
+
+  async function handle(file){
+    reset(); $('#uDropTxt',mask).innerHTML='📄 <b>'+esc(file.name)+'</b>';
+    setMsg('파일을 읽는 중...');
+    try{
+      const aoa=await readSheet(file);
+      build(aoa);
+    }catch(e){ setMsg('❌ '+e.message,'err'); }
+    fin.value='';
+  }
+  function build(aoa){
+    const rows=(aoa||[]).filter(r=>r&&r.some(c=>String(c==null?'':c).trim()!==''));
+    if(!rows.length) return setMsg('❌ 내용이 없는 파일입니다.','err');
+    /* 머리글 인식 → 열 매핑 (없으면 정의 순서대로) */
+    const h=rows[0].map(normKey);
+    const map=FS.map(f=>{
+      let i=h.indexOf(normKey(f[1])); if(i<0) i=h.indexOf(normKey(f[0]));
+      return i;
+    });
+    const hasHead=map.filter(i=>i>=0).length >= Math.max(1,Math.ceil(FS.length*0.5));
+    const idx=hasHead?map:FS.map((f,i)=>i);
+    const body=rows.slice(hasHead?1:0);
+    const miss=hasHead?FS.filter((f,i)=>map[i]<0&&f[4]==='req').map(f=>f[1]):[];
+    if(miss.length) return setMsg('❌ 필수 열이 없습니다 : '+miss.join(', '),'err');
+
+    parsed=body.map(cells=>{
       const o={body:{},err:[],warn:[],cells:[]};
       FS.forEach((f,i)=>{
-        const r=pcell(f,cells[i]);
-        o.body[f[0]]=r.v; o.cells.push({t:cells[i]==null?'':String(cells[i]).trim(),e:!!r.e});
+        const raw = idx[i]>=0 ? cells[idx[i]] : '';
+        const r=ucell(f,raw);
+        o.body[f[0]]=r.v;
+        o.cells.push({t:(raw instanceof Date)?dstr(raw):String(raw==null?'':raw).trim(), e:!!r.e});
         if(r.e) o.err.push(r.e);
         if(r.w) o.warn.push(r.w);
       });
-      if(!E.auto && (o.body[E.pk]===null||o.body[E.pk]===undefined||o.body[E.pk]==='')) o.err.push(E.pk+' 없음');
-      if(cells.length>FS.length) o.warn.push('열 초과 '+(cells.length-FS.length)+'개 무시');
-      parsed.push(o);
+      if(!E.auto && (o.body[E.pk]==null||o.body[E.pk]==='')) o.err.push(E.pk+' 없음');
+      return o;
     });
-    /* 붙여넣기 내 중복키 검사 */
     if(!E.auto){
       const seen={};
       parsed.forEach(o=>{
         const k=String(o.body[E.pk])+(E.pk2?'|'+o.body[E.pk2]:'');
-        if(seen[k]) o.err.push('중복키'); seen[k]=1;
+        if(seen[k]) o.err.push('파일 내 중복키'); seen[k]=1;
       });
     }
-    render(skipHead);
+    render(hasHead);
   }
-  function render(skipHead){
-    const box=$('#pPrev',mask);
-    const ng=parsed.filter(o=>o.err.length).length;
-    $('#pCnt',mask).textContent=parsed.length+'건'+(ng?' (오류 '+ng+')':'');
-    if(!parsed.length){ box.innerHTML='<div class="paste-empty">붙여넣은 데이터가 없습니다.</div>'; return; }
+  function render(hasHead){
+    const box=$('#uPrev',mask), ng=parsed.filter(o=>o.err.length).length;
+    $('#uCnt',mask).textContent=parsed.length+'건'+(ng?' (오류 '+ng+')':'');
+    if(!parsed.length){ box.innerHTML='<div class="up-empty">읽어들인 자료가 없습니다.</div>'; return; }
     const head='<tr><th style="width:34px">#</th>'+FS.map(f=>'<th>'+esc(f[1])+'</th>').join('')+
                '<th style="width:150px">검증</th></tr>';
     const body=parsed.slice(0,200).map((o,i)=>
@@ -750,17 +872,14 @@ function makePaste(def, onSaved){
       '<td>'+(o.err.length?'<span class="badge b-late">'+esc(o.err.join(', '))+'</span>':
               o.warn.length?'<span class="badge b-wait">'+esc(o.warn.join(', '))+'</span>':
               '<span class="badge b-done">OK</span>')+'</td></tr>').join('');
-    box.innerHTML='<table class="grid paste-grid"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>'+
-      (parsed.length>200?'<div class="paste-empty">… 미리보기는 200행까지 표시됩니다.</div>':'');
-    setMsg((skipHead?'머리글 1행을 자동으로 제외했습니다. ':'')+
-           (ng?'❌ 오류 '+ng+'건 — 수정 후 다시 시도하세요.':'✓ 검증 완료 · 저장 가능'), ng?'err':'ok');
+    box.innerHTML='<table class="grid up-grid"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>'+
+      (parsed.length>200?'<div class="up-empty">… 미리보기는 200행까지 표시됩니다.</div>':'');
+    setMsg((hasHead?'':'머리글을 찾지 못해 열 순서대로 읽었습니다. ')+
+           (ng?'❌ 오류 '+ng+'건 — 파일 수정 후 다시 업로드하세요.':'✓ 검증 완료 · 저장 가능'), ng?'err':'ok');
   }
-  $('#pChk',mask).addEventListener('click',build);
-  $('#pTxt',mask).addEventListener('paste',()=>setTimeout(build,30));
 
-  $('#pSave',mask).addEventListener('click',async()=>{
-    if(!parsed.length) build();
-    if(!parsed.length) return setMsg('붙여넣은 데이터가 없습니다.','err');
+  $('#uSave',mask).addEventListener('click',async()=>{
+    if(!parsed.length) return setMsg('업로드된 자료가 없습니다.','err');
     const ng=parsed.filter(o=>o.err.length);
     if(ng.length) return setMsg('❌ 오류 '+ng.length+'건이 있어 저장할 수 없습니다.','err');
     if(!confirm(parsed.length+'건을 저장하시겠습니까?')) return;
@@ -769,17 +888,16 @@ function makePaste(def, onSaved){
     try{
       for(let i=0;i<rows.length;i+=N){
         const part=rows.slice(i,i+N);
-        if($('#pUp',mask).checked && !E.auto) await upsert(E.table,part);
+        if($('#uUp',mask).checked && !E.auto) await upsert(E.table,part);
         else                                   await ins(E.table,part);
         done+=part.length; setMsg('저장중... '+done+'/'+rows.length);
       }
-      $('#pTxt',mask).value=''; parsed=[]; $('#pPrev',mask).innerHTML=''; $('#pCnt',mask).textContent='0건';
+      reset(); $('#uDropTxt',mask).innerHTML='파일을 이곳에 끌어놓거나 <b>클릭</b>하여 선택';
       close(); await onSaved(done);
     }catch(e){ setMsg('❌ '+e.message+' (저장 '+done+'건까지 반영)','err'); }
   });
 
-  return {open:()=>{ setMsg(''); mask.classList.add('on');
-                     setTimeout(()=>$('#pTxt',mask).focus(),50); }, close:close};
+  return {open:()=>{ setMsg(''); mask.classList.add('on'); }, close:close};
 }
 
 /* ---------- 그리드 화면 ---------- */
@@ -789,7 +907,7 @@ async function grid(id, need){
   const acts=[['조회','primary',b=>run(b.target)]];
   if(def.edit){
     if(can(id,'save'))   acts.push(['＋ 등록','',()=>modal.open(null)]);
-    if(can(id,'save'))   acts.push(['📋 붙여넣기','',()=>paster.open()]);
+    if(can(id,'save'))   acts.push(['📊 엑셀 업로드','',()=>uploader.open()]);
     if(can(id,'edit'))   acts.push(['수정','',()=>{ if(!state.sel) return msg('수정할 행을 선택하세요.'); modal.open(state.sel); }]);
     if(can(id,'delete')) acts.push(['삭제','danger',()=>removeRow()]);
   }
@@ -798,11 +916,12 @@ async function grid(id, need){
   acts.push(['인쇄','',()=>window.print()]);
   const ui=page(cur,acts);
   const state={rows:[],sel:null};
-  let modal=null, paster=null;
+  let modal=null, uploader=null;
   const editable = def.edit && (can(id,'save')||can(id,'edit'));
   if(editable) modal=makeModal(def, async(what)=>{ await run(null); msg('✓ '+what+'되었습니다.'); });
   if(def.edit && can(id,'save'))
-    paster=makePaste(def, async(n)=>{ await run(null); msg('✓ 엑셀 붙여넣기 '+n+'건이 저장되었습니다.'); });
+    uploader=makeUpload(def, cur.it.n, ()=>state.rows, async(n)=>{
+      await run(null); msg('✓ 엑셀 업로드 '+n+'건이 저장되었습니다.'); });
   async function removeRow(){
     if(!state.sel) return msg('삭제할 행을 선택하세요.');
     const E=def.edit, k=state.sel[E.pk];
@@ -882,5 +1001,5 @@ return {CFG:C, $:$, el:el, esc:esc,
         changePassword:changePassword, loadSess:loadSess, loadMe:loadMe,
         me:()=>ME, loginError:loginError, isAdmin:isAdmin, clearCache:cacheClear, can:can, session:session, guard:guard,
         header:chrome, chrome:chrome, page:page, masters:masters, M:M, msg:msg,
-        grid:grid, csv:csv, splitTSV:splitTSV, POST:POST, cell:cell, LK:LK, emailOf:emailOf};
+        grid:grid, csv:csv, POST:POST, cell:cell, LK:LK, emailOf:emailOf};
 })();

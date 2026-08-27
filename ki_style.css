@@ -324,3 +324,29 @@ table.grid{width:100%;border-collapse:collapse;table-layout:fixed}
 .paste-grid tr.bad td{background:#fdf2f2}
 .paste-grid td.cell-bad{background:#fbdada;color:#a12626;font-weight:700}
 .paste-empty{padding:14px;text-align:center;color:#8894a0}
+
+/* ---------- 엑셀 템플릿 업로드 ---------- */
+.modal.wide{width:1080px;max-width:96vw}
+.up-step{display:flex;gap:9px;align-items:flex-start;border:1px solid #d8e1e9;background:#f7fafd;
+  padding:8px 10px;margin-bottom:7px}
+.up-num{flex:0 0 20px;height:20px;border-radius:50%;background:#2e77bd;color:#fff;font-weight:700;
+  font-size:11px;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.up-txt{flex:1;color:#41566b;line-height:1.6}
+.up-txt b{color:#24405a}
+.up-btns{display:flex;gap:6px;margin-top:6px}
+.up-order{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:6px}
+.up-order span{background:#fff;border:1px solid #c3d2df;border-radius:2px;padding:1px 7px;font-size:11px;color:#2f4a63}
+.up-order b{color:#c0392b;margin-left:2px}
+.up-drop{margin-top:6px;border:2px dashed #a8bccf;background:#fff;border-radius:3px;padding:16px;
+  text-align:center;color:#6b7c8c;cursor:pointer;transition:.12s}
+.up-drop:hover{border-color:#4f84c0;background:#f2f8ff;color:#2e67a8}
+.up-drop.on{border-color:#2e77bd;background:#e8f2fd;color:#1d568c}
+.up-bar{display:flex;align-items:center;gap:8px;margin:8px 0 6px}
+.up-bar .right{margin-left:auto;color:#5c6b7a;font-weight:700}
+.up-opt{display:flex;align-items:center;gap:4px;color:#526171;font-size:11px}
+.up-opt input{width:13px;height:13px}
+.up-prev{max-height:38vh;overflow:auto;border:1px solid #d6dee6}
+.up-grid td{white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.up-grid tr.bad td{background:#fdf2f2}
+.up-grid td.cell-bad{background:#fbdada;color:#a12626;font-weight:700}
+.up-empty{padding:14px;text-align:center;color:#8894a0}
