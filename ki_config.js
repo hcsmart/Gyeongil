@@ -75,20 +75,6 @@ const OBJ = {
 const MENU = [
   { key:'mold', name:'금형관리', second:[
 
-    { key:'m-std', name:'점검기준', icon:'⚙', groups:[
-      { name:'주기 기준', items:[
-        {id:'cycle-rule', f:'cycle_rule.html', n:'점검주기 기준', d:'정기(등급별) · 세척(타발수/기간)'}
-      ]},
-      { name:'점검항목 기준', items:[
-        {id:'insp-item',  f:'inspection_item.html', n:'정기점검 항목', d:'분류 · 방법 · 판정기준'},
-        {id:'daily-item', f:'daily_item.html',      n:'일상점검 항목', d:'상형 8 / 하형 8'},
-        {id:'wash-step',  f:'wash_step.html',       n:'세척항목(순서)', d:'정기세척 6항목'}
-      ]},
-      { name:'평가 기준', items:[
-        {id:'grade-item', f:'grade_item.html', n:'등급 평가항목', d:'13항목 · 배점'}
-      ]}
-    ]},
-
     { key:'m-plan', name:'점검계획', icon:'📅', groups:[
       { name:'점검계획', items:[
         {id:'plan-board', f:'plan_board.html', n:'점검 도래현황',
@@ -164,7 +150,18 @@ const MENU = [
       ]}
     ]},
     { key:'b-chk', name:'점검기준', icon:'🔧', groups:[
-      { name:'점검 기준정보', items:[
+      { name:'금형 · 주기 기준', items:[
+        {id:'cycle-rule', f:'cycle_rule.html', n:'점검주기 기준', d:'정기(등급별) · 세척(타발수/기간)'}
+      ]},
+      { name:'금형 · 점검항목 기준', items:[
+        {id:'insp-item',  f:'inspection_item.html', n:'정기점검 항목', d:'분류 · 방법 · 판정기준'},
+        {id:'daily-item', f:'daily_item.html',      n:'일상점검 항목', d:'상형 8 / 하형 8'},
+        {id:'wash-step',  f:'wash_step.html',       n:'세척항목(순서)', d:'정기세척 6항목'}
+      ]},
+      { name:'금형 · 평가 기준', items:[
+        {id:'grade-item', f:'grade_item.html', n:'등급 평가항목', d:'13항목 · 배점'}
+      ]},
+      { name:'설비 점검기준', items:[
         {id:'chk-mach', f:'check_machine.html', n:'설비 점검기준', d:'일상 · 정기 점검항목 / 판정기준'}
       ]}
     ]}
