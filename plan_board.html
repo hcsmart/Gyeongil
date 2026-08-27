@@ -24,6 +24,11 @@
 .pl-m.on{background:#2e77bd;border-color:#2e77bd;color:#fff;font-weight:800}
 .pl-m.done{background:#2f7d4d;border-color:#2f7d4d;color:#fff;font-weight:800}
 .pl-m.miss{background:#fbe4e4;border-color:#e0a5a5;color:#b23030;font-weight:800}
+.pl-m.act{background:#e6f2ea;border-color:#9cc7ac;color:#2f7d4d;font-weight:800}
+.grid-wrap .grid th{top:0}
+.pl-grp td{background:#e8eef4 !important;border-top:2px solid #9fb0c0;border-bottom:1px solid #b6c2cd;
+  font-weight:800;color:#25486e;height:25px}
+.pl-grp .cnt{font-weight:400;color:#6b7a89;margin-left:6px}
 </style>
 <script src="ki_config.js"></script>
 <script src="ki_core.js"></script>
@@ -95,12 +100,13 @@
   ptb.innerHTML='<span style="font-weight:700;color:#526171">기간</span> <select id="pyy"></select>'+
     '<span class="pl-lg" style="display:flex;gap:10px;align-items:center;padding:0 10px;color:#4d5a68">'+
       '<span><i class="pl-m on"></i> 계획</span><span><i class="pl-m done">✓</i> 실시</span>'+
-      '<span><i class="pl-m miss">!</i> 미실시(경과)</span></span>'+
+      '<span><i class="pl-m miss">!</i> 미실시</span>'+
+      '<span><i class="pl-m act">✓</i> 실제 실시월</span>'+
+      '<span style="color:#8b98a5">다음 계획일 전까지 실시하면 실시로 인정</span></span>'+
     '<span class="sp" id="prate"></span>';
   const ptbl=el('table','grid');
-  ptbl.innerHTML='<thead><tr><th style="width:62px">년도</th><th style="width:56px">종류</th>'+
-    '<th style="width:92px">품번</th><th style="width:150px">금형명</th>'+
-    '<th style="width:64px">등급·구분</th><th style="width:96px">주기 기준</th>'+
+  ptbl.innerHTML='<thead><tr><th style="width:96px">품번</th><th style="width:160px">금형명</th>'+
+    '<th style="width:70px">등급·구분</th><th style="width:132px">주기 기준</th>'+
     '<th>계획 (월)</th><th style="width:54px">계획</th><th style="width:54px">실시</th>'+
     '<th style="width:70px">실시율</th></tr></thead><tbody></tbody>';
   ui.pg.appendChild(ptb); ui.pg.appendChild(pw); pw.appendChild(ptbl);
@@ -295,35 +301,54 @@
     const MON=TODAY.getMonth()+1, CURY=TODAY.getFullYear();
     ptbody.innerHTML='';
     let plan=0, done=0, lastKey='';
+    const cnt={};
+    PLAN.forEach(r=>{ const k=r.year+'|'+r.kind; cnt[k]=(cnt[k]||0)+1; });
     PLAN.forEach(r=>{
-      const ms=r.months||[], dn=r.done||[];
-      plan+=ms.length; done+=ms.filter(m=>dn.includes(m)).length;
+      const ms=[...(r.months||[])].sort((a,b)=>a-b), dn=[...new Set(r.done||[])];
+      /* 계획 회차별 실시 판정 : 계획월 ~ 다음 계획월 직전 안에 실적이 있으면 실시 */
+      const slot={};   /* 계획월 → {done, at, past} */
+      ms.forEach((m,i)=>{
+        const end = i+1<ms.length ? ms[i+1]-1 : 12;
+        const hit = dn.filter(a=>a>=m && a<=end).sort((a,b)=>a-b)[0];
+        const past = r.year<CURY || (r.year===CURY && end<MON);
+        slot[m]={done:hit!=null, at:hit, past:past};
+      });
+      const dCnt=ms.filter(m=>slot[m].done).length;
+      plan+=ms.length; done+=dCnt;
+      const hitAt=new Set(ms.map(m=>slot[m].at).filter(v=>v!=null));
       let cells='';
       for(let m=1;m<=12;m++){
-        const on=ms.includes(m), ok=dn.includes(m);
-        const past = r.year<CURY || (r.year===CURY && m<MON);
-        const cls = ok?'done' : on ? (past?'miss':'on') : '';
-        cells+='<span class="pl-m '+cls+'">'+(ok?'✓':(on&&cls==='miss'?'!':m))+'</span>';
+        const on=ms.includes(m);
+        let cls='', txt=m;
+        if(on){
+          if(slot[m].done){ cls='done'; txt = slot[m].at===m ? '✓' : '✓'; }
+          else if(slot[m].past){ cls='miss'; txt='!'; }
+          else cls='on';
+        }else if(dn.includes(m) && !hitAt.has(m)){ cls='act'; txt='✓'; }
+        else if(dn.includes(m) && hitAt.has(m)){ cls='act'; txt='✓'; }
+        cells+='<span class="pl-m '+cls+'">'+txt+'</span>';
       }
-      const rate=ms.length?Math.round(ms.filter(m=>dn.includes(m)).length/ms.length*100):null;
+      const rate=ms.length?Math.round(dCnt/ms.length*100):null;
       const key=r.year+'|'+r.kind;
+      if(key!==lastKey){
+        const g=el('tr','pl-grp');
+        g.innerHTML='<td colspan="8">'+r.year+'년 · '+(r.kind==='정기'?'정기점검':'세척점검')+
+          '<span class="cnt">'+cnt[key]+'건 · '+
+          (r.kind==='정기'?'등급별 배정월':'타발수 예측월')+'</span></td>';
+        ptbody.appendChild(g);
+      }
       const t=el('tr');
-      if(key!==lastKey) t.style.borderTop='2px solid #b9c4cf';
-      t.innerHTML='<td class="center" style="font-weight:800;color:#41556a">'+(key!==lastKey?r.year:'')+'</td>'+
-        '<td class="center">'+(r.kind==='정기'
-          ?'<span class="badge" style="background:#e9f2fc;color:#1d568c">정기</span>'
-          :'<span class="badge" style="background:#eef3ea;color:#3f7d3f">세척</span>')+'</td>'+
-        '<td style="font-weight:700">'+esc(r.mold_code)+'</td><td>'+esc(r.mold_name||'')+'</td>'+
+      t.innerHTML='<td style="font-weight:700">'+esc(r.mold_code)+'</td><td>'+esc(r.mold_name||'')+'</td>'+
         '<td class="center" style="font-weight:800">'+esc(r.grade||'-')+'</td>'+
         '<td class="center" style="font-size:11px;color:#5d6b78">'+esc(r.rule)+'</td>'+
-        '<td>'+cells+(r.kind==='세척'?' <small style="color:#96a2ad">예측</small>':(r.auto?' <small style="color:#96a2ad">기준</small>':''))+'</td>'+
-        '<td class="num">'+ms.length+'</td><td class="num">'+ms.filter(m=>dn.includes(m)).length+'</td>'+
+        '<td>'+cells+'</td>'+
+        '<td class="num">'+ms.length+'</td><td class="num">'+dCnt+'</td>'+
         '<td class="center" style="font-weight:800;color:'+(rate==null?'#96a2ad':rate>=100?'#15803d':rate>=50?'#b05c12':'#b23030')+'">'+
         (rate==null?'-':rate+'%')+'</td>';
       ptbody.appendChild(t);
       lastKey=key;
     });
-    if(!PLAN.length) ptbody.innerHTML='<tr><td colspan="10" class="center" style="height:52px;color:#8894a0">대상이 없습니다.</td></tr>';
+    if(!PLAN.length) ptbody.innerHTML='<tr><td colspan="8" class="center" style="height:52px;color:#8894a0">대상이 없습니다.</td></tr>';
     const pct=plan?Math.round(done/plan*100):0;
     ptb.querySelector('#prate').innerHTML='계획 '+plan+'회 · 실시 '+done+'회 · '+
       '<b style="color:#1d568c;font-size:13px">실시율 '+pct+'%</b>';
@@ -353,11 +378,16 @@
   function csv(){
     if(VIEW==='plan'){
       const head=['년도','종류','품번','금형명','등급·구분','주기',...[...Array(12)].map((_,i)=>(i+1)+'월'),'계획','실시','실시율'];
-      const body=PLAN.map(r=>{ const ms=r.months||[], dn=r.done||[];
-        const rate=ms.length?Math.round(ms.filter(m=>dn.includes(m)).length/ms.length*100):'';
+      const body=PLAN.map(r=>{ const ms=[...(r.months||[])].sort((a,b)=>a-b), dn=[...new Set(r.done||[])];
+        const sl={};
+        ms.forEach((m,i)=>{ const end=i+1<ms.length?ms[i+1]-1:12;
+          sl[m]=dn.some(a=>a>=m&&a<=end); });
+        const dc=ms.filter(m=>sl[m]).length;
+        const rate=ms.length?Math.round(dc/ms.length*100):'';
         return [r.year,r.kind,r.mold_code,r.mold_name,r.grade,r.rule,
-          ...[...Array(12)].map((_,i)=>{const m=i+1; return dn.includes(m)?'실시':ms.includes(m)?'계획':'';}),
-          ms.length,ms.filter(m=>dn.includes(m)).length,rate===''?'':rate+'%']
+          ...[...Array(12)].map((_,i)=>{const m=i+1;
+            return ms.includes(m)?(sl[m]?'실시':'미실시'):(dn.includes(m)?'실시':'');}),
+          ms.length,dc,rate===''?'':rate+'%']
           .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','); });
       const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
       a.download='점검계획표_'+YEAR+'-'+(ptb.querySelector('#pyy').value)+'.csv'; a.click(); URL.revokeObjectURL(a.href);
