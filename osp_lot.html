@@ -126,14 +126,6 @@
              '출고대기':'#f1f3f5;color:#77828c'}[st];
     return '<span class="badge" style="background:'+(c||'#eee')+'">'+esc(st)+'</span>';
   }
-  function drawSum(){
-    const mon=TODAY.slice(0,7);
-    $('#s_wait').textContent= ROWS.filter(r=>statusOf(r)==='출고대기').length;
-    $('#s_out').textContent = ROWS.filter(r=>r.sdate&&!r.idate).length;
-    $('#s_soon').textContent= ROWS.filter(r=>statusOf(r)==='납기임박').length;
-    $('#s_late').textContent= ROWS.filter(r=>statusOf(r)==='납기경과').length;
-    $('#s_done').textContent= ROWS.filter(r=>r.idate&&String(r.idate).slice(0,7)===mon).length;
-  }
   function draw(){
     const q=$('#q').value.trim().toLowerCase(), f=$('#fs').value;
     const rank={'납기경과':0,'납기임박':1,'출고대기':2,'반출중':3,'입고완료':4};
@@ -304,10 +296,19 @@
     $('#dlMap').innerHTML=MOLDS.filter(m=>m.part_no).map(m=>'<option value="'+esc(m.part_no)+'">'+
       esc(m.mold_no||'')+(m.asset_owner?' · '+esc(m.asset_owner):'')+'</option>').join('');
     if(sel) sel=ROWS.find(r=>r.no===sel.no)||null;
-    drawSum(); draw();
+    draw();
     KI.msg('외주 LOT '+ROWS.length+'건 · 미입고 '+ROWS.filter(r=>!r.idate).length+'건');
   }
-  try{ await load(); clearSel(); }
+  try{
+    await load();
+    const pl=new URLSearchParams(location.search).get('lot');
+    if(pl){
+      $('#q').value=pl; draw();
+      const cands=ROWS.filter(r=>String(r.part||'')===pl);
+      sel = cands.find(r=>!r.idate) || cands[0] || null;
+      if(sel){ draw(); pick(); } else clearSel();
+    } else clearSel();
+  }
   catch(e){ tbody.innerHTML='<tr><td colspan="14" class="center" style="height:60px;color:#b0442f">❌ '+
     KI.esc(e.message)+'</td></tr>'; KI.msg('❌ '+e.message); }
 })();

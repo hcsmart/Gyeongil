@@ -652,12 +652,13 @@ async function grid(id, need){
   tb.appendChild(src); tb.appendChild(cnt); gw.appendChild(tb);
   const tbl=el('table','grid'), thead=el('thead'), tr=el('tr');
   def.cols.forEach(c=>{ const th=el('th',null,c[0]); if(c[1])th.style.width=c[1]+'px'; tr.appendChild(th); });
+  if(def.jump){ const th=el('th',null,'이동'); th.style.width='80px'; tr.appendChild(th); }
   thead.appendChild(tr); tbl.appendChild(thead);
   const tbody=el('tbody'); tbl.appendChild(tbody); gw.appendChild(tbl); ui.pg.appendChild(gw);
 
   /* 표 안내문 (행이 없을 때만) — 상태바 메시지는 msg() 사용 */
   function hint(t){ tbody.innerHTML=''; const r=el('tr'),d=el('td','center',t);
-    d.colSpan=def.cols.length; d.style.cssText='color:#8894a0;height:60px'; r.appendChild(d); tbody.appendChild(r); }
+    d.colSpan=def.cols.length+(def.jump?1:0); d.style.cssText='color:#8894a0;height:60px'; r.appendChild(d); tbody.appendChild(r); }
 
   async function run(btn){
     const old=btn?btn.textContent:''; if(btn){btn.textContent='조회중...';btn.disabled=true;}
@@ -672,6 +673,12 @@ async function grid(id, need){
       else rows.forEach(r=>{
         const t=el('tr');
         def.cols.forEach(c=>{ const td=el('td',c[2]||''); td.innerHTML=cell(r,c); td.title=td.textContent; t.appendChild(td); });
+        if(def.jump){
+          const td=el('td','center'); const b=el('button',null,def.jump[0]);
+          b.style.cssText='height:21px;padding:0 8px;border:1px solid #2e77bd;background:#2e77bd;color:#fff;border-radius:2px;font-size:11px;font-weight:700;cursor:pointer';
+          b.addEventListener('click',ev=>{ ev.stopPropagation(); location.href=def.jump[1](r); });
+          td.appendChild(b); t.appendChild(td);
+        }
         t.addEventListener('click',()=>{ tbody.querySelectorAll('tr.sel').forEach(x=>x.classList.remove('sel')); t.classList.add('sel'); state.sel=r; });
         if(editable && can(id,'edit')) t.addEventListener('dblclick',()=>modal.open(r));
         tbody.appendChild(t);

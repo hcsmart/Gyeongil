@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v11.8',
+  VER      : 'v11.9',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -131,22 +131,6 @@ const MENU = [
       { name:'추적', items:[
         {id:'lot-trace', f:'lot_trace.html', n:'LOT 이동이력', d:'외주업체 경유 이력'},
         {id:'lot-route', f:'lot_route.html', n:'LOT 진행현황', d:'공정 진척 · 현재 위치'}
-      ]}
-    ]}
-  ]},
-
-  { key:'twin', name:'트윈팩토리', second:[
-    { key:'t-live', name:'공장현황', icon:'🏭', groups:[
-      { name:'실시간', items:[
-        {id:'twin-map',  f:'twin_map.html',     n:'공장 레이아웃', d:'2D 배치도 · 가동상태'},
-        {id:'asset-st',  f:'asset_status.html', n:'설비 현황',     d:'설비별 가동상태'}
-      ]}
-    ]},
-    { key:'t-base', name:'공장기준', icon:'▦', groups:[
-      { name:'기준정보', items:[
-        {id:'factory', f:'factory.html', n:'공장',      d:'공장 · 도면 크기'},
-        {id:'zone',    f:'zone.html',    n:'구역',      d:'구역 좌표 · 크기'},
-        {id:'asset',   f:'asset.html',   n:'설비 배치', d:'설비 좌표 · 사양'}
       ]}
     ]}
   ]},
@@ -298,6 +282,7 @@ const VIEWS = {
 
 'lot-trace':{
   manual:true,
+  jump:['입출고 ▸', r=>'osp_lot.html?lot='+encodeURIComponent(r.part||'')],
   table:OBJ.lotProg, order:'no.asc', post:'trace',
   search:[['부품번호(LOT)','text','part'],['JOB(관리번호)','text','job'],['외주처','sel-vendor','vendor'],
           ['가공공정','sel-mp','mp'],['이동일','date2','date'],['공정','text','proc']],
@@ -308,7 +293,8 @@ const VIEWS = {
         ['전공정',80,'center','prevMp'],['다음공정',80,'center','nextMp'],['경유단계',0,'','chain','chain']]
 },
 'lot-route':{
-  table:OBJ.lotProg, order:'no.asc', post:'route',
+  table:OBJ.lotProg, order:'no.asc',
+  jump:['입출고 ▸', r=>'osp_lot.html?lot='+encodeURIComponent(r.part||'')], post:'route',
   note:'외주발주 화면에서 <b>입고일</b>을 입력하면 경유 이력이 자동으로 쌓입니다. 진척률은 표준공정 대비 실제 거친 단계 수입니다.',
   search:[['부품번호(LOT)','text','part'],['JOB(관리번호)','text','job'],['현재 외주처','sel-vendor','vendor'],
           ['현재 공정','sel-mp','mp'],['최근 이동일','date2','date'],['진척(%이상)','num','_rate']],
@@ -333,66 +319,6 @@ const VIEWS = {
   cols:[['No',46,'center','_i'],['업체코드',90,'','vendor_code'],['업체명',170,'','vendor_name'],
         ['구분',90,'center','vendor_type'],['협력형태',90,'center','partner_type'],
         ['지역',80,'center','location_type'],['대표자',90,'','ceo_name'],['전화',110,'','phone'],['비고',0,'','remark']]
-},
-
-'asset-st':{
-  table:OBJ.assetSt, order:'asset_code.asc',
-  search:[['설비코드','text','asset_code'],['설비명','text','asset_name'],['공장','sel-fac','factory_code'],
-          ['구역','text','zone_name'],['설비구분','text','asset_type'],['상태','sel-asset','status']],
-  cols:[['설비코드',86,'','asset_code'],['설비명',150,'','asset_name'],['구분',80,'center','asset_type'],
-        ['공장',120,'','factory_name'],['구역',110,'','zone_name'],
-        ['상태',80,'center','status','st'],['사양',110,'','spec'],
-        ['X',56,'num','x'],['Y',56,'num','y'],['비고',0,'','remark']]
-},
-'factory':{
-  table:OBJ.factory, order:'factory_code.asc',
-  edit:{ table:TBL.factory, pk:'factory_code', fields:[
-    ['factory_code','공장코드','text',null,'req'],
-    ['factory_name','공장명','text',null,'req'],
-    ['width_m','가로(m)','num',{def:100}],
-    ['height_m','세로(m)','num',{def:60}],
-    ['remark','비고','area']
-  ]},
-  search:[['공장코드','text','factory_code'],['공장명','text','factory_name']],
-  cols:[['공장코드',90,'center','factory_code'],['공장명',200,'','factory_name'],
-        ['가로(m)',80,'num','width_m'],['세로(m)',80,'num','height_m'],['비고',0,'','remark']]
-},
-'zone':{
-  table:OBJ.zone, order:'zone_code.asc',
-  note:'X · Y 는 구역 좌측상단 좌표, 폭 · 높이는 구역 크기입니다(단위 m). 트윈팩토리 배치도에 그대로 반영됩니다.',
-  edit:{ table:TBL.zone, pk:'zone_code', fields:[
-    ['zone_code','구역코드','text',null,'req'],
-    ['factory_code','공장','ref',{table:OBJ.factory,v:'factory_code',t:'factory_name'},'req'],
-    ['zone_name','구역명','text',null,'req'],
-    ['x','X','num'],['y','Y','num'],['w','폭','num'],['h','높이','num'],
-    ['color','색상','sel',['#dbe9f8','#e2f0e6','#f6ecd9','#eee3f2','#fbe4e4','#eef2f6']],
-    ['remark','비고','area']
-  ]},
-  search:[['구역코드','text','zone_code'],['구역명','text','zone_name'],['공장','sel-fac','factory_code']],
-  cols:[['구역코드',90,'center','zone_code'],['공장',70,'center','factory_code'],['구역명',170,'','zone_name'],
-        ['X',60,'num','x'],['Y',60,'num','y'],['폭',60,'num','w'],['높이',60,'num','h'],
-        ['색상',80,'center','color','color'],['비고',0,'','remark']]
-},
-'asset':{
-  table:OBJ.asset, order:'asset_code.asc',
-  note:'X · Y 는 배치도 상의 설비 중심 좌표(m)입니다. 상태를 바꾸면 트윈팩토리 화면 색상이 즉시 반영됩니다.',
-  edit:{ table:TBL.asset, pk:'asset_code', fields:[
-    ['asset_code','설비코드','text',null,'req'],
-    ['asset_name','설비명','text',null,'req'],
-    ['asset_type','설비구분','sel',['MCT','연삭','방전','와이어','조립','검사','시험','보관','기타']],
-    ['factory_code','공장','ref',{table:OBJ.factory,v:'factory_code',t:'factory_name'},'req'],
-    ['zone_code','구역','ref',{table:OBJ.zone,v:'zone_code',t:'zone_name'}],
-    ['x','X','num'],['y','Y','num'],
-    ['status','상태','sel',['가동','정지','경고','정상','고장'],'req'],
-    ['spec','사양','text'],
-    ['remark','비고','area']
-  ]},
-  search:[['설비코드','text','asset_code'],['설비명','text','asset_name'],['공장','sel-fac','factory_code'],
-          ['구역코드','text','zone_code'],['설비구분','text','asset_type'],['상태','sel-asset','status']],
-  cols:[['설비코드',90,'','asset_code'],['설비명',160,'','asset_name'],['구분',80,'center','asset_type'],
-        ['공장',70,'center','factory_code'],['구역',80,'center','zone_code'],
-        ['X',60,'num','x'],['Y',60,'num','y'],['상태',80,'center','status','st'],
-        ['사양',110,'','spec'],['최종신호',140,'center','last_signal','dt'],['비고',0,'','remark']]
 },
 
 'env-hist':{
