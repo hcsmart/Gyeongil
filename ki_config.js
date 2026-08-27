@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v9.9',
+  VER      : 'v10.0',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -39,6 +39,7 @@ const OBJ = {
   /* 금형 정기점검 */
   moldDue  : P+'v_mold_due',   moldMst  : P+'v_mold',
   inspHist : P+'v_inspection_history', inspDet : P+'v_inspection_detail',
+  checkLog : P+'v_check_log',
   inspItem : P+'v_inspection_item',
   /* 외주 LOT */
   ospOrder : P+'v_osp_order',  ospRecv  : P+'v_osp_receipt',
@@ -242,14 +243,15 @@ const VIEWS = {
 },
 'mold-detail':{
   manual:true,
-  table:OBJ.inspDet, order:'inspection_no.desc',
-  search:[['금형코드','text','mold_code'],['점검번호','text','inspection_no'],['점검항목','text','item_name'],
-          ['판정','sel-res','result'],['점검일','date2','inspection_date'],['금형명','text','mold_name']],
-  cols:[['점검번호',72,'center','inspection_no'],['점검일',92,'center','inspection_date'],
-        ['금형코드',92,'','mold_code'],['금형명',140,'','mold_name'],
-        ['항목코드',72,'center','item_code'],['점검항목',150,'','item_name'],
-        ['기준',160,'','criteria'],['측정값',86,'center','measured_value'],
-        ['판정',70,'center','result','st'],['비고',0,'','remark']]
+  table:OBJ.checkLog, order:'check_date.desc,ref_no.desc',
+  note:'일상 · 정기 · 세척 점검의 <b>항목별 실적</b>을 한 화면에서 조회합니다. 점검 종류로 필터링하세요.',
+  search:[['점검종류','sel-ckind','kind'],['품번','text','mold_code'],['점검항목','text','item_name'],
+          ['점검일','date','check_date'],['결과','sel-ckres','result'],['금형명','text','mold_name']],
+  cols:[['종류',60,'center','kind','st'],['번호',60,'center','ref_no'],['점검일',92,'center','check_date'],
+        ['품번',92,'','mold_code'],['금형명',140,'','mold_name'],
+        ['항목코드',80,'center','item_code'],['점검항목',200,'','item_name'],
+        ['기준',150,'','criteria'],['측정값 · 메모',130,'','value_note'],
+        ['결과',76,'center','result','st'],['담당',80,'center','worker'],['비고',0,'','remark']]
 },
 'mold-master':{
   table:OBJ.moldMst, order:'mold_code.asc',

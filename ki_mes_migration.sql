@@ -480,6 +480,31 @@ select p.mold_code, m.mold_name, m.customer_name, m.grade, p.year, p.months,
        p.updated_at
 from public.ki_insp_plan p left join public.ki_mold m on m.mold_code = p.mold_code;
 
+/* 점검 실적 통합 조회 (일상 / 정기 / 세척) */
+create view public.ki_v_check_log with (security_invoker=true) as
+select '정기'::text as kind, r.inspection_no::text as ref_no, r.inspection_date as check_date,
+       r.mold_code, m.mold_name, m.customer_name,
+       d.item_code, d.item_name, d.criteria, d.measured_value as value_note, d.result,
+       r.inspector as worker, coalesce(d.remark, r.remark) as remark
+from public.ki_inspection_detail d
+join public.ki_inspection_result r on r.inspection_no = d.inspection_no
+left join public.ki_mold m on m.mold_code = r.mold_code
+union all
+select '일상', c.check_id::text, c.check_date, c.mold_code, m.mold_name, m.customer_name,
+       d.side || d.item_no::text, d.item_name, null, d.note, d.result, c.checker, c.issue
+from public.ki_daily_check_detail d
+join public.ki_daily_check c on c.check_id = d.check_id
+left join public.ki_mold m on m.mold_code = c.mold_code
+union all
+select '세척', w.wash_id::text, w.wash_date, w.mold_code, m.mold_name, m.customer_name,
+       w.wash_type || s.ord::text, s.step, null,
+       case when w.shot_count is null then null else '누적 ' || w.shot_count::text end,
+       w.judgement, w.worker, w.remark
+from public.ki_wash w
+left join public.ki_mold m on m.mold_code = w.mold_code
+cross join lateral unnest(coalesce(w.steps, array['(세척항목 미기록)']))
+           with ordinality s(step, ord);
+
 /* 시스템 */
 
 create view public.ki_v_permission with (security_invoker=true) as

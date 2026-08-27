@@ -356,6 +356,8 @@ function opts(kind){
     case 'sel-kind':   return ['전체','정기','세척'];
     case 'sel-prod':   return ['전체','양산','A/S'];
     case 'sel-wash':   return ['전체','도래(타발수)','도래(기간)','임박','정상','미실시'];
+    case 'sel-ckind':  return ['전체','일상','정기','세척'];
+    case 'sel-ckres':  return ['전체','합격','주의','불합격','양호','불량','조건부합격'];
     default: return ['전체'];
   }
 }
