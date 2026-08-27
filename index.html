@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>KI MES - 로그인</title>
+<title>GI MES - 로그인</title>
 <link rel="stylesheet" href="ki_style.css">
 <style>
 body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
@@ -34,9 +34,9 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 <script src="ki_core.js"></script>
 </head>
 <body>
-<div class="lg">KI <span>MES</span></div>
+<div class="lg">GI <span>MES</span></div>
 <div id="app"></div>
-<div class="ver" id="ver">KI MES</div>
+<div class="ver" id="ver">GI MES</div>
 
 <script>
 if(typeof KI==='undefined' || typeof KI_CFG==='undefined'){
@@ -48,7 +48,7 @@ if(typeof KI==='undefined' || typeof KI_CFG==='undefined'){
   throw new Error('KI core not loaded');
 }
 const C=KI.CFG, $=KI.$;
-document.getElementById('ver').textContent='KI MES '+C.VER;
+document.getElementById('ver').textContent='GI MES '+C.VER;
 
 document.getElementById('app').innerHTML=
   '<div class="card">'+

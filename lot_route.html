@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>KI MES</title>
+<title>GI MES</title>
 <link rel="stylesheet" href="ki_style.css">
 <style>
 .lr-list{margin:7px;flex:1;min-height:300px;display:flex;flex-direction:column;
@@ -53,6 +53,32 @@
   if(!await KI.guard('lot-route'))return;
   const $=KI.$, el=KI.el, esc=KI.esc;
   const cur=KI.chrome('lot-route');
+
+  /* 화면 좌측 상단 브랜드명만 GI MES로 표시 (KI 내부 네임스페이스는 유지) */
+  function renameMesBrand(){
+    document.title=document.title.replace(/^KI\s+MES/i,'GI MES');
+    const candidates=[...document.querySelectorAll('body *')].filter(el=>{
+      const t=(el.textContent||'').trim();
+      if(!/^KI\s*MES(?:\s*\(Mold\))?/i.test(t) || t.length>80) return false;
+      const r=el.getBoundingClientRect();
+      return r.top<90 && r.left<280;
+    });
+    if(!candidates.length) return false;
+    const brand=candidates.sort((a,b)=>a.children.length-b.children.length)[0];
+    const w=document.createTreeWalker(brand,NodeFilter.SHOW_TEXT);
+    let n;
+    while((n=w.nextNode())){
+      if(/\bKI\b/.test(n.nodeValue)){
+        n.nodeValue=n.nodeValue.replace(/\bKI\b/,'GI');
+        return true;
+      }
+    }
+    return false;
+  }
+  renameMesBrand();
+  const brandObserver=new MutationObserver(()=>renameMesBrand());
+  brandObserver.observe(document.body,{childList:true,subtree:true});
+  setTimeout(()=>brandObserver.disconnect(),2000);
   const CAN_S=KI.can('lot-route','save'), CAN_E=KI.can('lot-route','edit');
   const TODAY=new Date().toISOString().slice(0,10);
   let ROWS=[], OSP=[], VEN=[], PROC=[], RT=[], MOLDS=[], sel=null;
