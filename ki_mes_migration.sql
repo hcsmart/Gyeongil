@@ -465,7 +465,9 @@ select p.mold_code, m.mold_name, m.customer_name, m.grade, p.year, p.months,
 from public.ki_insp_plan p left join public.ki_mold m on m.mold_code = p.mold_code;
 
 /* 시스템 */
-create or replace view public.ki_v_employee with (security_invoker=true) as
+-- ★ select * 뷰는 컬럼이 추가돼도 자동 확장되지 않으므로 drop 후 재생성한다
+drop view if exists public.ki_v_employee cascade;
+create view public.ki_v_employee with (security_invoker=true) as
 select * from public.ki_employee;
 
 create or replace view public.ki_v_permission with (security_invoker=true) as

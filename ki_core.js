@@ -37,7 +37,8 @@ async function signIn(userId,password){
   saveSess({access_token:d.access_token,refresh_token:d.refresh_token,
             exp:Date.now()+(d.expires_in||3600)*1000,uid:d.user&&d.user.id,email:d.user&&d.user.email});
   await loadMe();
-  if(!ME){ await signOut(); throw new Error('등록되지 않았거나 사용 중지된 사원입니다. 관리자에게 문의하세요.'); }
+  if(!ME){ const msg2=LOGIN_ERR||'등록되지 않았거나 사용 중지된 사원입니다. 관리자에게 문의하세요.';
+           await signOut(); throw new Error(msg2); }
   return ME;
 }
 async function refresh(){
@@ -74,18 +75,29 @@ async function adminFn(payload){
   return d;
 }
 
+let LOGIN_ERR='';
 async function loadMe(){
+  LOGIN_ERR='';
+  /* 1) 사원 조회 — 실패 시 원인을 남긴다 */
   try{
     const rows=await get(OBJ.employee+'?select=*&auth_uid=eq.'+SESS.uid+'&limit=1');
     ME=rows[0]||null;
-    if(!ME||ME.is_active===false){ ME=null; return null; }
-    PERM={};
+  }catch(e){
+    ME=null; LOGIN_ERR='사원정보 조회 실패 — '+e.message;
+    return null;
+  }
+  if(!ME){ LOGIN_ERR='이 계정에 연결된 사원이 없습니다. [시스템 › 사용자정보]에서 계정을 연결하세요.'; return null; }
+  if(ME.is_active===false){ ME=null; LOGIN_ERR='사용 중지된 사원입니다.'; return null; }
+  /* 2) 권한 조회 — 실패해도 로그인은 유지(관리자는 전 권한, 사용자는 조회 불가 화면만 숨김) */
+  PERM={};
+  try{
     const ps=await get(OBJ.permission+'?select=menu_id,can_view,can_save,can_edit,can_delete&emp_no=eq.'+
                        encodeURIComponent(ME.emp_no));
     ps.forEach(p=>PERM[p.menu_id]={v:p.can_view,s:p.can_save,e:p.can_edit,d:p.can_delete});
-  }catch(e){ ME=null; }
+  }catch(e){ console.warn('권한 조회 실패:',e.message); }
   return ME;
 }
+const loginError = ()=>LOGIN_ERR;
 const isAdmin = ()=>!!(ME&&ME.role==='관리자');
 function can(menuId,act){
   if(isAdmin()) return true;
@@ -656,7 +668,7 @@ return {CFG:C, $:$, el:el, esc:esc,
         get:get, ins:ins, upd:upd, del:del, upsert:upsert, adminFn:adminFn,
         signIn:signIn, signOut:signOut, logout:logout, refresh:refresh,
         changePassword:changePassword, loadSess:loadSess, loadMe:loadMe,
-        me:()=>ME, isAdmin:isAdmin, can:can, session:session, guard:guard,
+        me:()=>ME, loginError:loginError, isAdmin:isAdmin, can:can, session:session, guard:guard,
         header:chrome, chrome:chrome, page:page, masters:masters, M:M, msg:msg,
         grid:grid, csv:csv, POST:POST, cell:cell, LK:LK, emailOf:emailOf};
 })();
