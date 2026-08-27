@@ -70,27 +70,6 @@
   th.appendChild(tr); tbl.appendChild(th);
   const tbody=el('tbody'); tbl.appendChild(tbody); gw.appendChild(tbl); ui.pg.appendChild(gw);
 
-  /* ---------- 하단 참조 ---------- */
-  const R=el('div','ref');
-  R.innerHTML=
-    '<div class="ref-box"><h4>🧩 금형타입<span class="r" id="tcnt"></span></h4>'+
-      '<div class="ref-bd"><table class="grid"><thead><tr>'+
-        '<th style="width:100px">코드</th><th>타입명</th><th style="width:40px"></th>'+
-      '</tr></thead><tbody id="tbody_type"></tbody></table></div>'+
-      '<div class="ref-add"><input id="t_code" class="w80" placeholder="MD006"><input id="t_name" placeholder="타입명">'+
-        '<button id="t_add">＋ 추가</button></div>'+
-    '</div>'+
-    '<div class="ref-box"><h4>⚖ 소재 비중정보<span class="r" id="mcnt"></span></h4>'+
-      '<div class="ref-note">소재 중량(g) = 부피(cm³) × 비중<br>'+
-        '&nbsp;&nbsp;= 두께(cm) × 폭(cm) × 피치(cm) × 비중</div>'+
-      '<div class="ref-bd"><table class="grid"><thead><tr>'+
-        '<th style="width:90px">소재코드</th><th>소재명</th><th style="width:70px">비중</th><th style="width:40px"></th>'+
-      '</tr></thead><tbody id="tbody_mat"></tbody></table></div>'+
-      '<div class="ref-add"><input id="m_code" class="w80" placeholder="STS316"><input id="m_name" placeholder="소재명">'+
-        '<input id="m_den" class="w80" type="number" step="0.01" placeholder="비중"><button id="m_add">＋ 추가</button></div>'+
-    '</div>';
-  ui.pg.appendChild(R);
-
   /* ---------- 공통 ---------- */
   const V=id=>$('#'+id).value.trim();
   const N=id=>{ const v=V(id); return v===''?null:Number(v); };
@@ -155,7 +134,7 @@
   $('#b_new').addEventListener('click',clearForm);
   $('#b_del').addEventListener('click',remove);
   if(!(CAN_S||CAN_E)){ $('#b_save').disabled=true; $('#b_save').style.opacity=.5; }
-  if(!CAN_S){ $('#b_new').disabled=true; $('#b_new').style.opacity=.5; $('#t_add').disabled=true; $('#m_add').disabled=true; }
+  if(!CAN_S){ $('#b_new').disabled=true; $('#b_new').style.opacity=.5; }
   if(!CAN_D){ $('#b_del').disabled=true; $('#b_del').style.opacity=.5; }
 
   /* ---------- 목록 렌더 ---------- */
@@ -180,57 +159,7 @@
   }
   fnd.addEventListener('input',draw);
 
-  /* ---------- 참조 : 금형타입 / 소재 ---------- */
-  function drawType(){
-    const b=$('#tbody_type'); b.innerHTML='';
-    TYPES.forEach(t=>{
-      const tr=el('tr');
-      tr.innerHTML='<td class="center">'+esc(t.mold_type_code)+'</td><td>'+esc(t.mold_type_name||'')+'</td>';
-      const td=el('td','center'); const x=el('button','ref-x','✕'); x.title='삭제';
-      x.addEventListener('click',async ev=>{ ev.stopPropagation();
-        if(!confirm(t.mold_type_code+' 타입을 삭제할까요?'))return;
-        try{ await KI.del(T_TYPE,'mold_type_code=eq.'+encodeURIComponent(t.mold_type_code)); await loadRefs(); msg('✓ 타입 삭제',true); }
-        catch(e){ msg('❌ '+e.message); } });
-      td.appendChild(x); tr.appendChild(td);
-      tr.addEventListener('click',()=>{ $('#f_type').value=t.mold_type_code; });
-      b.appendChild(tr);
-    });
-    $('#tcnt').textContent=TYPES.length+'건';
-  }
-  function drawMat(){
-    const b=$('#tbody_mat'); b.innerHTML='';
-    MATS.forEach(m=>{
-      const tr=el('tr');
-      tr.innerHTML='<td class="center">'+esc(m.material_code)+'</td><td>'+esc(m.material_name||'')+
-                   '</td><td class="num" style="font-weight:800;color:#1d568c">'+(m.density==null?'':Number(m.density).toFixed(2))+'</td>';
-      const td=el('td','center'); const x=el('button','ref-x','✕'); x.title='삭제';
-      x.addEventListener('click',async ev=>{ ev.stopPropagation();
-        if(!confirm(m.material_code+' 소재를 삭제할까요?'))return;
-        try{ await KI.del(T_MAT,'material_code=eq.'+encodeURIComponent(m.material_code)); await loadRefs(); msg('✓ 소재 삭제',true); }
-        catch(e){ msg('❌ '+e.message); } });
-      td.appendChild(x); tr.appendChild(td);
-      tr.addEventListener('click',()=>{ $('#f_mat').value=m.material_code;
-        if(m.density!=null){ $('#f_den').value=m.density; weight(); } });
-      b.appendChild(tr);
-    });
-    $('#mcnt').textContent=MATS.length+'건';
-  }
-  $('#t_add').addEventListener('click',async()=>{
-    const c=V('t_code'), n=V('t_name');
-    if(!c) return msg('타입코드를 입력하세요.');
-    try{ await KI.ins(T_TYPE,[{mold_type_code:c,mold_type_name:n||null,sort_order:TYPES.length+1}]);
-      $('#t_code').value=''; $('#t_name').value=''; await loadRefs(); msg('✓ 타입 추가',true);
-    }catch(e){ msg('❌ '+e.message); }
-  });
-  $('#m_add').addEventListener('click',async()=>{
-    const c=V('m_code'), n=V('m_name'), d=N('m_den');
-    if(!c) return msg('소재코드를 입력하세요.');
-    if(d==null) return msg('비중을 입력하세요.');
-    try{ await KI.ins(T_MAT,[{material_code:c,material_name:n||null,density:d,sort_order:MATS.length+1}]);
-      ['m_code','m_name','m_den'].forEach(i=>$('#'+i).value=''); await loadRefs(); msg('✓ 소재 추가',true);
-    }catch(e){ msg('❌ '+e.message); }
-  });
-
+  /* 금형타입 · 소재 비중은 [기준정보 › 생산기준] 별도 화면에서 관리 */
   /* ---------- 로드 ---------- */
   function fillSelect(id,list,vk,nk,ph){
     const s=$('#'+id), keep=s.value; s.innerHTML='';
@@ -245,7 +174,6 @@
       TYPES=r[0]; MATS=r[1];
       fillSelect('f_type',TYPES,'mold_type_code','mold_type_name','선택');
       fillSelect('f_mat', MATS,'material_code','material_name','선택');
-      drawType(); drawMat();
     }catch(e){ msg('❌ 기준정보 조회 실패: '+e.message); }
   }
   async function loadMolds(){

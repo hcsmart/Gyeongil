@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v11.0',
+  VER      : 'v11.1',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -29,6 +29,7 @@ const TBL = {                      /* 편집 대상 원천 테이블 */
   dailyItem:'ki_daily_item', dailyCheck:'ki_daily_check', dailyCheckDet:'ki_daily_check_detail',
   wash:'ki_wash', washStep:'ki_wash_step', inspPlan:'ki_insp_plan',
   cycleRule:'ki_cycle_rule', moldLoc:'ki_mold_location',
+  moldType:'ki_mold_type', material:'ki_material',
   /* 외주 LOT (원천 테이블) */
   ospOrder:'outsourcing_order_status_rows',
   ospRecv :'outsourcing_receipt_confirm_candidates',
@@ -173,7 +174,9 @@ const MENU = [
       { name:'설비 / 금형', items:[
         {id:'mold-spec', f:'mold_spec.html', n:'금형정보', d:'금형 등록·수정·삭제 / 타입·비중 참조'},
         {id:'machine',   f:'machine.html',   n:'호기설정', d:'호기번호 · 호기명'},
-        {id:'mold-loc',  f:'mold_location.html', n:'금형 보관위치', d:'보관위치 코드 · 명칭'}
+        {id:'mold-loc',  f:'mold_location.html', n:'금형 보관위치', d:'보관위치 코드 · 명칭'},
+        {id:'mold-type', f:'mold_type.html',     n:'금형타입',     d:'타입 코드 · 명칭'},
+        {id:'material',  f:'material.html',      n:'소재 비중정보', d:'소재코드 · 비중'}
       ]}
     ]},
     { key:'b-chk', name:'점검기준', icon:'🔧', groups:[
@@ -471,6 +474,33 @@ const VIEWS = {
     ['step_no','순서','num',null,'req'],
     ['step_name','세척항목','text',null,'req'],
     ['is_active','사용','bool']
+  ]}
+},
+'mold-type':{
+  table:OBJ.moldType, order:'sort_order.asc',
+  note:'금형타입 기준입니다. [금형정보]의 금형타입 선택 목록으로 사용됩니다.',
+  search:[['코드','text','mold_type_code'],['타입명','text','mold_type_name']],
+  cols:[['코드',100,'','mold_type_code'],['타입명',240,'','mold_type_name'],
+        ['순서',60,'num','sort_order'],['비고',0,'','remark']],
+  edit:{ table:TBL.moldType, pk:'mold_type_code', fields:[
+    ['mold_type_code','타입코드','text',null,'req'],
+    ['mold_type_name','타입명','text',null,'req'],
+    ['sort_order','순서','num'],
+    ['remark','비고','area']
+  ]}
+},
+'material':{
+  table:OBJ.material, order:'sort_order.asc',
+  note:'소재 비중 기준입니다. 금형정보의 <b>소재중량(g) = 두께(cm) × 폭(cm) × 피치(cm) × 비중</b> 계산에 사용됩니다.',
+  search:[['소재코드','text','material_code'],['소재명','text','material_name']],
+  cols:[['소재코드',110,'','material_code'],['소재명',220,'','material_name'],
+        ['비중',80,'num','density'],['순서',60,'num','sort_order'],['비고',0,'','remark']],
+  edit:{ table:TBL.material, pk:'material_code', fields:[
+    ['material_code','소재코드','text',null,'req'],
+    ['material_name','소재명','text',null,'req'],
+    ['density','비중','num',null,'req'],
+    ['sort_order','순서','num'],
+    ['remark','비고','area']
   ]}
 },
 'mold-loc':{
