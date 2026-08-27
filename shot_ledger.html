@@ -16,7 +16,7 @@
   const cur=KI.chrome('shot-ledger');
   const CAN_E = KI.can('shot-ledger','edit')||KI.can('shot-ledger','save');
   const YEAR = new Date().getFullYear();
-  let ROWS=[], MOLDS=[], year=YEAR, dirty={};
+  let ROWS=[], MOLDS=[], RULE={}, year=YEAR, dirty={};
 
   const ui=KI.page(cur,[
     ['저장','primary',()=>saveAll()],
@@ -186,16 +186,16 @@
           });
           grade = total<=20?'A' : total<=38?'B' : 'C';
         }
-        const cyc = grade==='A'?365:grade==='B'?180:90;
+        const cyc = (RULE[grade]&&RULE[grade].cycle_days)||null;
         await KI.upd(TBL.mold,'mold_code=eq.'+encodeURIComponent(r.mold_code),
-          {grade:grade, cycle_days:cyc});
+          cyc?{grade:grade, cycle_days:cyc}:{grade:grade});
         await KI.ins(TBL.gradeEval,[{mold_code:r.mold_code, evaluator:(KI.me()||{}).emp_name||'자동',
           total_score:total, grade:grade, applied:true, method:mode==='1'?'자동(평가표)':'자동(간이)'}]);
         out.push(r.mold_code+' : '+grade+(total?' ('+total+'점)':'')); n++;
       }
       await load();
       alert('등급 산정 완료 — '+n+'건 반영\n\n'+out.join('\n')+
-            '\n\n점검주기가 A365/B180/C90일로 재배정되었습니다.\n(점검 예정일은 다음 점검 실적 등록 시 반영)');
+            '\n\n점검주기가 [점검주기 기준]에 따라 재배정되었습니다.\n(점검 예정일은 다음 점검 실적 등록 시 반영)');
     }catch(e){ alert('❌ '+e.message); }
   }
 
@@ -211,11 +211,12 @@
 
   async function load(){
     dirty={};
-    const [rows,molds]=await Promise.all([
+    const [rows,molds,rules]=await Promise.all([
       KI.get(OBJ.shotLedger+'?select=*&year=eq.'+year+'&order=mold_code.asc'),
-      KI.get(OBJ.moldMst+'?select=mold_code,mold_name&order=mold_code.asc')
+      KI.get(OBJ.moldMst+'?select=mold_code,mold_name&order=mold_code.asc'),
+      KI.get(OBJ.cycleRule+'?select=*&kind=eq.'+encodeURIComponent('정기'))
     ]);
-    ROWS=rows; MOLDS=molds;
+    ROWS=rows; MOLDS=molds; RULE={}; rules.forEach(r=>RULE[r.target]=r);
     const cs=[...new Set(ROWS.map(r=>r.customer_name).filter(Boolean))].sort();
     const sel=$('#cust'), keep=sel.value; sel.innerHTML='<option value="">전체</option>';
     cs.forEach(c=>{ const o=el('option',null,c); o.value=c; sel.appendChild(o); });

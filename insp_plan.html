@@ -25,7 +25,7 @@
   const cur=KI.chrome('insp-plan');
   const CAN_E=KI.can('insp-plan','edit')||KI.can('insp-plan','save');
   const YEAR=new Date().getFullYear(), MON=new Date().getMonth()+1;
-  const CYC={A:[6],B:[3,9],C:[3,6,9,12],F:[]};
+  let CYC={}, LBL={};
   let year=YEAR, ROWS=[], DONE={}, dirty={};
 
   const ui=KI.page(cur,[
@@ -59,7 +59,7 @@
   gw.appendChild(tbl); ui.pg.appendChild(gw);
   const tbody=tbl.querySelector('tbody');
 
-  const cycName=g=>({A:'1회/년',B:'6개월',C:'3개월',F:'사용시'}[g]||'-');
+  const cycName=g=>LBL[g]||'-';
   function months(r){ const k=r.mold_code; return dirty[k]!==undefined?dirty[k]:(r.months||[]); }
   function draw(){
     const fg=$('#fg').value;
@@ -108,7 +108,8 @@
   }
   async function autoPlan(){
     if(!CAN_E) return alert('저장 권한이 없습니다.');
-    if(!confirm(year+'년 계획을 등급 기준으로 다시 배정합니다.\nA=6월 · B=3,9월 · C=3,6,9,12월 · F=미배정\n\n기존 배정은 덮어씁니다. 계속할까요?'))return;
+    const desc=Object.keys(CYC).map(g=>g+'='+(CYC[g].length?CYC[g].join(',')+'월':'미배정')).join(' · ');
+    if(!confirm(year+'년 계획을 [점검주기 기준]에 따라 다시 배정합니다.\n'+desc+'\n\n기존 배정은 덮어씁니다. 계속할까요?'))return;
     ROWS.forEach(r=>{ dirty[r.mold_code]=(CYC[r.grade]||[]).slice(); });
     draw(); KI.msg('자동 배정 완료 — [저장]을 눌러 확정하세요.');
   }
@@ -125,11 +126,14 @@
   }
   async function load(){
     dirty={};
-    const [plans,molds,res]=await Promise.all([
+    const [plans,molds,res,rules]=await Promise.all([
       KI.get(OBJ.inspPlan+'?select=*&year=eq.'+year+'&order=mold_code.asc'),
       KI.get(OBJ.moldMst+'?select=mold_code,mold_name,customer_name,grade&order=mold_code.asc'),
-      KI.get(OBJ.inspHist+'?select=mold_code,inspection_date')
+      KI.get(OBJ.inspHist+'?select=mold_code,inspection_date'),
+      KI.get(OBJ.cycleRule+'?select=*&kind=eq.'+encodeURIComponent('정기'))
     ]);
+    CYC={}; LBL={};
+    rules.forEach(r=>{ CYC[r.target]=r.plan_months||[]; LBL[r.target]=r.label||''; });
     const pm={}; plans.forEach(p=>pm[p.mold_code]=p);
     ROWS=molds.map(m=>Object.assign({months:[]},pm[m.mold_code]||{},
       {mold_code:m.mold_code,mold_name:m.mold_name,customer_name:m.customer_name,grade:m.grade}));

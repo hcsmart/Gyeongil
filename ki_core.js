@@ -353,6 +353,9 @@ function opts(kind){
     case 'sel-ctype':  return ['전체','일상','정기'];
     case 'sel-role':   return ['전체','관리자','사용자'];
     case 'sel-side':   return ['전체','상형','하형'];
+    case 'sel-kind':   return ['전체','정기','세척'];
+    case 'sel-prod':   return ['전체','양산','A/S'];
+    case 'sel-wash':   return ['전체','도래(타발수)','도래(기간)','임박','정상','미실시'];
     default: return ['전체'];
   }
 }

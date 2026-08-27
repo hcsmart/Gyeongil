@@ -16,12 +16,14 @@
   const cur=KI.chrome('grade-eval');
   const CAN_S=KI.can('grade-eval','save');
   const YEAR=new Date().getFullYear();
-  let MOLDS=[], ITEMS=[], LEDGER={}, sel=null;
+  let MOLDS=[], ITEMS=[], LEDGER={}, RULE={}, sel=null;
+  const cycOf = g => (RULE[g]&&RULE[g].cycle_days) || null;
+  const lblOf = g => (RULE[g]&&RULE[g].label) || '-';
 
   const ui=KI.page(cur,[['새로고침','',()=>load()]]);
   const nt=el('div','note');
   nt.innerHTML='TJP-EU0702-01 — 13항목 합계로 <b>A ≤20점 · B 21~38점 · C ≥39점</b>. '+
-    '1번(타발수)·8번(제작년도)은 자동 산출. 등급 반영 시 점검주기 <b>A 365 · B 180 · C 90일</b>이 재배정됩니다. F등급(A/S·단종)은 평가 대상이 아닙니다.';
+    '1번(타발수)·8번(제작년도)은 자동 산출. 등급 반영 시 <b>[점검기준 › 점검주기 기준]</b>의 값으로 점검주기가 재배정됩니다. F등급(A/S·단종)은 평가 대상이 아닙니다.';
   ui.pg.appendChild(nt);
 
   const w=el('div','gv-wrap');
@@ -76,7 +78,7 @@
     const g = !all?null : tot<=20?'A' : tot<=38?'B' : 'C';
     $('#sTot').textContent=all?tot:'—';
     $('#sGr').textContent=g||'—';
-    $('#sCy').textContent=g?({A:'1회/년',B:'1회/6개월',C:'1회/3개월'}[g]):'—';
+    $('#sCy').textContent=g?lblOf(g):'—';
     return {tot:all?tot:null, g:g};
   }
   function drawForm(){
@@ -160,9 +162,9 @@
         return {eval_id:id,item_no:it.item_no,score:Number(e.dataset.v||e.value||0)}; });
       await KI.ins(TBL.gradeEvalDet,dets);
       if(apply){
-        const cyc=c.g==='A'?365:c.g==='B'?180:90;
+        const cyc=cycOf(c.g);
         await KI.upd(TBL.mold,'mold_code=eq.'+encodeURIComponent(sel.mold_code),
-          {grade:c.g, cycle_days:cyc});
+          cyc?{grade:c.g, cycle_days:cyc}:{grade:c.g});
         sel.grade=c.g;
       }
       m.className='msg ok'; m.textContent='✓ 저장'+(apply?' · 등급 '+c.g+' 반영 (주기 재배정)':'')+' 완료';
@@ -174,12 +176,14 @@
   if(!CAN_S){ ['bSave','bApply'].forEach(id=>{ $('#'+id).disabled=true; $('#'+id).style.opacity=.5; }); }
 
   async function load(){
-    const [molds,items,led]=await Promise.all([
+    const [molds,items,led,rules]=await Promise.all([
       KI.get(OBJ.moldMst+'?select=mold_code,mold_name,customer_name,mold_no,grade&order=mold_code.asc'),
       KI.get(OBJ.gradeItem+'?select=*&order=item_no.asc'),
-      KI.get(OBJ.shotLedger+'?select=mold_code,annual_shot,shot_score&year=eq.'+YEAR)
+      KI.get(OBJ.shotLedger+'?select=mold_code,annual_shot,shot_score&year=eq.'+YEAR),
+      KI.get(OBJ.cycleRule+'?select=*&kind=eq.'+encodeURIComponent('정기'))
     ]);
     MOLDS=molds; ITEMS=items; LEDGER={}; led.forEach(r=>LEDGER[r.mold_code]=r);
+    RULE={}; rules.forEach(r=>RULE[r.target]=r);
     drawList(); drawForm();
     KI.msg('금형 '+MOLDS.length+'개 · 평가항목 '+ITEMS.length+'개');
   }

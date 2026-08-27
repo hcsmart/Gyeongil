@@ -111,6 +111,13 @@ create table if not exists public.ki_daily_check_detail (
   item_name text, result text default '양호', note text,
   primary key (check_id, side, item_no));
 
+/* --- 점검주기 기준 (정기 / 세척) --- */
+create table if not exists public.ki_cycle_rule (
+  rule_id text primary key, kind text not null, target text not null,
+  cycle_days integer, limit_shot numeric, plan_months integer[],
+  label text, sort_order integer default 0, is_active boolean default true,
+  remark text, updated_at timestamptz default now());
+
 /* --- 세척점검 · 연간 계획일정 --- */
 create table if not exists public.ki_wash (
   wash_id bigserial primary key, mold_code text not null,
@@ -232,7 +239,8 @@ insert into public.ki_table_menu(table_name,menus) values
  ('ki_daily_check_detail',array['daily-check']),
  ('ki_wash',array['wash-check']),
  ('ki_wash_step',array['wash-step','wash-check']),
- ('ki_insp_plan',array['insp-plan'])
+ ('ki_insp_plan',array['insp-plan']),
+ ('ki_cycle_rule',array['cycle-rule'])
 on conflict (table_name) do update set menus = excluded.menus;
 -- 등급 반영을 위해 ki_mold 는 수명관리 화면에서도 수정 가능
 update public.ki_table_menu set menus = array['mold-master','shot-ledger','grade-eval','insp-plan']
@@ -297,11 +305,22 @@ grant usage, select on all sequences in schema public to authenticated;
 
 -- ------------------------------------------------------------
 -- 4) 조회 뷰
+--    ★ create or replace 는 컬럼을 줄이거나 이름을 바꿀 수 없다
+--      (ERROR 42P16: cannot drop columns from view)
+--      → 재실행 안전을 위해 기존 ki_v_* 를 모두 제거한 뒤 새로 만든다.
 -- ------------------------------------------------------------
+do $$
+declare r record;
+begin
+  for r in select c.relname n from pg_class c join pg_namespace ns on ns.oid=c.relnamespace
+           where ns.nspname='public' and c.relkind='v' and c.relname like 'ki\_v\_%'
+  loop execute format('drop view if exists public.%I cascade', r.n); end loop;
+end $$;
 
 /* 금형 점검 도래현황 (D-day) */
-create or replace view public.ki_v_mold_due with (security_invoker=true) as
-select m.mold_code, m.mold_name, m.customer_name, m.model, m.mold_type, m.factory_code, m.location,
+create view public.ki_v_mold_due with (security_invoker=true) as
+select m.mold_code, m.mold_no, m.grade, m.machine_no, coalesce(m.prod_type,'양산') as prod_type,
+       m.mold_name, m.customer_name, m.model, m.mold_type, m.factory_code, m.location,
        m.shot_count, m.shot_limit,
        case when coalesce(m.shot_limit,0)>0 then round(m.shot_count/m.shot_limit*100,1) end as shot_rate_pct,
        m.cycle_days, m.last_inspection, m.next_inspection,
@@ -314,13 +333,13 @@ select m.mold_code, m.mold_name, m.customer_name, m.model, m.mold_type, m.factor
        m.status, m.remark
 from public.ki_mold m;
 
-create or replace view public.ki_v_inspection_history with (security_invoker=true) as
+create view public.ki_v_inspection_history with (security_invoker=true) as
 select r.inspection_no, r.inspection_date, r.mold_code, m.mold_name, m.customer_name,
        r.inspector, r.shot_count, r.judgement, r.defect_count,
        r.action_taken, r.next_inspection, r.remark
 from public.ki_inspection_result r left join public.ki_mold m on m.mold_code = r.mold_code;
 
-create or replace view public.ki_v_inspection_detail with (security_invoker=true) as
+create view public.ki_v_inspection_detail with (security_invoker=true) as
 select d.inspection_no, r.inspection_date, r.mold_code, m.mold_name,
        d.item_code, d.item_name, d.criteria, d.measured_value, d.result, d.remark
 from public.ki_inspection_detail d
@@ -328,7 +347,7 @@ left join public.ki_inspection_result r on r.inspection_no = d.inspection_no
 left join public.ki_mold m on m.mold_code = r.mold_code;
 
 /* 트윈팩토리 */
-create or replace view public.ki_v_asset_status with (security_invoker=true) as
+create view public.ki_v_asset_status with (security_invoker=true) as
 select a.asset_code, a.factory_code, f.factory_name, a.zone_code, z.zone_name,
        a.asset_name, a.asset_type, a.status, a.spec, a.x, a.y, a.last_signal, a.remark
 from public.ki_asset a
@@ -336,7 +355,7 @@ left join public.ki_factory f on f.factory_code = a.factory_code
 left join public.ki_zone z on z.zone_code = a.zone_code;
 
 /* 온습도 */
-create or replace view public.ki_v_env_latest with (security_invoker=true) as
+create view public.ki_v_env_latest with (security_invoker=true) as
 select s.sensor_code, s.sensor_name, s.factory_code, s.zone_code, s.x, s.y,
        s.temp_min, s.temp_max, s.humi_min, s.humi_max,
        r.measured_at, r.temperature, r.humidity,
@@ -351,17 +370,17 @@ left join lateral (select measured_at, temperature, humidity from public.ki_env_
                    where e.sensor_code = s.sensor_code order by measured_at desc limit 1) r on true
 where s.is_active;
 
-create or replace view public.ki_v_env_history with (security_invoker=true) as
+create view public.ki_v_env_history with (security_invoker=true) as
 select e.reading_id, e.sensor_code, s.sensor_name, s.zone_code, e.measured_at, e.temperature, e.humidity
 from public.ki_env_reading e left join public.ki_sensor s on s.sensor_code = e.sensor_code;
 
-create or replace view public.ki_v_env_alert with (security_invoker=true) as
+create view public.ki_v_env_alert with (security_invoker=true) as
 select a.alert_id, a.occurred_at, a.sensor_code, s.sensor_name, s.zone_code,
        a.alert_type, a.value, a.threshold, a.status, a.action
 from public.ki_env_alert a left join public.ki_sensor s on s.sensor_code = a.sensor_code;
 
 /* 기준정보 : 금형정보 — 소재중량 자동계산 */
-create or replace view public.ki_v_mold_master with (security_invoker=true) as
+create view public.ki_v_mold_master with (security_invoker=true) as
 select m.mold_no, m.mold_type_code, t.mold_type_name,
        m.material_code, mt.material_name,
        m.thickness_mm, m.width_mm, m.pitch_mm,
@@ -374,16 +393,16 @@ left join public.ki_mold_type t on t.mold_type_code = m.mold_type_code
 left join public.ki_material  mt on mt.material_code = m.material_code;
 
 /* 점검기준 */
-create or replace view public.ki_v_check_machine with (security_invoker=true) as
+create view public.ki_v_check_machine with (security_invoker=true) as
 select check_id, check_type, item_name, criteria, cycle, qr_code, link_no, sort_order, is_active, remark
 from public.ki_check_item where target='설비';
 
-create or replace view public.ki_v_check_mold with (security_invoker=true) as
+create view public.ki_v_check_mold with (security_invoker=true) as
 select check_id, check_type, item_name, criteria, cycle, qr_code, link_no, sort_order, is_active, remark
 from public.ki_check_item where target='금형';
 
 /* 수명관리 뷰 */
-create or replace view public.ki_v_shot_ledger with (security_invoker=true) as
+create view public.ki_v_shot_ledger with (security_invoker=true) as
 select l.mold_code, m.mold_name, m.customer_name, m.model, m.machine_no, m.mold_no, m.grade,
        l.year, l.m1,l.m2,l.m3,l.m4,l.m5,l.m6,l.m7,l.m8,l.m9,l.m10,l.m11,l.m12,
        x.last_val, x.base_val, x.base_is_jan,
@@ -403,13 +422,11 @@ cross join lateral (
            where v is not null limit 1)) as base_val,
          (l.m1 is not null) as base_is_jan) x;
 
-create or replace view public.ki_v_grade_item with (security_invoker=true) as select * from public.ki_grade_item;
-create or replace view public.ki_v_grade_eval with (security_invoker=true) as
+create view public.ki_v_grade_eval with (security_invoker=true) as
 select e.eval_id, e.eval_date, e.mold_code, m.mold_name, m.customer_name, m.mold_no,
        e.evaluator, e.total_score, e.grade, e.applied, e.method, e.remark
 from public.ki_grade_eval e left join public.ki_mold m on m.mold_code = e.mold_code;
-create or replace view public.ki_v_daily_item with (security_invoker=true) as select * from public.ki_daily_item;
-create or replace view public.ki_v_daily_check with (security_invoker=true) as
+create view public.ki_v_daily_check with (security_invoker=true) as
 select c.check_id, c.check_date, c.mold_code, m.mold_name, m.customer_name, m.grade,
        c.checker, c.shot_count, c.actions, c.judgement, c.issue, c.action_taken,
        (select count(*) from public.ki_daily_check_detail d
@@ -417,24 +434,28 @@ select c.check_id, c.check_date, c.mold_code, m.mold_name, m.customer_name, m.gr
 from public.ki_daily_check c left join public.ki_mold m on m.mold_code = c.mold_code;
 
 /* 세척 · 계획 뷰 */
-create or replace view public.ki_v_wash_status with (security_invoker=true) as
+create view public.ki_v_wash_status with (security_invoker=true) as
 select m.mold_code, m.mold_name, m.customer_name, m.grade,
        coalesce(m.prod_type,'양산') as prod_type,
        w.wash_date as last_wash_date, w.shot_count as base_shot, s.cur_shot,
        greatest(coalesce(s.cur_shot,0)-coalesce(w.shot_count,0),0) as used_shot,
-       case when coalesce(m.prod_type,'양산')='A/S' then 500000 else 1000000 end as limit_shot,
+       coalesce(cr.limit_shot,1000000) as limit_shot,
+       coalesce(cr.cycle_days,365)     as limit_days,
+       cr.label as rule_label,
        (current_date - w.wash_date) as days_since,
        round(greatest(coalesce(s.cur_shot,0)-coalesce(w.shot_count,0),0)::numeric
-             /(case when coalesce(m.prod_type,'양산')='A/S' then 500000 else 1000000 end)*100,1) as shot_pct,
+             / coalesce(cr.limit_shot,1000000) * 100, 1) as shot_pct,
        case when w.wash_date is null then '미실시'
             when greatest(coalesce(s.cur_shot,0)-coalesce(w.shot_count,0),0)
-                 >= (case when coalesce(m.prod_type,'양산')='A/S' then 500000 else 1000000 end) then '도래(타발수)'
-            when (current_date - w.wash_date) >= 365 then '도래(기간)'
+                 >= coalesce(cr.limit_shot,1000000) then '도래(타발수)'
+            when (current_date - w.wash_date) >= coalesce(cr.cycle_days,365) then '도래(기간)'
             when greatest(coalesce(s.cur_shot,0)-coalesce(w.shot_count,0),0)
-                 >= (case when coalesce(m.prod_type,'양산')='A/S' then 500000 else 1000000 end)*0.9 then '임박'
-            when (current_date - w.wash_date) >= 330 then '임박'
+                 >= coalesce(cr.limit_shot,1000000)*0.9 then '임박'
+            when (current_date - w.wash_date) >= coalesce(cr.cycle_days,365)*0.9 then '임박'
             else '정상' end as wash_status
 from public.ki_mold m
+left join public.ki_cycle_rule cr
+       on cr.kind='세척' and cr.target = coalesce(m.prod_type,'양산') and cr.is_active
 left join lateral (select wash_date, shot_count from public.ki_wash x
    where x.mold_code=m.mold_code and x.wash_type='정기'
    order by wash_date desc, wash_id desc limit 1) w on true
@@ -444,15 +465,14 @@ left join lateral (
     from public.ki_shot_ledger l
    where l.mold_code=m.mold_code and l.year=extract(year from current_date)::int) s on true;
 
-create or replace view public.ki_v_wash with (security_invoker=true) as
+create view public.ki_v_wash with (security_invoker=true) as
 select w.wash_id, w.wash_date, w.mold_code, m.mold_name, m.customer_name, m.grade,
        w.wash_type, w.worker, w.shot_count, w.steps, w.judgement, w.remark,
        coalesce(array_length(w.steps,1),0) as step_done
 from public.ki_wash w left join public.ki_mold m on m.mold_code = w.mold_code;
 
-create or replace view public.ki_v_wash_step with (security_invoker=true) as select * from public.ki_wash_step;
 
-create or replace view public.ki_v_insp_plan with (security_invoker=true) as
+create view public.ki_v_insp_plan with (security_invoker=true) as
 select p.mold_code, m.mold_name, m.customer_name, m.grade, p.year, p.months,
        coalesce(array_length(p.months,1),0) as plan_cnt,
        (select count(distinct extract(month from r.inspection_date)::int)
@@ -465,26 +485,30 @@ select p.mold_code, m.mold_name, m.customer_name, m.grade, p.year, p.months,
 from public.ki_insp_plan p left join public.ki_mold m on m.mold_code = p.mold_code;
 
 /* 시스템 */
--- ★ select * 뷰는 컬럼이 추가돼도 자동 확장되지 않으므로 drop 후 재생성한다
-drop view if exists public.ki_v_employee cascade;
-create view public.ki_v_employee with (security_invoker=true) as
-select * from public.ki_employee;
 
-create or replace view public.ki_v_permission with (security_invoker=true) as
+create view public.ki_v_permission with (security_invoker=true) as
 select p.perm_id, p.emp_no, e.emp_name, e.dept, e.position, e.role,
        p.menu_id, p.menu_name, p.can_view, p.can_save, p.can_edit, p.can_delete, p.updated_at
 from public.ki_permission p left join public.ki_employee e on e.emp_no = p.emp_no;
 
-/* 단순 래핑 뷰 */
-create or replace view public.ki_v_mold            with (security_invoker=true) as select * from public.ki_mold;
-create or replace view public.ki_v_inspection_item with (security_invoker=true) as select * from public.ki_inspection_item;
-create or replace view public.ki_v_factory         with (security_invoker=true) as select * from public.ki_factory;
-create or replace view public.ki_v_zone            with (security_invoker=true) as select * from public.ki_zone;
-create or replace view public.ki_v_asset           with (security_invoker=true) as select * from public.ki_asset;
-create or replace view public.ki_v_sensor          with (security_invoker=true) as select * from public.ki_sensor;
-create or replace view public.ki_v_mold_type       with (security_invoker=true) as select * from public.ki_mold_type;
-create or replace view public.ki_v_material        with (security_invoker=true) as select * from public.ki_material;
-create or replace view public.ki_v_machine         with (security_invoker=true) as select * from public.ki_machine;
+/* 단순 래핑 뷰
+   ★ select * 뷰는 생성 시점의 컬럼으로 고정된다.
+      테이블에 컬럼을 추가한 뒤에는 반드시 drop 후 재생성해야 새 컬럼이 보인다. */
+do $$
+declare
+  v text[] := array['ki_mold','ki_inspection_item','ki_factory','ki_zone','ki_asset','ki_sensor',
+                    'ki_mold_type','ki_material','ki_machine','ki_employee',
+                    'ki_grade_item','ki_daily_item','ki_wash_step','ki_cycle_rule'];
+  t text;
+begin
+  foreach t in array v loop
+    if to_regclass('public.'||t) is null then continue; end if;
+    execute format('create view public.%I with (security_invoker=true) as select * from public.%I',
+                   'ki_v_'||substr(t,4), t);
+    execute format('grant select on public.%I to authenticated', 'ki_v_'||substr(t,4));
+  end loop;
+end $$;
+
 
 -- ------------------------------------------------------------
 -- 5) 외주 LOT관리 : 기존 시스템 테이블을 감싼 뷰
@@ -494,35 +518,35 @@ create or replace view public.ki_v_machine         with (security_invoker=true) 
 do $$
 begin
   if to_regclass('public.outsourcing_order_status_rows') is not null then
-    execute $v$create or replace view public.ki_v_osp_order with (security_invoker=true) as
+    execute $v$create view public.ki_v_osp_order with (security_invoker=true) as
       select "no", st, vendor, job, item, proc, "procName", part, "partName", mp,
              odate, edate, idate, cdate, quote, fix
       from public.outsourcing_order_status_rows$v$;
   end if;
   if to_regclass('public.outsourcing_receipt_confirm_candidates') is not null then
-    execute $v$create or replace view public.ki_v_osp_receipt with (security_invoker=true) as
+    execute $v$create view public.ki_v_osp_receipt with (security_invoker=true) as
       select "no", status, job, item, proc, "procName", part, "partName", mp, "mpName",
              vendor, odate, idate, cdate, quote, rate
       from public.outsourcing_receipt_confirm_candidates$v$;
   end if;
   if to_regclass('public.machining_purchase_progress_rows') is not null then
-    execute $v$create or replace view public.ki_v_lot_progress with (security_invoker=true) as
+    execute $v$create view public.ki_v_lot_progress with (security_invoker=true) as
       select "no", job, proc, part, steps from public.machining_purchase_progress_rows$v$;
   end if;
   if to_regclass('public.machining_standard_routes') is not null then
-    execute $v$create or replace view public.ki_v_std_route with (security_invoker=true) as
+    execute $v$create view public.ki_v_std_route with (security_invoker=true) as
       select row_no, standard_process_no, standard_process_name, steps
       from public.machining_standard_routes$v$;
   end if;
   if to_regclass('public.vendors') is not null then
-    execute $v$create or replace view public.ki_v_vendor with (security_invoker=true) as
+    execute $v$create view public.ki_v_vendor with (security_invoker=true) as
       select vendor_code, vendor_name, vendor_type, partner_type, location_type,
              ceo_name, phone, remark, outsourcing_flag, milling_flag
       from public.vendors
       where coalesce(outsourcing_flag,false) or coalesce(milling_flag,false)$v$;
   end if;
   if to_regclass('public.processes') is not null then
-    execute $v$create or replace view public.ki_v_process with (security_invoker=true) as
+    execute $v$create view public.ki_v_process with (security_invoker=true) as
       select process_code, process_name, process_group, sort_order from public.processes$v$;
   end if;
 end $$;
@@ -689,6 +713,16 @@ insert into public.ki_daily_item(side,item_no,item_name) values
  ('하형',4,'하형 세척 상태(이물)'),('하형',5,'볼 포스트 상태'),('하형',6,'가이드핀 상태'),
  ('하형',7,'볼트 · 클램프 풀림'),('하형',8,'다이면 평탄 · 손상')
 on conflict do nothing;
+
+-- 점검주기 기준 (정기 · 세척)
+insert into public.ki_cycle_rule(rule_id,kind,target,cycle_days,limit_shot,plan_months,label,sort_order,remark) values
+ ('GRADE_A','정기','A',365,null,array[6],        '1회/년',    1,'TJP-EU0702-01 · 총점 20점 이하'),
+ ('GRADE_B','정기','B',180,null,array[3,9],      '1회/6개월', 2,'총점 21~38점'),
+ ('GRADE_C','정기','C', 90,null,array[3,6,9,12], '1회/3개월', 3,'총점 39점 이상'),
+ ('GRADE_F','정기','F',null,null,array[]::int[], '사용시',    4,'A/S · 단종 — 자동산정 제외'),
+ ('WASH_MASS','세척','양산',365,1000000,null,'100만타 또는 1년', 11,'양산금형 정기세척'),
+ ('WASH_AS'  ,'세척','A/S' ,365, 500000,null,'50만타 또는 1년',  12,'A/S금형 정기세척')
+on conflict (rule_id) do nothing;
 
 -- 정기세척 6단계
 insert into public.ki_wash_step(step_no,step_name) values

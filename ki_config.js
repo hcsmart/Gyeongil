@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v9.1',
+  VER      : 'v9.2',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -26,6 +26,7 @@ const TBL = {                      /* 편집 대상 원천 테이블 */
   gradeEval:'ki_grade_eval', gradeEvalDet:'ki_grade_eval_detail',
   dailyItem:'ki_daily_item', dailyCheck:'ki_daily_check', dailyCheckDet:'ki_daily_check_detail',
   wash:'ki_wash', washStep:'ki_wash_step', inspPlan:'ki_insp_plan',
+  cycleRule:'ki_cycle_rule',
   /* 외주 LOT (원천 테이블) */
   ospOrder:'outsourcing_order_status_rows',
   ospRecv :'outsourcing_receipt_confirm_candidates',
@@ -52,6 +53,7 @@ const OBJ = {
   material : P+'v_material',    machine  : P+'v_machine',
   /* 기준정보 — 점검기준 */
   chkMach  : P+'v_check_machine', chkMold : P+'v_check_mold',
+  cycleRule : P+'v_cycle_rule',
   /* 수명관리 */
   shotLedger : P+'v_shot_ledger', gradeItem : P+'v_grade_item',
   gradeEval  : P+'v_grade_eval',  dailyItem : P+'v_daily_item',
@@ -67,26 +69,50 @@ const OBJ = {
 ============================================================ */
 const MENU = [
   { key:'mold', name:'금형관리', second:[
-    { key:'m-insp', name:'정기점검', icon:'🛠', groups:[
+
+    { key:'m-std', name:'점검기준', icon:'⚙', groups:[
+      { name:'주기 기준', items:[
+        {id:'cycle-rule', f:'cycle_rule.html', n:'점검주기 기준', d:'정기(등급별) · 세척(타발수/기간)'}
+      ]},
+      { name:'점검항목 기준', items:[
+        {id:'insp-item',  f:'inspection_item.html', n:'정기점검 항목', d:'분류 · 방법 · 판정기준'},
+        {id:'daily-item', f:'daily_item.html',      n:'일상점검 항목', d:'상형 8 / 하형 8'},
+        {id:'wash-step',  f:'wash_step.html',       n:'세척 단계',    d:'정기세척 6단계'},
+        {id:'chk-mold',   f:'check_mold.html',      n:'금형 QR 점검기준', d:'QR · 연동번호'}
+      ]},
+      { name:'평가 기준', items:[
+        {id:'grade-item', f:'grade_item.html', n:'등급 평가항목', d:'13항목 · 배점'}
+      ]}
+    ]},
+
+    { key:'m-plan', name:'점검계획', icon:'📅', groups:[
       { name:'정기점검', items:[
-        {id:'mold-due',    f:'mold_due.html',              n:'점검 도래현황', d:'주기 도래 · 지연 D-day'},
-        {id:'mold-insp',   f:'mold_inspection.html',       n:'점검 실적',     d:'금형별 정기점검 결과'},
-        {id:'mold-detail', f:'mold_inspection_detail.html',n:'점검 항목결과', d:'항목별 측정값 · 판정'}
+        {id:'insp-plan', f:'insp_plan.html', n:'정기점검 계획', d:'등급별 월 배정 · 실시율'},
+        {id:'mold-due',  f:'mold_due.html',  n:'정기점검 도래현황', d:'D-day · 지연 · 임박'}
+      ]},
+      { name:'세척점검', items:[
+        {id:'wash-due', f:'wash_due.html', n:'세척 도래현황', d:'타발수 · 기간 도래 판정'}
       ]}
     ]},
-    { key:'m-life', name:'수명관리', icon:'⏱', groups:[
-      { name:'금형 수명관리 (TJP-EU0702-01)', items:[
-        {id:'shot-ledger', f:'shot_ledger.html', n:'타발수 대장',  d:'월별 누적 SHOT · 연간 타발수 · 점수'},
-        {id:'grade-eval',  f:'grade_eval.html',  n:'등급 평가',   d:'13항목 평가 · A/B/C/F 등급 반영'},
-        {id:'daily-check', f:'daily_check.html', n:'일상점검',    d:'상형 8 / 하형 8 점검표'},
-        {id:'wash-check',  f:'wash_check.html',  n:'세척점검',    d:'일상 · 정기세척 · 도래현황'},
-        {id:'insp-plan',   f:'insp_plan.html',   n:'연간 계획일정', d:'등급별 월 배정 · 실시율'}
+
+    { key:'m-res', name:'점검실적', icon:'📋', groups:[
+      { name:'정기점검', items:[
+        {id:'mold-insp',   f:'mold_inspection.html',        n:'정기점검 실적', d:'점검 등록 · 이력'},
+        {id:'mold-detail', f:'mold_inspection_detail.html', n:'정기점검 항목결과', d:'항목별 측정값 · 판정'}
+      ]},
+      { name:'일상 · 세척', items:[
+        {id:'daily-check', f:'daily_check.html', n:'일상점검 실적', d:'상형 8 / 하형 8 점검표'},
+        {id:'wash-check',  f:'wash_check.html',  n:'세척점검 실적', d:'일상 · 정기세척 등록'}
       ]}
     ]},
-    { key:'m-base', name:'금형기준', icon:'▥', groups:[
-      { name:'기준정보', items:[
-        {id:'mold-master', f:'mold_master.html',      n:'금형대장',  d:'금형 기준정보 · 타발수'},
-        {id:'insp-item',   f:'inspection_item.html',  n:'점검 항목', d:'점검 항목 · 기준값'}
+
+    { key:'m-eval', name:'금형평가', icon:'⏱', groups:[
+      { name:'타발수 · 등급', items:[
+        {id:'shot-ledger', f:'shot_ledger.html', n:'월별 타발수', d:'누적 SHOT · 연간 타발수 · 점수'},
+        {id:'grade-eval',  f:'grade_eval.html',  n:'금형 등급평가', d:'13항목 · A/B/C/F 반영'}
+      ]},
+      { name:'금형 기준정보', items:[
+        {id:'mold-master', f:'mold_master.html', n:'금형대장', d:'금형번호 · 등급 · 타발수 · 수명'}
       ]}
     ]}
   ]},
@@ -152,11 +178,7 @@ const MENU = [
     ]},
     { key:'b-chk', name:'점검기준', icon:'🔧', groups:[
       { name:'점검 기준정보', items:[
-        {id:'chk-mach', f:'check_machine.html', n:'설비 점검기준', d:'일상 · 정기 점검항목 / 판정기준'},
-        {id:'chk-mold', f:'check_mold.html',    n:'금형 점검기준', d:'일상 · 정기 점검항목 / 판정기준'},
-        {id:'grade-item', f:'grade_item.html',  n:'등급 평가항목', d:'13항목 · 기본점수'},
-        {id:'daily-item', f:'daily_item.html',  n:'일상점검 항목', d:'상형 8 / 하형 8'},
-        {id:'wash-step',  f:'wash_step.html',   n:'세척 단계',    d:'정기세척 6단계'}
+        {id:'chk-mach', f:'check_machine.html', n:'설비 점검기준', d:'일상 · 정기 점검항목 / 판정기준'}
       ]}
     ]}
   ]},
@@ -529,6 +551,41 @@ const VIEWS = {
     ['item_name','점검항목','text',null,'req'],
     ['is_active','사용','bool']
   ]}
+},
+'cycle-rule':{
+  table:OBJ.cycleRule, order:'sort_order.asc',
+  note:'모든 점검주기의 <b>근거 기준표</b>입니다. 여기 값을 바꾸면 정기점검 도래현황 · 연간 계획 · 세척 도래현황이 함께 바뀝니다.<br>'+
+       '<b>정기</b> — 등급별 주기(일)와 연간 계획 기본 배정월 · <b>세척</b> — 타발수 한도와 기간(일). 둘 중 하나라도 넘으면 도래 판정됩니다.',
+  search:[['구분','sel-kind','kind'],['대상','text','target']],
+  cols:[['구분',66,'center','kind','st'],['대상',80,'center','target'],
+        ['표기',130,'','label'],['주기(일)',80,'num','cycle_days'],
+        ['타발수 한도',110,'num','limit_shot'],['계획 배정월',120,'center','months'],
+        ['사용',56,'center','is_active','bool'],['비고',0,'','remark']],
+  edit:{ table:TBL.cycleRule, pk:'rule_id', fields:[
+    ['rule_id','기준코드','text',null,'req'],
+    ['kind','구분','sel',['정기','세척'],'req'],
+    ['target','대상','text',null,'req'],
+    ['label','화면 표기','text'],
+    ['cycle_days','주기(일)','num'],
+    ['limit_shot','타발수 한도','num'],
+    ['sort_order','순서','num'],
+    ['is_active','사용','bool'],
+    ['remark','비고','area']
+  ]}
+},
+'wash-due':{
+  table:OBJ.washStat, order:'mold_code.asc',
+  note:'정기세척 <b>도래 판정</b>입니다. 마지막 정기세척 시점의 누적 타발수를 기준점으로, 사용 타발수가 한도를 넘거나 기간이 지나면 도래로 표시됩니다. '+
+       '기준값은 [점검기준 › 점검주기 기준]에서 바꿉니다.',
+  search:[['품번','text','mold_code'],['금형명','text','mold_name'],['고객사','text','customer_name'],
+          ['생산구분','sel-prod','prod_type'],['판정','sel-wash','wash_status']],
+  cols:[['품번',96,'','mold_code'],['금형명',150,'','mold_name'],['고객사',100,'','customer_name'],
+        ['등급',52,'center','grade','grade'],['생산구분',72,'center','prod_type'],
+        ['기준',120,'center','rule_label'],
+        ['기준점',100,'num','base_shot'],['현재누적',100,'num','cur_shot'],
+        ['사용 타발수',100,'num','used_shot'],['한도',96,'num','limit_shot'],
+        ['소진율',72,'num','shot_pct'],['최근세척',96,'center','last_wash_date'],
+        ['경과일',70,'num','days_since'],['판정',96,'center','wash_status','st']]
 },
 'wash-step':{
   table:OBJ.washStep, order:'step_no.asc',
