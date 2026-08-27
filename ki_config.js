@@ -138,7 +138,7 @@ const MENU = [
         {id:'mold-spec', f:'mold_spec.html',     n:'금형정보',     d:'금형 등록·수정·삭제'},
         {id:'mold-type', f:'mold_type.html',     n:'금형타입',     d:'타입 코드 · 명칭'},
         {id:'material',  f:'material.html',      n:'소재 비중정보', d:'소재코드 · 비중'},
-        {id:'mold-loc',  f:'mold_location.html', n:'금형 보관위치', d:'보관위치 코드 · 명칭'}
+        {id:'mold-loc',  f:'mold_location.html', n:'금형 보관장소', d:'보관장소 코드 · 명칭'}
       ]},
       { name:'설비', items:[
         {id:'machine',   f:'machine.html',   n:'호기설정', d:'호기번호 · 호기명'}
@@ -227,7 +227,7 @@ const VIEWS = {
 'mold-master':{
   table:OBJ.moldMst, order:'mold_code.asc',
   note:'금형번호 · 금형종류는 <b>기준정보 › 생산기준 › 금형정보</b>에서 관리하며 여기서는 수정할 수 없습니다. '+
-       '등급 · 타발수 · 보관위치 · 점검주기 등 운영 항목만 수정됩니다.',
+       '등급 · 타발수 · 보관장소 · 점검주기 등 운영 항목만 수정됩니다.',
   edit:{ table:TBL.mold, pk:'mold_code', fields:[
     ['mold_code','금형코드(품번)','text',null,'req'],
     ['mold_no','금형번호','text',null,'ro'],
@@ -239,7 +239,7 @@ const VIEWS = {
     ['customer_name','고객사','text'],
     ['model','모델','text'],
     ['factory_code','공장','ref',{table:OBJ.factory,v:'factory_code',t:'factory_name'}],
-    ['location','보관위치','ref',{table:OBJ.moldLoc,v:'location_code',t:'location_name'}],
+    ['location','보관장소','ref',{table:OBJ.moldLoc,v:'location_code',t:'location_name'}],
     ['shot_count','타발수','num'],
     ['shot_limit','수명(SHOT)','num'],
     ['cycle_days','점검주기(일)','num',{def:90}],
@@ -249,11 +249,11 @@ const VIEWS = {
     ['remark','비고','area']
   ]},
   search:[['금형코드','text','mold_code'],['금형명','text','mold_name'],['고객사','text','customer_name'],
-          ['금형종류','text','mold_type'],['상태','sel-mst','status'],['보관위치','text','location']],
+          ['금형종류','text','mold_type'],['상태','sel-mst','status'],['보관장소','text','location']],
   cols:[['금형코드',92,'','mold_code'],['금형번호',86,'center','mold_no'],['등급',52,'center','grade','grade'],
         ['금형명',150,'','mold_name'],['고객사',100,'','customer_name'],
         ['모델',90,'','model'],['금형종류',100,'center','mold_type'],['공장',60,'center','factory_code'],
-        ['보관위치',110,'','location'],['타발수',96,'num','shot_count','n0'],['수명',96,'num','shot_limit','n0'],
+        ['보관장소',110,'','location'],['타발수',96,'num','shot_count','n0'],['수명',96,'num','shot_limit','n0'],
         ['주기(일)',64,'num','cycle_days'],['최근점검',92,'center','last_inspection'],
         ['점검예정',92,'center','next_inspection'],['상태',70,'center','status','st'],['비고',0,'','remark']]
 },
@@ -437,14 +437,14 @@ const VIEWS = {
 },
 'mold-loc':{
   table:OBJ.moldLoc, order:'sort_order.asc',
-  note:'금형 보관위치 기준입니다. 금형대장의 <b>보관위치</b> 선택 목록으로 사용됩니다.',
-  search:[['위치코드','text','location_code'],['위치명','text','location_name']],
-  cols:[['위치코드',100,'','location_code'],['위치명',220,'','location_name'],
+  note:'금형 보관장소 기준입니다. 금형대장의 <b>보관장소</b> 선택 목록으로 사용됩니다.',
+  search:[['장소코드','text','location_code'],['장소명','text','location_name']],
+  cols:[['장소코드',100,'','location_code'],['장소명',220,'','location_name'],
         ['공장',80,'center','factory_code'],['순서',60,'num','sort_order'],
         ['사용',56,'center','is_active','bool'],['비고',0,'','remark']],
   edit:{ table:TBL.moldLoc, pk:'location_code', fields:[
-    ['location_code','위치코드','text',null,'req'],
-    ['location_name','위치명','text',null,'req'],
+    ['location_code','장소코드','text',null,'req'],
+    ['location_name','장소명','text',null,'req'],
     ['factory_code','공장','ref',{table:OBJ.factory,v:'factory_code',t:'factory_name'}],
     ['sort_order','순서','num'],
     ['is_active','사용','bool'],
