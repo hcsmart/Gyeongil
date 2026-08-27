@@ -650,19 +650,20 @@ async function grid(id, need){
   thead.appendChild(tr); tbl.appendChild(thead);
   const tbody=el('tbody'); tbl.appendChild(tbody); gw.appendChild(tbl); ui.pg.appendChild(gw);
 
-  function msg(t){ tbody.innerHTML=''; const r=el('tr'),d=el('td','center',t);
+  /* 표 안내문 (행이 없을 때만) — 상태바 메시지는 msg() 사용 */
+  function hint(t){ tbody.innerHTML=''; const r=el('tr'),d=el('td','center',t);
     d.colSpan=def.cols.length; d.style.cssText='color:#8894a0;height:60px'; r.appendChild(d); tbody.appendChild(r); }
 
   async function run(btn){
     const old=btn?btn.textContent:''; if(btn){btn.textContent='조회중...';btn.disabled=true;}
-    msg('조회중...');
+    hint('조회중...');
     try{
       let q=def.table+'?select=*'+(def.where?'&'+def.where:'')+(def.order?'&order='+def.order:'')+'&limit=5000';
       let rows=await get(q);
       rows = def.post ? POST[def.post](rows) : rows.map((r,i)=>Object.assign({_i:i+1},r));
       rows = applyFilter(rows, filters(sp));
       state.rows=rows; tbody.innerHTML='';
-      if(!rows.length) msg('조회 결과가 없습니다');
+      if(!rows.length) hint('조회 결과가 없습니다');
       else rows.forEach(r=>{
         const t=el('tr');
         def.cols.forEach(c=>{ const td=el('td',c[2]||''); td.innerHTML=cell(r,c); td.title=td.textContent; t.appendChild(td); });
@@ -672,7 +673,7 @@ async function grid(id, need){
       });
       cnt.textContent='총 '+rows.length.toLocaleString()+'건';
       msg(cur.path+' — '+rows.length.toLocaleString()+'건 조회되었습니다.');
-    }catch(e){ msg('❌ '+e.message); cnt.textContent='총 0건'; }
+    }catch(e){ hint('❌ '+e.message); msg('❌ '+e.message); cnt.textContent='총 0건'; }
     if(btn){btn.textContent=old;btn.disabled=false;}
   }
   run(null);
