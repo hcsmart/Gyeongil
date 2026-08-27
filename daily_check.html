@@ -16,135 +16,241 @@
   const cur=KI.chrome('daily-check');
   const CAN_S=KI.can('daily-check','save');
   const YEAR=new Date().getFullYear();
+  const TODAY=new Date().toISOString().slice(0,10);
   const ACTIONS=['펀치/다이 연마','펀치/다이 교환','스프링 교환','가이드핀 교환','볼 포스트 교환','금형 세척'];
-  let MOLDS=[], ITEMS=[], LEDGER={};
+  let MOLDS=[], ITEMS=[], LEDGER={}, LAST={}, sel=null;
 
   const ui=KI.page(cur,[
-    ['💾 점검 결과 저장','primary',()=>save()],
-    ['전체 양호','',()=>{ document.querySelectorAll('input[data-ok]').forEach(r=>{ if(r.dataset.ok==='1')r.checked=true; }); }],
-    ['새로고침','',()=>load()]
+    ['💾 점검 등록','primary',()=>save()],
+    ['전체 양호','',()=>{ document.querySelectorAll('input[data-ok="1"]').forEach(r=>r.checked=true); calc(); }],
+    ['새로고침','',()=>load()],
+    ['엑셀(CSV)','',()=>csv()]
   ]);
   const nt=el('div','note');
-  nt.innerHTML='금형 일상점검표 — <b>상형 8 / 하형 8 항목</b>. 누적 타발수는 타발수 대장에서 자동으로 가져옵니다. '+
-    '항목명 변경은 [기준정보 › 점검기준 › 일상점검 항목]에서 합니다.';
+  nt.innerHTML='생산 전·후 실시하는 일상점검입니다. 좌측에서 금형을 고르면 누적 타발수가 자동으로 들어옵니다. '+
+    '점검항목은 [점검기준 › 일상점검 항목]에서 관리합니다.';
   ui.pg.appendChild(nt);
+
+  const sum=el('div','gv-sum'); sum.style.margin='0 7px';
+  sum.innerHTML=[['tgt','대상 금형'],['done','오늘 완료'],['yet','오늘 미실시'],['ng','최근 7일 불량']]
+    .map(x=>'<div class="b"><div class="v" id="s_'+x[0]+'">0</div><div class="k">'+x[1]+'</div></div>').join('');
+  ui.pg.appendChild(sum);
 
   const w=el('div','gv-wrap');
   w.innerHTML=
-    '<div class="gv-left"><div class="pane-h">점검 정보</div><div class="gv-bd">'+
-      '<div style="display:grid;grid-template-columns:92px 1fr;gap:6px;align-items:center">'+
-        '<label style="color:#526171;font-weight:700">금형(품번)</label><select id="fMold" style="height:26px;border:1px solid #aeb9c4"></select>'+
-        '<label style="color:#526171;font-weight:700">점검일자</label><input type="date" id="fDate" style="height:26px;border:1px solid #aeb9c4;padding:0 6px">'+
+    '<div class="gv-left" style="width:400px"><div class="pane-h">금형 목록</div>'+
+      '<div class="ui-find"><input type="text" id="q" placeholder="품번 · 금형명 · 고객사">'+
+        '<select id="fs" style="height:23px;border:1px solid #aeb9c4">'+
+        '<option value="">전체</option><option>오늘 미실시</option><option>오늘 완료</option></select></div>'+
+      '<div class="ui-list" id="list"></div></div>'+
+    '<div class="gv-right"><div class="pane-h" id="ttl">점검 등록</div><div class="gv-bd">'+
+      '<div style="display:grid;grid-template-columns:100px 1fr 100px 1fr;gap:6px;align-items:center">'+
+        '<label style="color:#526171;font-weight:700">점검일</label><input type="date" id="fDate" style="height:26px;border:1px solid #aeb9c4;padding:0 6px">'+
         '<label style="color:#526171;font-weight:700">점검자</label><input type="text" id="fBy" style="height:26px;border:1px solid #aeb9c4;padding:0 6px">'+
         '<label style="color:#526171;font-weight:700">누적 타발수</label><input type="text" id="fShot" style="height:26px;border:1px solid #aeb9c4;padding:0 6px" placeholder="대장 자동">'+
+        '<label style="color:#526171;font-weight:700">최근 점검</label><input type="text" id="fLast" readonly style="height:26px;border:1px solid #aeb9c4;padding:0 6px;background:#eef2f6">'+
       '</div>'+
+      '<div id="warn" style="margin-top:8px"></div>'+
       '<div style="margin-top:10px;font-weight:800;color:#41556a">연마 · 교환 실시</div>'+
-      '<div id="acts" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:5px"></div>'+
-      '<div style="margin-top:10px;font-weight:800;color:#41556a">특이사항</div>'+
-      '<textarea id="fIssue" style="width:100%;height:54px;border:1px solid #aeb9c4;margin-top:4px;padding:5px;font:inherit"></textarea>'+
-      '<div style="margin-top:6px;font-weight:800;color:#41556a">조치내용</div>'+
-      '<textarea id="fAct" style="width:100%;height:54px;border:1px solid #aeb9c4;margin-top:4px;padding:5px;font:inherit"></textarea>'+
-      '<div style="margin-top:8px"><span class="msg" id="dMsg" style="font-weight:700"></span></div>'+
-    '</div></div>'+
-    '<div class="gv-right"><div class="pane-h">점검 항목 · 상형 8 / 하형 8</div>'+
-      '<div class="gv-bd" id="chkBody"></div>'+
-      '<div class="gv-foot"><span id="dcCnt" style="color:#7b8794"></span>'+
-        '<button class="btn primary" id="bSave2" style="margin-left:auto">💾 점검 결과 저장</button></div>'+
-    '</div>';
+      '<div id="acts" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:5px"></div>'+
+      '<div style="margin-top:10px;font-weight:800;color:#41556a">점검항목 <span id="itCnt" style="color:#8b98a5;font-weight:400"></span></div>'+
+      '<div id="items" style="margin-top:5px"></div>'+
+      '<div style="margin-top:10px;display:grid;grid-template-columns:100px 1fr 100px 1fr;gap:6px;align-items:center">'+
+        '<label style="color:#526171;font-weight:700">판정</label><input type="text" id="fJudge" readonly style="height:26px;border:1px solid #aeb9c4;padding:0 6px;background:#eef2f6;font-weight:800;color:#1d568c">'+
+        '<label style="color:#526171;font-weight:700">불량 건수</label><input type="text" id="fNg" readonly style="height:26px;border:1px solid #aeb9c4;padding:0 6px;background:#eef2f6">'+
+      '</div>'+
+      '<div style="margin-top:8px"><label style="color:#526171;font-weight:700">특이사항</label>'+
+        '<textarea id="fIssue" style="width:100%;height:44px;border:1px solid #aeb9c4;margin-top:3px;padding:5px;font:inherit"></textarea></div>'+
+      '<div style="margin-top:6px"><label style="color:#526171;font-weight:700">조치내용</label>'+
+        '<textarea id="fAct" style="width:100%;height:44px;border:1px solid #aeb9c4;margin-top:3px;padding:5px;font:inherit"></textarea></div>'+
+      '<div style="margin-top:12px" id="hist"></div>'+
+    '</div><div class="gv-foot"><span class="msg" id="dMsg" style="font-weight:700"></span>'+
+      '<button class="btn primary" id="bSave" style="margin-left:auto">💾 점검 등록</button></div></div>';
   ui.pg.appendChild(w);
-  $('#fDate').value=new Date().toISOString().slice(0,10);
+  $('#fDate').value=TODAY;
   $('#fBy').value=(KI.me()||{}).emp_name||'';
-  ACTIONS.forEach((a,i)=>{
+  ACTIONS.forEach(a=>{
     const l=el('label'); l.style.cssText='display:flex;gap:4px;align-items:center;color:#4d5a68';
-    l.innerHTML='<input type="checkbox" value="'+a+'" class="fa"> '+a;
+    l.innerHTML='<input type="checkbox" value="'+esc(a)+'" class="fa"> '+esc(a);
     $('#acts').appendChild(l);
   });
 
+  const fmt=v=>v==null?'':Number(v).toLocaleString();
+  const doneToday = c => (LAST[c]||{}).today;
+  function badge(c){
+    return doneToday(c)
+      ? '<span class="badge" style="background:#e2f0e6;color:#15803d">완료</span>'
+      : '<span class="badge" style="background:#f1f3f5;color:#77828c">미실시</span>';
+  }
+  function drawSum(){
+    const done=MOLDS.filter(m=>doneToday(m.mold_code)).length;
+    $('#s_tgt').textContent=MOLDS.length;
+    $('#s_done').textContent=done;
+    $('#s_yet').textContent=MOLDS.length-done;
+    const lim=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
+    $('#s_ng').textContent=Object.keys(LAST).reduce((a,k)=>
+      a+((LAST[k].rows||[]).filter(r=>r.check_date>=lim && (r.ng_count||0)>0).length),0);
+  }
+  function drawList(){
+    const q=$('#q').value.trim().toLowerCase(), f=$('#fs').value;
+    const box=$('#list'); box.innerHTML='';
+    MOLDS.filter(m=>(!q||[m.mold_code,m.mold_name,m.customer_name].some(v=>String(v||'').toLowerCase().includes(q)))
+                 && (!f || (f==='오늘 완료' ? doneToday(m.mold_code) : !doneToday(m.mold_code))))
+      .forEach(m=>{
+        const row=el('div','ui-row'+(sel&&sel.mold_code===m.mold_code?' sel':''));
+        row.style.gridTemplateColumns='94px 1fr 74px';
+        const L=LAST[m.mold_code]||{};
+        row.innerHTML='<div style="font-weight:700">'+esc(m.mold_code)+'</div>'+
+          '<div>'+esc(m.mold_name||'')+'<small style="display:block;color:#96a2ad">'+
+            esc(m.customer_name||'')+' · '+esc(m.grade||'-')+'등급'+
+            (L.date?' · 최근 '+esc(L.date):' · 점검이력 없음')+'</small></div>'+
+          '<div class="center">'+badge(m.mold_code)+'</div>';
+        row.addEventListener('click',()=>{ sel=m;
+          box.querySelectorAll('.ui-row.sel').forEach(x=>x.classList.remove('sel'));
+          row.classList.add('sel'); pick();
+        });
+        box.appendChild(row);
+      });
+  }
+  ['q','fs'].forEach(id=>$('#'+id).addEventListener('input',drawList));
+
+  function pick(){
+    $('#ttl').textContent='점검 등록 — '+sel.mold_code+' '+(sel.mold_name||'');
+    const led=LEDGER[sel.mold_code];
+    if(led){ const ms=[...Array(12)].map((_,i)=>led['m'+(i+1)]).filter(v=>v!=null);
+      $('#fShot').value=ms.length?fmt(ms[ms.length-1]):''; }
+    else $('#fShot').value='';
+    const L=LAST[sel.mold_code]||{};
+    $('#fLast').value=L.date?L.date+' / '+(L.checker||'')+(L.ng?' · 불량 '+L.ng+'건':''):'점검 이력 없음';
+    const wn=$('#warn');
+    if(doneToday(sel.mold_code))
+      wn.innerHTML='<div class="note" style="margin:0">오늘 이미 점검 이력이 있습니다. 추가로 등록하면 별도 이력으로 쌓입니다.</div>';
+    else if(L.ng)
+      wn.innerHTML='<div class="note" style="margin:0;border-left-color:#b05c12;background:#fdf8f1;color:#8a5a2b">'+
+        '⚠ 직전 점검('+esc(L.date)+')에 <b>불량 '+L.ng+'건</b>이 있었습니다. 조치 여부를 확인하세요.</div>';
+    else wn.innerHTML='';
+    drawItems(); drawHist();
+  }
+
   function drawItems(){
-    const box=$('#chkBody'); box.innerHTML='';
+    const box=$('#items'); box.innerHTML='';
     ['상형','하형'].forEach(side=>{
-      box.appendChild(el('div','dc-side',side+' ('+ITEMS.filter(i=>i.side===side).length+'항목)'));
-      ITEMS.filter(i=>i.side===side && i.is_active!==false).forEach(it=>{
-        const r=el('div','dc-row');
+      const its=ITEMS.filter(i=>i.side===side && i.is_active!==false);
+      if(!its.length)return;
+      box.appendChild(el('div','dc-side',side+' ('+its.length+'항목)'));
+      its.forEach(it=>{
+        const r=el('div','dc-row'); r.style.gridTemplateColumns='36px 1fr 150px 1fr';
         const nm='r_'+side+'_'+it.item_no;
-        r.innerHTML='<div class="no" style="text-align:center;color:#7b8794;font-weight:700">'+it.item_no+'</div>'+
+        r.innerHTML='<div style="text-align:center;color:#7b8794;font-weight:700">'+it.item_no+'</div>'+
           '<div style="color:#2b3844">'+esc(it.item_name)+'</div>'+
           '<div class="rd">'+
             '<label class="ok"><input type="radio" name="'+nm+'" value="양호" data-ok="1" checked> 양호</label>'+
-            '<label class="ng"><input type="radio" name="'+nm+'" value="불량" data-ok="0"> 불량</label>'+
+            '<label class="ng"><input type="radio" name="'+nm+'" value="불량"> 불량</label>'+
           '</div>'+
           '<input class="nt" id="nt_'+side+'_'+it.item_no+'" placeholder="메모">';
         box.appendChild(r);
       });
     });
+    box.querySelectorAll('input[type=radio]').forEach(r=>r.addEventListener('change',calc));
+    $('#itCnt').textContent='(상형 '+ITEMS.filter(i=>i.side==='상형').length+
+                            ' / 하형 '+ITEMS.filter(i=>i.side==='하형').length+')';
+    calc();
   }
-  async function fillShot(){
-    const code=$('#fMold').value; if(!code)return;
-    const r=LEDGER[code];
-    if(r){
-      const ms=[...Array(12)].map((_,i)=>r['m'+(i+1)]).filter(v=>v!=null);
-      if(ms.length) $('#fShot').value=Number(ms[ms.length-1]).toLocaleString();
-    }
+  function calc(){
+    let ng=0;
+    ITEMS.filter(i=>i.is_active!==false).forEach(it=>{
+      const v=(document.querySelector('input[name="r_'+it.side+'_'+it.item_no+'"]:checked')||{}).value;
+      if(v==='불량')ng++;
+    });
+    $('#fNg').value=ng;
+    $('#fJudge').value = ng?'조건부합격':'합격';
   }
-  document.addEventListener('change',e=>{ if(e.target.id==='fMold') fillShot(); });
+
+  async function drawHist(){
+    const h=$('#hist'); if(!sel){h.innerHTML='';return;}
+    const rows=await KI.get(OBJ.dailyCheck+'?select=*&mold_code=eq.'+encodeURIComponent(sel.mold_code)+
+                            '&order=check_date.desc,check_id.desc&limit=8');
+    h.innerHTML='<div style="font-weight:800;color:#41556a;margin-bottom:4px">점검 이력</div>'+
+      (rows.length?'<table class="grid"><thead><tr><th style="width:60px">번호</th><th style="width:92px">점검일</th>'+
+      '<th style="width:80px">점검자</th><th style="width:100px">타발수</th><th style="width:80px">판정</th>'+
+      '<th style="width:60px">불량</th><th style="width:150px">연마·교환</th><th>특이사항</th></tr></thead><tbody>'+
+      rows.map(r=>'<tr><td class="center">'+r.check_id+'</td><td class="center">'+esc(r.check_date)+'</td>'+
+        '<td class="center">'+esc(r.checker||'')+'</td><td class="num">'+fmt(r.shot_count)+'</td>'+
+        '<td class="center">'+(r.judgement==='조건부합격'?'<span style="color:#b05c12;font-weight:700">조건부합격</span>':esc(r.judgement||''))+'</td>'+
+        '<td class="num">'+(r.ng_count??0)+'</td>'+
+        '<td style="font-size:10px">'+esc((r.actions||[]).join(', '))+'</td>'+
+        '<td>'+esc(r.issue||'')+'</td></tr>').join('')+'</tbody></table>'
+      :'<div style="color:#96a2ad">점검 이력이 없습니다.</div>');
+  }
 
   async function save(){
     const m=$('#dMsg');
-    const code=$('#fMold').value;
-    if(!code){ m.className='msg err'; m.textContent='금형을 선택하세요.'; return; }
+    if(!sel){ m.className='msg err'; m.textContent='좌측에서 금형을 선택하세요.'; return; }
     if(!$('#fBy').value.trim()){ m.className='msg err'; m.textContent='점검자를 입력하세요.'; return; }
-    const dets=[]; let ng=0;
-    ITEMS.filter(i=>i.is_active!==false).forEach(it=>{
-      const v=(document.querySelector('input[name="r_'+it.side+'_'+it.item_no+'"]:checked')||{}).value||'양호';
-      if(v==='불량')ng++;
-      dets.push({side:it.side,item_no:it.item_no,item_name:it.item_name,result:v,
-        note:($('#nt_'+it.side+'_'+it.item_no)||{}).value||null});
-    });
+    const act=ITEMS.filter(i=>i.is_active!==false);
+    const dets=act.map(it=>({side:it.side, item_no:it.item_no, item_name:it.item_name,
+      result:(document.querySelector('input[name="r_'+it.side+'_'+it.item_no+'"]:checked')||{}).value||'양호',
+      note:($('#nt_'+it.side+'_'+it.item_no)||{}).value||null}));
+    const ng=dets.filter(d=>d.result==='불량').length;
     const acts=[...document.querySelectorAll('.fa:checked')].map(c=>c.value);
+    const shot=Number(String($('#fShot').value).replace(/[^0-9.]/g,''))||null;
     m.className='msg'; m.textContent='저장중...';
     try{
-      const shot=Number(String($('#fShot').value).replace(/[^0-9.]/g,''))||null;
-      const h=await KI.ins(TBL.dailyCheck,[{mold_code:code, check_date:$('#fDate').value||null,
+      const h=await KI.ins(TBL.dailyCheck,[{mold_code:sel.mold_code, check_date:$('#fDate').value||null,
         checker:$('#fBy').value.trim(), shot_count:shot, actions:acts,
-        judgement: ng?'조건부합격':'합격', issue:$('#fIssue').value||null, action_taken:$('#fAct').value||null}]);
+        judgement: ng?'조건부합격':'합격', issue:$('#fIssue').value||null,
+        action_taken:$('#fAct').value||null}]);
       const id=h[0].check_id;
       await KI.ins(TBL.dailyCheckDet, dets.map(d=>Object.assign({check_id:id},d)));
-      m.className='msg ok'; m.textContent='✓ 저장되었습니다.'+(ng?' (불량 '+ng+'건)':'');
-      KI.msg('✓ 일상점검 저장 — '+code+(ng?' · 불량 '+ng+'건':' · 전체 양호'));
+      m.className='msg ok';
+      m.textContent='✓ 점검 #'+id+' 등록'+(ng?' · 불량 '+ng+'건':' · 전 항목 양호');
+      KI.msg('✓ '+sel.mold_code+' 일상점검 등록');
       $('#fIssue').value=''; $('#fAct').value='';
       document.querySelectorAll('.fa:checked').forEach(c=>c.checked=false);
-      document.querySelectorAll('input[data-ok="1"]').forEach(r=>r.checked=true);
       document.querySelectorAll('.nt').forEach(n=>n.value='');
-      drawHist();
+      document.querySelectorAll('input[data-ok="1"]').forEach(r=>r.checked=true);
+      await load();
     }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
   }
-  $('#bSave2').addEventListener('click',save);
-  if(!CAN_S){ $('#bSave2').disabled=true; $('#bSave2').style.opacity=.5; }
+  $('#bSave').addEventListener('click',save);
+  if(!CAN_S){ $('#bSave').disabled=true; $('#bSave').style.opacity=.5; }
 
-  async function drawHist(){
-    const rows=await KI.get(OBJ.dailyCheck+'?select=*&order=check_date.desc,check_id.desc&limit=15');
-    $('#dcCnt').innerHTML='최근 점검 : '+rows.slice(0,6).map(r=>
-      esc(r.check_date)+' '+esc(r.mold_code)+(r.ng_count?'<b style="color:#b23030">(불량'+r.ng_count+')</b>':'')).join(' · ');
+  function csv(){
+    const head=['품번','금형명','고객사','등급','최근점검','점검자','불량','오늘점검'];
+    const body=MOLDS.map(m=>{ const L=LAST[m.mold_code]||{};
+      return [m.mold_code,m.mold_name,m.customer_name,m.grade,L.date||'',L.checker||'',L.ng||0,
+              doneToday(m.mold_code)?'완료':'미실시']
+        .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','); });
+    const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
+    a.download='일상점검_현황_'+TODAY+'.csv'; a.click(); URL.revokeObjectURL(a.href);
   }
+
   async function load(){
-    const [molds,items,led]=await Promise.all([
-      KI.get(OBJ.moldMst+'?select=mold_code,mold_name,grade&order=mold_code.asc'),
+    const [molds,items,led,hist]=await Promise.all([
+      KI.get(OBJ.moldMst+'?select=mold_code,mold_name,customer_name,grade&order=mold_code.asc'),
       KI.get(OBJ.dailyItem+'?select=*&order=side.desc,item_no.asc'),
-      KI.get(OBJ.shotLedger+'?select=*&year=eq.'+YEAR)
+      KI.get(OBJ.shotLedger+'?select=*&year=eq.'+YEAR),
+      KI.get(OBJ.dailyCheck+'?select=mold_code,check_date,checker,ng_count&order=check_date.desc&limit=800')
     ]);
-    MOLDS=molds; ITEMS=items; LEDGER={}; led.forEach(r=>LEDGER[r.mold_code]=r);
-    const s2=$('#fMold'); s2.innerHTML='<option value="">선택</option>';
-    MOLDS.forEach(mm=>{ const o=el('option',null,mm.mold_code+' · '+(mm.mold_name||'')+' ['+(mm.grade||'-')+']');
-      o.value=mm.mold_code; s2.appendChild(o); });
-    drawItems(); drawHist();
-    KI.msg('점검항목 '+ITEMS.length+'개 (상형 '+ITEMS.filter(i=>i.side==='상형').length+' / 하형 '+ITEMS.filter(i=>i.side==='하형').length+')');
+    MOLDS=molds; ITEMS=items;
+    LEDGER={}; led.forEach(r=>LEDGER[r.mold_code]=r);
+    LAST={};
+    hist.forEach(r=>{
+      const L=LAST[r.mold_code]=LAST[r.mold_code]||{rows:[]};
+      L.rows.push(r);
+      if(!L.date){ L.date=r.check_date; L.checker=r.checker; L.ng=r.ng_count||0; }
+      if(r.check_date===TODAY) L.today=true;
+    });
+    if(sel) sel=MOLDS.find(m=>m.mold_code===sel.mold_code)||null;
+    drawSum(); drawList();
+    if(sel) pick(); else drawItems();
+    KI.msg('대상 금형 '+MOLDS.length+'건 · 점검항목 '+ITEMS.length+'개');
   }
   try{ await load(); }
   catch(e){
-    const b=document.querySelector('#chkBody');
+    const b=document.querySelector('#list');
     if(b) b.innerHTML='<div style="padding:18px;color:#b0442f;line-height:1.8">'+
-      '❌ 데이터를 불러오지 못했습니다.<br><b>'+KI.esc(e.message)+'</b><br>'+
-      '<span style="color:#7b8794">관리자에게 문의하거나 [새로고침]을 눌러 다시 시도하세요.</span></div>';
+      '❌ 데이터를 불러오지 못했습니다.<br><b>'+KI.esc(e.message)+'</b></div>';
     KI.msg('❌ '+e.message);
   }
 })();
