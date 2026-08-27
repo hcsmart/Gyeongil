@@ -24,6 +24,14 @@
 .pl-m.on{background:#2e77bd;border-color:#2e77bd;color:#fff;font-weight:800}
 .pl-m.done{background:#2f7d4d;border-color:#2f7d4d;color:#fff;font-weight:800}
 .pl-m.miss{background:#fbe4e4;border-color:#e0a5a5;color:#b23030;font-weight:800}
+
+/* grid header: keep the column title row at the top of each scroll area.
+   A global sticky-header offset can otherwise leave one body row above the header. */
+.grid-wrap .grid thead th{
+  position:sticky;
+  top:0 !important;
+  z-index:4;
+}
 </style>
 <script src="ki_config.js"></script>
 <script src="ki_core.js"></script>
