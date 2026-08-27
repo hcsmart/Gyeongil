@@ -616,6 +616,172 @@ function makeModal(def, onSaved){
   return {open:open, close:close};
 }
 
+/* ============================================================
+   엑셀 붙여넣기 (머리글 제외 · 본문만)
+   · 엑셀에서 셀 범위를 복사 → 붙여넣기 창에 Ctrl+V
+   · 열 순서 = 아래 안내표 순서 (편집 불가 'ro' 항목은 제외)
+============================================================ */
+function pasteFields(E){
+  return E.fields.filter(f=>f[4]!=='ro' && !(E.auto && f[0]===E.pk));
+}
+/* 엑셀 클립보드(TSV) 파서 : 큰따옴표 안의 탭/줄바꿈 보존 */
+function splitTSV(text){
+  const rows=[]; let row=[], cur='', q=false;
+  const s=String(text||'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  for(let i=0;i<s.length;i++){
+    const c=s[i];
+    if(q){
+      if(c==='"'){ if(s[i+1]==='"'){ cur+='"'; i++; } else q=false; }
+      else cur+=c;
+    }else{
+      if(c==='"'&&cur==='') q=true;
+      else if(c==='\t'){ row.push(cur); cur=''; }
+      else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else cur+=c;
+    }
+  }
+  if(cur!==''||row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(r=>r.some(c=>String(c).trim()!==''));
+}
+function normDate(v){
+  const s=String(v).trim();
+  let m=s.match(/^(\d{4})\s*[.\-\/]\s*(\d{1,2})\s*[.\-\/]\s*(\d{1,2})/);
+  if(m) return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
+  if(/^\d{8}$/.test(s)) return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);
+  const d=new Date(s.replace(/\./g,'-'));
+  return isNaN(d)?null:d.toISOString().slice(0,10);
+}
+/* 셀 값 → DB 값. 반환 {v:값, e:오류메시지|null, w:경고|null} */
+function pcell(f,raw){
+  const ty=f[2], req=(f[4]==='req'), lb=f[1];
+  let s=String(raw==null?'':raw).trim();
+  if(s===''||s==='-') return req?{v:null,e:lb+' 필수'}:{v:null,e:null};
+  if(ty==='bool')  return {v:!/^(false|미사용|중지|n|no|0|x|아니오)$/i.test(s),e:null};
+  if(ty==='num'){
+    const n=Number(s.replace(/[,\s%]/g,''));
+    return isNaN(n)?{v:null,e:lb+' 숫자오류'}:{v:n,e:null};
+  }
+  if(ty==='date'){ const d=normDate(s); return d?{v:d,e:null}:{v:null,e:lb+' 날짜오류'}; }
+  if(ty==='datetime'){
+    const d=new Date(s.replace(/\./g,'-'));
+    return isNaN(d)?{v:null,e:lb+' 일시오류'}:{v:d.toISOString(),e:null};
+  }
+  if(ty==='sel'){
+    const list=f[3]&&f[3].length?f[3]:null;
+    if(list&&list.indexOf(s)<0) return {v:s,e:null,w:lb+' 목록 외("'+s+'")'};
+    return {v:s,e:null};
+  }
+  return {v:s,e:null};
+}
+function makePaste(def, onSaved){
+  const E=def.edit, FS=pasteFields(E);
+  const mask=el('div','mask');
+  mask.innerHTML=
+    '<div class="modal wide"><h3>📋 엑셀 붙여넣기<button class="x" id="pX">✕</button></h3>'+
+    '<div class="bd">'+
+      '<div class="paste-guide">엑셀에서 <b>머리글(제목행)을 제외한 본문만</b> 복사하여 아래 칸에 붙여넣으세요. '+
+      '열 순서는 다음과 같습니다. (＊=필수)<div class="paste-order">'+
+      FS.map((f,i)=>'<span>'+(i+1)+'. '+esc(f[1])+(f[4]==='req'?'<b>＊</b>':'')+'</span>').join('')+
+      '</div></div>'+
+      '<textarea id="pTxt" class="paste-txt" placeholder="여기를 클릭한 뒤 Ctrl+V"></textarea>'+
+      '<div class="paste-bar">'+
+        '<button class="btn" id="pChk">미리보기 · 검증</button>'+
+        '<button class="btn" id="pTpl">양식 내려받기(CSV)</button>'+
+        '<label class="paste-opt"><input type="checkbox" id="pUp" checked> 기존 키는 덮어쓰기(UPSERT)</label>'+
+        '<span class="right" id="pCnt">0건</span>'+
+      '</div>'+
+      '<div class="paste-prev" id="pPrev"></div>'+
+    '</div>'+
+    '<div class="mfoot"><button class="btn primary" id="pSave">저장</button>'+
+    '<button class="btn" id="pCancel">닫기</button><span class="msg" id="pMsg"></span></div></div>';
+  document.body.appendChild(mask);
+
+  let parsed=[];
+  const close=()=>mask.classList.remove('on');
+  const setMsg=(t,k)=>{ const m=$('#pMsg',mask); m.className='msg'+(k?' '+k:''); m.textContent=t||''; };
+  $('#pX',mask).addEventListener('click',close);
+  $('#pCancel',mask).addEventListener('click',close);
+  mask.addEventListener('click',e=>{ if(e.target===mask) close(); });
+
+  $('#pTpl',mask).addEventListener('click',()=>{
+    const h=FS.map(f=>f[1]+(f[4]==='req'?'*':'')).join(',');
+    const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+h+'\n'],{type:'text/csv'}));
+    a.download=E.table+'_양식.csv'; a.click(); URL.revokeObjectURL(a.href);
+  });
+
+  function build(){
+    const raw=splitTSV($('#pTxt',mask).value);
+    parsed=[]; let skipHead=0;
+    raw.forEach((cells,ri)=>{
+      /* 실수로 머리글을 함께 붙여넣은 경우 1행만 자동 제외 */
+      if(ri===0 && cells.length>1 &&
+         cells.slice(0,FS.length).every((c,i)=>FS[i]&&String(c).replace(/[*＊\s]/g,'')===FS[i][1])){ skipHead=1; return; }
+      const o={body:{},err:[],warn:[],cells:[]};
+      FS.forEach((f,i)=>{
+        const r=pcell(f,cells[i]);
+        o.body[f[0]]=r.v; o.cells.push({t:cells[i]==null?'':String(cells[i]).trim(),e:!!r.e});
+        if(r.e) o.err.push(r.e);
+        if(r.w) o.warn.push(r.w);
+      });
+      if(!E.auto && (o.body[E.pk]===null||o.body[E.pk]===undefined||o.body[E.pk]==='')) o.err.push(E.pk+' 없음');
+      if(cells.length>FS.length) o.warn.push('열 초과 '+(cells.length-FS.length)+'개 무시');
+      parsed.push(o);
+    });
+    /* 붙여넣기 내 중복키 검사 */
+    if(!E.auto){
+      const seen={};
+      parsed.forEach(o=>{
+        const k=String(o.body[E.pk])+(E.pk2?'|'+o.body[E.pk2]:'');
+        if(seen[k]) o.err.push('중복키'); seen[k]=1;
+      });
+    }
+    render(skipHead);
+  }
+  function render(skipHead){
+    const box=$('#pPrev',mask);
+    const ng=parsed.filter(o=>o.err.length).length;
+    $('#pCnt',mask).textContent=parsed.length+'건'+(ng?' (오류 '+ng+')':'');
+    if(!parsed.length){ box.innerHTML='<div class="paste-empty">붙여넣은 데이터가 없습니다.</div>'; return; }
+    const head='<tr><th style="width:34px">#</th>'+FS.map(f=>'<th>'+esc(f[1])+'</th>').join('')+
+               '<th style="width:150px">검증</th></tr>';
+    const body=parsed.slice(0,200).map((o,i)=>
+      '<tr class="'+(o.err.length?'bad':'')+'"><td class="center">'+(i+1)+'</td>'+
+      o.cells.map(c=>'<td class="'+(c.e?'cell-bad':'')+'">'+esc(c.t)+'</td>').join('')+
+      '<td>'+(o.err.length?'<span class="badge b-late">'+esc(o.err.join(', '))+'</span>':
+              o.warn.length?'<span class="badge b-wait">'+esc(o.warn.join(', '))+'</span>':
+              '<span class="badge b-done">OK</span>')+'</td></tr>').join('');
+    box.innerHTML='<table class="grid paste-grid"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>'+
+      (parsed.length>200?'<div class="paste-empty">… 미리보기는 200행까지 표시됩니다.</div>':'');
+    setMsg((skipHead?'머리글 1행을 자동으로 제외했습니다. ':'')+
+           (ng?'❌ 오류 '+ng+'건 — 수정 후 다시 시도하세요.':'✓ 검증 완료 · 저장 가능'), ng?'err':'ok');
+  }
+  $('#pChk',mask).addEventListener('click',build);
+  $('#pTxt',mask).addEventListener('paste',()=>setTimeout(build,30));
+
+  $('#pSave',mask).addEventListener('click',async()=>{
+    if(!parsed.length) build();
+    if(!parsed.length) return setMsg('붙여넣은 데이터가 없습니다.','err');
+    const ng=parsed.filter(o=>o.err.length);
+    if(ng.length) return setMsg('❌ 오류 '+ng.length+'건이 있어 저장할 수 없습니다.','err');
+    if(!confirm(parsed.length+'건을 저장하시겠습니까?')) return;
+    const rows=parsed.map(o=>o.body), N=200; let done=0;
+    setMsg('저장중...');
+    try{
+      for(let i=0;i<rows.length;i+=N){
+        const part=rows.slice(i,i+N);
+        if($('#pUp',mask).checked && !E.auto) await upsert(E.table,part);
+        else                                   await ins(E.table,part);
+        done+=part.length; setMsg('저장중... '+done+'/'+rows.length);
+      }
+      $('#pTxt',mask).value=''; parsed=[]; $('#pPrev',mask).innerHTML=''; $('#pCnt',mask).textContent='0건';
+      close(); await onSaved(done);
+    }catch(e){ setMsg('❌ '+e.message+' (저장 '+done+'건까지 반영)','err'); }
+  });
+
+  return {open:()=>{ setMsg(''); mask.classList.add('on');
+                     setTimeout(()=>$('#pTxt',mask).focus(),50); }, close:close};
+}
+
 /* ---------- 그리드 화면 ---------- */
 async function grid(id, need){
   if(!await guard(id))return;
@@ -623,6 +789,7 @@ async function grid(id, need){
   const acts=[['조회','primary',b=>run(b.target)]];
   if(def.edit){
     if(can(id,'save'))   acts.push(['＋ 등록','',()=>modal.open(null)]);
+    if(can(id,'save'))   acts.push(['📋 붙여넣기','',()=>paster.open()]);
     if(can(id,'edit'))   acts.push(['수정','',()=>{ if(!state.sel) return msg('수정할 행을 선택하세요.'); modal.open(state.sel); }]);
     if(can(id,'delete')) acts.push(['삭제','danger',()=>removeRow()]);
   }
@@ -631,9 +798,11 @@ async function grid(id, need){
   acts.push(['인쇄','',()=>window.print()]);
   const ui=page(cur,acts);
   const state={rows:[],sel:null};
-  let modal=null;
+  let modal=null, paster=null;
   const editable = def.edit && (can(id,'save')||can(id,'edit'));
   if(editable) modal=makeModal(def, async(what)=>{ await run(null); msg('✓ '+what+'되었습니다.'); });
+  if(def.edit && can(id,'save'))
+    paster=makePaste(def, async(n)=>{ await run(null); msg('✓ 엑셀 붙여넣기 '+n+'건이 저장되었습니다.'); });
   async function removeRow(){
     if(!state.sel) return msg('삭제할 행을 선택하세요.');
     const E=def.edit, k=state.sel[E.pk];
@@ -713,5 +882,5 @@ return {CFG:C, $:$, el:el, esc:esc,
         changePassword:changePassword, loadSess:loadSess, loadMe:loadMe,
         me:()=>ME, loginError:loginError, isAdmin:isAdmin, clearCache:cacheClear, can:can, session:session, guard:guard,
         header:chrome, chrome:chrome, page:page, masters:masters, M:M, msg:msg,
-        grid:grid, csv:csv, POST:POST, cell:cell, LK:LK, emailOf:emailOf};
+        grid:grid, csv:csv, splitTSV:splitTSV, POST:POST, cell:cell, LK:LK, emailOf:emailOf};
 })();
