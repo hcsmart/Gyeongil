@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v10.0',
+  VER      : 'v10.1',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -28,7 +28,7 @@ const TBL = {                      /* 편집 대상 원천 테이블 */
   gradeEval:'ki_grade_eval', gradeEvalDet:'ki_grade_eval_detail',
   dailyItem:'ki_daily_item', dailyCheck:'ki_daily_check', dailyCheckDet:'ki_daily_check_detail',
   wash:'ki_wash', washStep:'ki_wash_step', inspPlan:'ki_insp_plan',
-  cycleRule:'ki_cycle_rule',
+  cycleRule:'ki_cycle_rule', moldLoc:'ki_mold_location',
   /* 외주 LOT (원천 테이블) */
   ospOrder:'outsourcing_order_status_rows',
   ospRecv :'outsourcing_receipt_confirm_candidates',
@@ -57,6 +57,7 @@ const OBJ = {
   /* 기준정보 — 점검기준 */
   chkMach  : P+'v_check_machine',
   cycleRule : P+'v_cycle_rule',
+  moldLoc  : P+'v_mold_location',
   /* 수명관리 */
   shotLedger : P+'v_shot_ledger', gradeItem : P+'v_grade_item',
   gradeEval  : P+'v_grade_eval',  dailyItem : P+'v_daily_item',
@@ -175,7 +176,8 @@ const MENU = [
     { key:'b-prod', name:'생산기준', icon:'▦', groups:[
       { name:'설비 / 금형', items:[
         {id:'mold-spec', f:'mold_spec.html', n:'금형정보', d:'금형 등록·수정·삭제 / 타입·비중 참조'},
-        {id:'machine',   f:'machine.html',   n:'호기설정', d:'호기번호 · 호기명'}
+        {id:'machine',   f:'machine.html',   n:'호기설정', d:'호기번호 · 호기명'},
+        {id:'mold-loc',  f:'mold_location.html', n:'금형 보관위치', d:'보관위치 코드 · 명칭'}
       ]}
     ]},
     { key:'b-chk', name:'점검기준', icon:'🔧', groups:[
@@ -266,7 +268,7 @@ const VIEWS = {
     ['model','모델','text'],
     ['mold_type','금형종류','sel',['프로그레시브','트랜스퍼','단발','SEMI+단발','TPL','TR']],
     ['factory_code','공장','ref',{table:OBJ.factory,v:'factory_code',t:'factory_name'}],
-    ['location','보관위치','text'],
+    ['location','보관위치','ref',{table:OBJ.moldLoc,v:'location_code',t:'location_name'}],
     ['shot_count','타발수','num'],
     ['shot_limit','수명(SHOT)','num'],
     ['cycle_days','점검주기(일)','num',{def:90}],
@@ -603,6 +605,22 @@ const VIEWS = {
     ['step_no','순서','num',null,'req'],
     ['step_name','세척항목','text',null,'req'],
     ['is_active','사용','bool']
+  ]}
+},
+'mold-loc':{
+  table:OBJ.moldLoc, order:'sort_order.asc',
+  note:'금형 보관위치 기준입니다. 금형대장의 <b>보관위치</b> 선택 목록으로 사용됩니다.',
+  search:[['위치코드','text','location_code'],['위치명','text','location_name']],
+  cols:[['위치코드',100,'','location_code'],['위치명',220,'','location_name'],
+        ['공장',80,'center','factory_code'],['순서',60,'num','sort_order'],
+        ['사용',56,'center','is_active','bool'],['비고',0,'','remark']],
+  edit:{ table:TBL.moldLoc, pk:'location_code', fields:[
+    ['location_code','위치코드','text',null,'req'],
+    ['location_name','위치명','text',null,'req'],
+    ['factory_code','공장','ref',{table:OBJ.factory,v:'factory_code',t:'factory_name'}],
+    ['sort_order','순서','num'],
+    ['is_active','사용','bool'],
+    ['remark','비고','area']
   ]}
 },
 'machine':{
