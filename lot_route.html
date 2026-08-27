@@ -181,7 +181,15 @@
     return best;
   }
   function calc(r){
-    const st=Array.isArray(r.steps)?r.steps:[], last=st[st.length-1]||{};
+    const st=Array.isArray(r.steps)?r.steps:[];
+    let last=st[st.length-1]||{}, moving=false;
+    /* 입고 전(반출중)이라도 현재 위치를 표시 : 미입고 외주건 중 최근 출고건 */
+    const op=OSP.filter(o=>String(o.part||'')===String(r.part)&&o.sdate&&!o.idate)
+               .sort((a,b)=>String(b.sdate||'').localeCompare(String(a.sdate||''))
+                          ||(Number(b.no)||0)-(Number(a.no)||0))[0];
+    if(op && String(op.sdate||'')>=String(last.date||'')){
+      last={mp:op.mp,vendor:op.vendor,date:op.sdate}; moving=true;
+    }
     /* 진행등록에서 선택·저장된 표준공정이 있으면 그것을 우선, 없으면 경유이력으로 역추적 */
     const fixed=r.route_no?RT.find(x=>String(x.standard_process_no)===String(r.route_no)):null;
     const m=fixed?{rt:fixed}:matchRoute(st.map(s=>s.mp)), sd=m?(m.rt.steps||[]):[];
@@ -190,7 +198,7 @@
     const done=m?hit.length:st.length;
     const rest=sd.filter(x=>!seen.has(x));
     return {no:r.no, job:r.job, part:r.part, proc:r.proc, map_part:r.map_part||'',
-      route_no:r.route_no||'', steps:st, last:last, std:m?m.rt:null,
+      route_no:r.route_no||'', moving:moving, steps:st, last:last, std:m?m.rt:null,
       sd:sd, seen:seen, done:done, total:total, rest:rest,
       rate: total?Math.round(done/total*100):0};
   }
@@ -220,7 +228,8 @@
       t.innerHTML='<td>'+esc(c.job||'')+'</td>'+
         '<td style="font-weight:800;color:#22537f">'+esc(c.part||'')+'</td>'+
         '<td>'+(c.std?esc(c.std.standard_process_name):'<span style="color:#96a2ad">(미매칭)</span>')+'</td>'+
-        '<td>'+esc(c.last.mp||'-')+(pName(c.last.mp)?' · '+esc(pName(c.last.mp)):'')+'</td>'+
+        '<td>'+esc(c.last.mp||'-')+(pName(c.last.mp)?' · '+esc(pName(c.last.mp)):'')+
+          (c.moving?' <span class="badge" style="background:#e9f2fc;color:#1d568c">반출중</span>':'')+'</td>'+
         '<td>'+esc(c.last.vendor||'-')+'</td>'+
         '<td class="center">'+esc(c.last.date||'')+'</td>'+
         '<td>'+(nx?'<b style="color:#1d568c">'+esc(nx)+'</b>'+(pName(nx)?' · '+esc(pName(nx)):'')+
@@ -256,7 +265,8 @@
     $('#iJob').textContent=c.job||'-';   $('#iPart').textContent=c.part||'-';
     $('#iStd').textContent=c.std?c.std.standard_process_name:'(미매칭)';
     $('#iRate').innerHTML=c.done+'/'+c.total+' <b style="color:#1d568c">'+c.rate+'%</b>';
-    $('#iCur').textContent=(c.last.mp||'-')+(pName(c.last.mp)?' · '+pName(c.last.mp):'');
+    $('#iCur').innerHTML=esc(c.last.mp||'-')+(pName(c.last.mp)?' · '+esc(pName(c.last.mp)):'')+
+      (c.moving?' <span class="badge" style="background:#e9f2fc;color:#1d568c">반출중</span>':'');
     $('#iVen').textContent=c.last.vendor||'-';
     /* 공정 경로 */
     $('#iChain').innerHTML = c.sd.length
