@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v9.8',
+  VER      : 'v9.9',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -97,13 +97,13 @@ const MENU = [
     ]},
 
     { key:'m-res', name:'점검등록', icon:'📋', groups:[
-      { name:'정기점검', items:[
-        {id:'mold-insp',   f:'mold_inspection.html',        n:'정기점검 등록', d:'점검 등록 · 이력'},
-        {id:'mold-detail', f:'mold_inspection_detail.html', n:'등록 세부내용', d:'항목별 측정값 · 판정'}
+      { name:'점검 등록', items:[
+        {id:'daily-check', f:'daily_check.html',     n:'일상점검 등록', d:'상형 8 / 하형 8 점검표'},
+        {id:'mold-insp',   f:'mold_inspection.html', n:'정기점검 등록', d:'도래현황 · 점검항목 · 이력'},
+        {id:'wash-check',  f:'wash_check.html',      n:'세척등록',     d:'일상 · 정기세척'}
       ]},
-      { name:'일상 · 세척', items:[
-        {id:'daily-check', f:'daily_check.html', n:'일상점검 등록', d:'상형 8 / 하형 8 점검표'},
-        {id:'wash-check',  f:'wash_check.html',  n:'세척점검 등록', d:'일상 · 정기세척 등록'}
+      { name:'실적 조회', items:[
+        {id:'mold-detail', f:'mold_inspection_detail.html', n:'등록실적 조회', d:'항목별 측정값 · 판정'}
       ]}
     ]},
 
