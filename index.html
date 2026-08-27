@@ -23,7 +23,8 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 .go:disabled{opacity:.55}
 .hint{height:32px;color:#cfe0f2;font-size:12px;text-align:center;line-height:1.5;padding-top:6px}
 .hint.err{color:#ff9a9a}.hint.ok{color:#7ee3a6}
-.ver{position:fixed;bottom:12px;color:#5f7994;font-size:11px}
+.ver{position:fixed;bottom:12px;color:#5f7994;font-size:11px;text-align:center;line-height:1.7}
+.ver b{display:block;color:#8fa8c2;font-size:12px;font-weight:700;letter-spacing:.4px}
 .err{max-width:520px;padding:12px 14px;border:1px solid #a3524f;border-radius:4px;
   background:rgba(160,60,55,.22);color:#ffd9d9;font-size:12px;line-height:1.9;text-align:left}
 .err b{color:#ffb3b3}
@@ -34,9 +35,9 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 <script src="ki_core.js"></script>
 </head>
 <body>
-<div class="lg">KI <span>MES</span></div>
+<div class="lg">GI <span>MES</span></div>
 <div id="app"></div>
-<div class="ver" id="ver">GI MES</div>
+<div class="ver" id="ver"></div>
 
 <script>
 if(typeof KI==='undefined' || typeof KI_CFG==='undefined'){
@@ -48,7 +49,8 @@ if(typeof KI==='undefined' || typeof KI_CFG==='undefined'){
   throw new Error('KI core not loaded');
 }
 const C=KI.CFG, $=KI.$;
-document.getElementById('ver').textContent='GI MES '+C.VER;
+document.getElementById('ver').innerHTML='<b>금형 · 외주 LOT · 온습도 업무자동화 시스템</b>'+
+  '금형 점검·평가부터 외주 LOT 추적, 설비 환경 모니터링까지 한 곳에서 &nbsp;·&nbsp; GI MES '+C.VER;
 
 document.getElementById('app').innerHTML=
   '<div class="card">'+
