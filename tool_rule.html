@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+/* ?view=ind → 금형별 개별주기 / 없으면 공통 주기기준 */
+KI.grid(new URLSearchParams(location.search).get('view')==='ind' ? 'tool-mold' : 'tool-rule', []);
+</script>
+</body>
+</html>

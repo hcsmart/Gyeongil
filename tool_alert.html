@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<style>
+.td-kpi{display:flex;gap:8px;padding:8px 9px}
+.td-kpi div{flex:1;border:1px solid #d6dde4;background:#fff;padding:8px 12px}
+.td-kpi span{display:block;font-size:11px;color:#77828c;font-weight:700}
+.td-kpi b{font-size:20px;font-weight:800;color:#2a3742}
+.td-kpi .hot{border-color:#e0a5a5;background:#fdf1f1}
+.td-kpi .hot b{color:#b21f1f}
+.td-kpi .wrn{border-color:#e6c79a;background:#fdf6ea}
+.td-kpi .wrn b{color:#b06a12}
+.td-kpi .ok b{color:#2f7d4d}
+.st-hot{background:#fbe4e4;color:#b21f1f;border-color:#e0a5a5}
+.st-wrn{background:#fdf0dc;color:#b06a12;border-color:#e6c79a}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+<script src="ki_alert.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  if(!await KI.guard('tool-due'))return;
+  const $=KI.$, el=KI.el, esc=KI.esc;
+  const cur=KI.chrome('tool-due');
+  const CAN_S=KI.can('tool-due','save')||KI.can('tool-due','edit');
+  let ROWS=[];
+
+  const ui=KI.page(cur,[
+    ['지금 점검','primary',()=>KI_ALERT.scan()],
+    ['ntfy 테스트','',async()=>{ const r=await KI_ALERT.ntfyTest(); alert(r.msg); }],
+    ['엑셀(CSV)','',()=>csv()]
+  ]);
+
+  const nt=el('div','note');
+  nt.innerHTML='연마 · 교체 <b>도래현황</b>입니다. 판정 기준은 [기준정보 › 생산기준 › 연마/교체주기설정]의 공통기준, '+
+    '금형별로 다르면 [금형별 연마/교체주기]의 개별값이 적용됩니다.<br>'+
+    '<b>도래</b> 또는 <b>임박</b>이 발생하면 하단 <b>안돈 배너</b>가 켜지고 <b>ntfy 알림</b>이 발송됩니다 '+
+    '(발송 조건은 [시스템 › 알림 설정(ntfy)]에서 지정).';
+  ui.pg.appendChild(nt);
+
+  const kpi=el('div','td-kpi'); kpi.id='kpi'; ui.pg.appendChild(kpi);
+
+  const tb=el('div','ck-tb');
+  tb.innerHTML='<span style="font-weight:700;color:#526171">구분</span>'+
+    '<select id="fk"><option value="">전체</option><option>연마</option><option>교체</option></select>'+
+    '<span style="font-weight:700;color:#526171;margin-left:8px">상태</span>'+
+    '<select id="fs"><option value="">도래 + 임박</option><option>도래</option><option>임박</option>'+
+    '<option>정상</option><option>미설정</option><option value="ALL">전체</option></select>'+
+    '<span style="font-weight:700;color:#526171;margin-left:8px">금형</span>'+
+    '<input id="fq" placeholder="금형코드 · 금형명" style="width:180px">'+
+    '<span class="sp" id="upd" style="margin-left:auto;color:#77828c"></span>';
+  ui.pg.appendChild(tb);
+  ['fk','fs','fq'].forEach(id=>$('#'+id).addEventListener('input',draw));
+
+  const gw=el('div','grid-wrap'); const tbl=el('table','grid');
+  tbl.innerHTML='<thead><tr>'+
+    '<th style="width:96px">금형코드</th><th style="width:150px">금형명</th>'+
+    '<th style="width:100px">고객사</th><th style="width:60px">호기</th>'+
+    '<th style="width:66px">구분</th><th style="width:100px">부위</th>'+
+    '<th style="width:60px">기준</th><th style="width:100px">누적타발</th>'+
+    '<th style="width:100px">한도</th><th style="width:100px">잔여</th>'+
+    '<th style="width:110px">소진율</th><th style="width:92px">최근실시</th>'+
+    '<th style="width:92px">도래예정</th><th style="width:70px">D-day</th>'+
+    '<th style="width:74px">상태</th><th style="width:70px">사유</th>'+
+    '<th style="width:84px">조치</th></tr></thead><tbody></tbody>';
+  gw.appendChild(tbl); ui.pg.appendChild(gw);
+  const tbody=tbl.querySelector('tbody');
+
+  function stBadge(s){
+    const c = s==='도래'?'st-hot' : s==='임박'?'st-wrn' : s==='정상'?'b-done':'b-run';
+    return '<span class="badge '+c+'">'+esc(s)+'</span>';
+  }
+  function draw(){
+    const fk=$('#fk').value, fs=$('#fs').value, fq=($('#fq').value||'').trim().toLowerCase();
+    let rows=ROWS.slice();
+    if(fk) rows=rows.filter(r=>r.kind===fk);
+    if(fs==='') rows=rows.filter(r=>r.due_status==='도래'||r.due_status==='임박');
+    else if(fs!=='ALL') rows=rows.filter(r=>r.due_status===fs);
+    if(fq) rows=rows.filter(r=>(r.mold_code+' '+(r.mold_name||'')).toLowerCase().includes(fq));
+
+    tbody.innerHTML='';
+    rows.forEach(r=>{
+      const t=el('tr');
+      const pct=r.shot_pct==null?null:Number(r.shot_pct);
+      t.innerHTML='<td style="font-weight:700">'+esc(r.mold_code)+'</td>'+
+        '<td>'+esc(r.mold_name||'')+'</td><td>'+esc(r.customer_name||'')+'</td>'+
+        '<td class="center">'+esc(r.machine_no||'')+'</td>'+
+        '<td class="center">'+esc(r.kind)+'</td><td>'+esc(r.part_name||'')+'</td>'+
+        '<td class="center"><span class="badge '+(r.rule_src==='개별'?'b-run':'b-done')+'">'+esc(r.rule_src)+'</span></td>'+
+        '<td class="num">'+(r.used_shot==null?'':Number(r.used_shot).toLocaleString())+'</td>'+
+        '<td class="num">'+(r.limit_shot==null?'-':Number(r.limit_shot).toLocaleString())+'</td>'+
+        '<td class="num">'+(r.left_shot==null?'-':Number(r.left_shot).toLocaleString())+'</td>'+
+        '<td>'+(pct==null?'<span style="color:#a7b3bf">-</span>'
+              :'<div class="bar'+(pct>=90?' hi':'')+'" title="'+pct+'%"><i style="width:'+
+               Math.max(0,Math.min(100,pct))+'%"></i></div>')+'</td>'+
+        '<td class="center">'+esc(r.last_date||'-')+'</td>'+
+        '<td class="center">'+esc(r.due_date||'-')+'</td>'+
+        '<td class="center">'+(r.d_day==null?'-':
+           '<span class="badge '+(r.d_day<0?'st-hot':r.d_day<=7?'st-wrn':'b-done')+'">'+
+           (r.d_day<0?'D+'+Math.abs(r.d_day):'D-'+r.d_day)+'</span>')+'</td>'+
+        '<td class="center">'+stBadge(r.due_status)+'</td>'+
+        '<td class="center">'+esc(r.reason||'')+'</td>'+
+        '<td class="center">'+(CAN_S?'<button class="btn mini-btn2" data-c="'+esc(r.mold_code)+
+           '" data-k="'+esc(r.kind)+'">실시등록</button>':'')+'</td>';
+      tbody.appendChild(t);
+    });
+    if(!rows.length) tbody.innerHTML='<tr><td colspan="17" class="center" style="height:50px;color:#8894a0">해당 조건의 금형이 없습니다.</td></tr>';
+    tbody.querySelectorAll('button[data-c]').forEach(b=>
+      b.addEventListener('click',()=>done(b.dataset.c,b.dataset.k)));
+
+    const n=s=>ROWS.filter(r=>r.due_status===s).length;
+    kpi.innerHTML='<div class="hot"><span>도래</span><b>'+n('도래')+'</b></div>'+
+      '<div class="wrn"><span>임박</span><b>'+n('임박')+'</b></div>'+
+      '<div class="ok"><span>정상</span><b>'+n('정상')+'</b></div>'+
+      '<div><span>미설정</span><b>'+n('미설정')+'</b></div>'+
+      '<div><span>대상 (금형×구분)</span><b>'+ROWS.length+'</b></div>';
+    KI.msg(cur.path+' — 도래 '+n('도래')+'건 · 임박 '+n('임박')+'건');
+  }
+
+  /* 연마 · 교체 실시 등록 → 개별기준 갱신 + 알람 해제 */
+  async function done(code,kind){
+    const r=ROWS.find(x=>x.mold_code===code&&x.kind===kind); if(!r)return;
+    const d=prompt(code+' — '+kind+' 실시일을 입력하세요 (YYYY-MM-DD)',
+                   new Date().toISOString().slice(0,10));
+    if(!d)return;
+    const s=prompt('실시 시점의 누적 타발수', String(Math.round(r.shot_count||0)));
+    if(s===null)return;
+    try{
+      await KI.upsert(TBL.moldTool,[{mold_code:code, kind:kind, part_name:r.part_name||'공통',
+        use_common:(r.rule_src!=='개별'), limit_shot:(r.rule_src==='개별'?r.limit_shot:null),
+        cycle_days:(r.rule_src==='개별'?r.cycle_days:null),
+        last_date:d, last_shot:Number(s)||0, is_active:true,
+        updated_at:new Date().toISOString()}]);
+      await KI.upd(TBL.toolAlert,'mold_code=eq.'+encodeURIComponent(code)+
+        '&kind=eq.'+encodeURIComponent(kind)+'&status=neq.'+encodeURIComponent('해제'),
+        {status:'해제', action:kind+' 실시 ('+d+')', closed_at:new Date().toISOString(),
+         closed_by:(KI.me()||{}).emp_name||''});
+      await load();
+      KI.msg('✓ '+code+' '+kind+' 실시 등록 — 알람이 해제되었습니다.');
+    }catch(e){ alert('❌ '+e.message); }
+  }
+
+  function csv(){
+    const head=['금형코드','금형명','고객사','호기','구분','부위','기준','누적타발','한도','잔여','소진율(%)','최근실시','도래예정','D-day','상태','사유'];
+    const body=ROWS.map(r=>[r.mold_code,r.mold_name,r.customer_name,r.machine_no,r.kind,r.part_name,
+      r.rule_src,r.used_shot,r.limit_shot,r.left_shot,r.shot_pct,r.last_date,r.due_date,r.d_day,r.due_status,r.reason]
+      .map(v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"').join(','));
+    const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
+    a.download='연마교체_도래현황_'+new Date().toISOString().slice(0,10)+'.csv'; a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  async function load(){
+    try{
+      ROWS=await KI.get(OBJ.toolDue+'?select=*&order=due_status.asc,shot_pct.desc.nullslast&limit=2000');
+      $('#upd').textContent='갱신 '+new Date().toLocaleTimeString();
+      draw();
+    }catch(e){ KI.msg('❌ '+e.message); }
+  }
+
+  /* 안돈 · ntfy 감시 시작 — 스캔 결과를 화면과 공유 */
+  KI_ALERT.onScan=rows=>{ $('#upd').textContent='갱신 '+new Date().toLocaleTimeString(); };
+  await load();
+  KI_ALERT.start();
+})();
+</script>
+</body>
+</html>

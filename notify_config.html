@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<style>
+.nc{max-width:720px;padding:12px 10px}
+.nc .row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid #e6ebf0}
+.nc .lb{width:170px;font-weight:700;color:#526171;font-size:12px}
+.nc input[type=text],.nc input[type=number],.nc select{height:28px;border:1px solid #c6d0da;padding:0 8px;font-size:12px}
+.nc .w320{width:320px}
+.nc .hint{color:#77828c;font-size:11px;padding:2px 10px 10px 180px;line-height:1.6}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+<script src="ki_alert.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  if(!await KI.guard('notify-cfg'))return;
+  const $=KI.$, el=KI.el;
+  const cur=KI.chrome('notify-cfg');
+  const CAN_S=KI.isAdmin();
+
+  const ui=KI.page(cur,[
+    ['저장','primary',()=>save()],
+    ['ntfy 테스트','green',async()=>{ const r=await KI_ALERT.ntfyTest(); alert(r.msg); }],
+    ['새로고침','',()=>load()]
+  ]);
+  const nt=el('div','note');
+  nt.innerHTML='연마 · 교체 도래 시 <b>화면 안돈</b>과 <b>ntfy 푸시</b>를 발송합니다. '+
+    'ntfy는 무료 오픈소스 알림 서비스로, 휴대폰에 <b>ntfy 앱</b>을 설치하고 아래 <b>토픽</b>을 구독하면 알림을 받습니다.<br>'+
+    '사내 서버를 쓰는 경우 서버주소만 사내 ntfy 주소로 바꾸면 됩니다. <b>수정은 관리자만</b> 가능합니다.';
+  ui.pg.appendChild(nt);
+
+  const box=el('div','nc');
+  box.innerHTML=
+   '<div class="row"><div class="lb">화면 안돈 표시</div>'+
+     '<label><input type="checkbox" id="andon"> 도래 · 임박 시 하단 안돈 배너 표시</label></div>'+
+   '<div class="row"><div class="lb">ntfy 푸시 발송</div>'+
+     '<label><input type="checkbox" id="nen"> 사용</label></div>'+
+   '<div class="row"><div class="lb">ntfy 서버주소</div>'+
+     '<input type="text" id="url" class="w320" placeholder="https://ntfy.sh"></div>'+
+   '<div class="row"><div class="lb">토픽(채널)</div>'+
+     '<input type="text" id="tpc" class="w320" placeholder="gi-mes-mold-alert"></div>'+
+   '<div class="hint">토픽은 비밀번호와 같습니다 — 추측하기 어려운 이름을 쓰세요. 휴대폰 ntfy 앱에서 같은 토픽을 구독합니다.</div>'+
+   '<div class="row"><div class="lb">알림 우선순위</div>'+
+     '<select id="pri"><option value="3">3 · 보통</option><option value="4">4 · 높음</option>'+
+     '<option value="5">5 · 긴급</option></select></div>'+
+   '<div class="row"><div class="lb">알림 발생 조건</div>'+
+     '<select id="lvl"><option value="도래">도래만</option><option value="임박+도래">임박 + 도래</option></select></div>'+
+   '<div class="row"><div class="lb">감시 주기(초)</div>'+
+     '<input type="number" id="pol" style="width:100px" min="15" step="15"></div>'+
+   '<div class="hint">화면이 열려 있는 동안 이 주기로 도래 여부를 점검합니다. 최소 15초.</div>'+
+   '<div class="row"><div class="lb">최종 수정</div><span id="upd" style="color:#77828c;font-size:12px"></span></div>';
+  ui.pg.appendChild(box);
+
+  async function load(){
+    const c=await KI_ALERT.config(true);
+    $('#andon').checked = c.andon_enabled!==false;
+    $('#nen').checked   = !!c.ntfy_enabled;
+    $('#url').value     = c.ntfy_url||'https://ntfy.sh';
+    $('#tpc').value     = c.ntfy_topic||'';
+    $('#pri').value     = String(c.ntfy_priority||4);
+    $('#lvl').value     = c.alert_level||'도래';
+    $('#pol').value     = c.poll_sec||60;
+    $('#upd').textContent = (c.updated_at?String(c.updated_at).replace('T',' ').substring(0,16):'-')+
+                            (c.updated_by?' · '+c.updated_by:'');
+    if(!CAN_S) box.querySelectorAll('input,select').forEach(e=>e.disabled=true);
+    KI.msg(cur.path+' — 설정을 불러왔습니다.');
+  }
+  async function save(){
+    if(!CAN_S) return alert('알림 설정은 관리자만 수정할 수 있습니다.');
+    try{
+      await KI_ALERT.saveConfig({
+        andon_enabled : $('#andon').checked,
+        ntfy_enabled  : $('#nen').checked,
+        ntfy_url      : ($('#url').value||'').trim()||'https://ntfy.sh',
+        ntfy_topic    : ($('#tpc').value||'').trim()||null,
+        ntfy_priority : Number($('#pri').value)||4,
+        alert_level   : $('#lvl').value,
+        poll_sec      : Math.max(15,Number($('#pol').value)||60)
+      });
+      await load();
+      KI.msg('✓ 알림 설정이 저장되었습니다.');
+    }catch(e){ alert('❌ '+e.message); }
+  }
+  await load();
+})();
+</script>
+</body>
+</html>
