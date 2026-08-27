@@ -182,12 +182,15 @@
   }
   function calc(r){
     const st=Array.isArray(r.steps)?r.steps:[], last=st[st.length-1]||{};
-    const m=matchRoute(st.map(s=>s.mp)), sd=m?m.rt.steps:[];
+    /* 진행등록에서 선택·저장된 표준공정이 있으면 그것을 우선, 없으면 경유이력으로 역추적 */
+    const fixed=r.route_no?RT.find(x=>String(x.standard_process_no)===String(r.route_no)):null;
+    const m=fixed?{rt:fixed}:matchRoute(st.map(s=>s.mp)), sd=m?(m.rt.steps||[]):[];
     const seen=new Set(st.map(s=>s.mp));
     const hit=sd.filter(x=>seen.has(x)), total=sd.length||st.length||1;
     const done=m?hit.length:st.length;
     const rest=sd.filter(x=>!seen.has(x));
-    return {no:r.no, job:r.job, part:r.part, proc:r.proc, map_part:r.map_part||'', steps:st, last:last, std:m?m.rt:null,
+    return {no:r.no, job:r.job, part:r.part, proc:r.proc, map_part:r.map_part||'',
+      route_no:r.route_no||'', steps:st, last:last, std:m?m.rt:null,
       sd:sd, seen:seen, done:done, total:total, rest:rest,
       rate: total?Math.round(done/total*100):0};
   }
@@ -329,7 +332,7 @@
     if(!(CAN_S||CAN_E)) return KI.msg('❌ 수정 권한이 없습니다.');
     editNo=o.no; NEW=false; mode('edit');
     $('#fJob').value=o.job||'';
-    $('#fRoute').value=sel&&sel.std?String(sel.std.standard_process_no):'';
+    $('#fRoute').value=o.route_no||(sel&&sel.std?String(sel.std.standard_process_no):'');
     fillMp($('#fRoute').value,o.mp||'');
     $('#fVen').value=o.vendor||'';
     $('#fSdate').value=o.sdate||''; $('#fEdate').value=o.edate||'';
@@ -408,6 +411,7 @@
     const mo2=moldOf($('#fMap').value.trim());
     const body={part:part, job:$('#fJob').value.trim()||null, mp:mp, vendor:ven,
       map_part:$('#fMap').value.trim()||null, mold_no:mo2?mo2.mold_no:null,
+      route_no:$('#fRoute').value||null,
       lot:lots.map(x=>x.lot).join(','), qty:qty||null, lots:lots,
       sdate:$('#fSdate').value||null, edate:$('#fEdate').value||null,
       quote:q===''?null:Number(q), st:'진행'};
@@ -477,7 +481,8 @@
     const have=new Set(ROWS.map(r=>String(r.part||'')));
     OSP.forEach(o=>{ const k=String(o.part||'');
       if(!k||have.has(k)) return; have.add(k);
-      ROWS=ROWS.concat([{no:null,job:o.job,proc:o.proc,part:o.part,steps:[],map_part:o.map_part||''}]); });
+      ROWS=ROWS.concat([{no:null,job:o.job,proc:o.proc,part:o.part,steps:[],
+        map_part:o.map_part||'',route_no:o.route_no||''}]); });
     const rs=$('#fRoute'), vn=$('#fVen'), mp=$('#fMp'), rv=rs.value, mv=mp.value, vv=vn.value;
     rs.innerHTML='<option value="">선택</option>'+RT.map(r=>'<option value="'+esc(String(r.standard_process_no))+'">'+
       esc(r.standard_process_name||'')+' ('+((r.steps||[]).length)+'단계)</option>').join('');
