@@ -113,13 +113,16 @@
       '<div class="lr-open" style="margin-top:10px"><h5>다음 공정 진행등록 (반출)</h5>'+
       '<div style="padding:9px 10px"><div class="lr-f">'+
         '<label>JOB</label><input type="text" id="fJob" placeholder="JOB 번호">'+
-        '<label>LOT *</label><input type="text" id="fPart" placeholder="LOT 번호">'+
+        '<label>매칭품번</label><input type="text" id="fMap" list="dlMap" autocomplete="off" placeholder="제품번호 입력 후 선택">'+
+        '<label>표준공정 *</label><select id="fRoute"></select>'+
         '<label>가공공정 *</label><select id="fMp"></select>'+
         '<label>외주처 *</label><select id="fVen"></select>'+
         '<label>출고(반출)일</label><input type="date" id="fSdate">'+
         '<label>납기일</label><input type="date" id="fEdate">'+
         '<label>단가</label><input type="text" id="fQuote" placeholder="숫자만">'+
-        '<label>금형제번</label><input type="text" id="fMold" list="dlMold" autocomplete="off" placeholder="입력 후 선택">'+
+        '<label>총수량</label><input type="text" id="fQty" readonly value="0" '+
+          'style="background:#f4f7fa;font-weight:800;color:#1d568c;text-align:right">'+
+        '<label></label><div></div>'+
       '</div><div id="mapInfo" style="margin-top:5px;color:#5b7fa5;font-size:11px"></div>'+
       '<div class="lr-lot"><div class="lh">📦 반출 LOT · 수량'+
         '<button class="add" id="fAdd">+ LOT 추가</button>'+
@@ -135,12 +138,41 @@
       '<button class="btn primary" id="mS">📤 반출 등록</button></div>';
   document.body.appendChild(dim); document.body.appendChild(mo);
   mo.style.display='none';
-  const dl=el('datalist'); dl.id='dlMold'; document.body.appendChild(dl);
+  const dl=el('datalist'); dl.id='dlMap'; document.body.appendChild(dl);
   function close(){ dim.classList.remove('on'); mo.style.display='none'; sel=null; NEW=false; editNo=null; }
   $('#mX').addEventListener('click',close); $('#mC').addEventListener('click',close);
   dim.addEventListener('click',close);
 
+  $('#fRoute').addEventListener('change',()=>fillMp($('#fRoute').value,''));
+  /* 순차 이동 확인 : 완료·건너뛴 공정 경고 */
+  $('#fMp').addEventListener('change',()=>{
+    const rt=routeOf($('#fRoute').value), m=$('#mMsg');
+    if(!rt||!sel) return;
+    const steps=rt.steps||[], i=steps.indexOf($('#fMp').value);
+    if(i<0) return;
+    const skip=steps.slice(0,i).filter(x=>!sel.seen.has(x));
+    if(sel.seen.has(steps[i])){ m.className='msg err'; m.textContent='⚠ 이미 완료된 공정입니다.'; }
+    else if(skip.length){ m.className='msg err'; m.textContent='⚠ 이전 공정 미완료 : '+skip.join(', '); }
+    else { m.className='msg'; m.textContent=''; }
+  });
   const pName=c=>{const p=PROC.find(x=>x.process_code===c);return p?p.process_name:''};
+  const routeOf=no=>RT.find(r=>String(r.standard_process_no)===String(no));
+  /* 표준공정경로(기준정보 › 외주기준)의 단계만 가공공정으로 선택 — 순차 이동 관리 */
+  function fillMp(routeNo,keep){
+    const mp=$('#fMp'), rt=routeOf(routeNo), done=sel?sel.seen:new Set();
+    const steps=rt&&Array.isArray(rt.steps)?rt.steps:[];
+    mp.innerHTML='<option value="">선택</option>'+(
+      steps.length
+        ? steps.map((x,i)=>'<option value="'+esc(x)+'">'+(i+1)+'. '+esc(x)+
+            (pName(x)?' · '+esc(pName(x)):'')+(done.has(x)?' ✓완료':'')+'</option>').join('')
+        : PROC.map(pr=>'<option value="'+esc(pr.process_code)+'">'+esc(pr.process_code)+' · '+
+            esc(pr.process_name)+'</option>').join(''));
+    if(keep){
+      if(!steps.length || steps.includes(keep)) mp.value=keep;
+      else { mp.insertAdjacentHTML('beforeend','<option value="'+esc(keep)+'">'+esc(keep)+
+             (pName(keep)?' · '+esc(pName(keep)):'')+' (경로 외)</option>'); mp.value=keep; }
+    }
+  }
   function matchRoute(seq){
     let best=null;
     RT.forEach(rt=>{ const sd=rt.steps||[]; const hit=sd.filter(x=>seq.includes(x)).length;
@@ -212,8 +244,7 @@
   function open(c){
     sel=c; NEW=false; mode('ins');
     $('#infoBox').style.display=''; $('#iChain').style.display='';
-    $('#fJob').value=c.job||''; $('#fPart').value=c.part||'';
-    $('#fJob').readOnly=true;   $('#fPart').readOnly=true;
+    $('#fJob').value=c.job||''; $('#fJob').readOnly=true;
     $('#mTtl').textContent='진행등록 — '+(c.part||'');
     $('#iJob').textContent=c.job||'-';   $('#iPart').textContent=c.part||'-';
     $('#iStd').textContent=c.std?c.std.standard_process_name:'(미매칭)';
@@ -253,15 +284,16 @@
       b.addEventListener('click',()=>receive(b.dataset.in)));
     $('#openBox').querySelectorAll('[data-ed]').forEach(b=>
       b.addEventListener('click',()=>editOrder(b.dataset.ed)));
-    /* 다음 공정 기본값 */
-    const nx=c.rest[0]||'';
-    $('#fMp').value=nx;
+    /* 표준공정 · 다음 공정 기본값 */
+    $('#fRoute').value=c.std?String(c.std.standard_process_no):'';
+    fillMp($('#fRoute').value, c.rest[0]||'');
     $('#fVen').value=c.last.vendor||'';
     $('#fSdate').value=TODAY;
     const e=new Date(); e.setDate(e.getDate()+7); $('#fEdate').value=e.toISOString().slice(0,10);
     $('#fQuote').value='';
-    const prev=OSP.filter(o=>String(o.part||'')===String(c.part)&&o.mold_no)[0];
-    $('#fMold').value=prev?prev.mold_no:''; syncMold();
+    const prev=OSP.filter(o=>String(o.part||'')===String(c.part)&&(o.map_part||o.mold_no))[0];
+    $('#fMap').value=prev?(prev.map_part||(MOLDS.find(x=>x.mold_no===prev.mold_no)||{}).part_no||''):'';
+    syncMap();
     lotBody.innerHTML=''; lotRow(c.part||'','');
     $('#mMsg').textContent=''; $('#mMsg').className='msg';
     $('#mS').style.display=(CAN_S||CAN_E)?'':'none';
@@ -275,17 +307,16 @@
     $('#mTtl').textContent='진행등록 — 신규';
     $('#infoBox').style.display='none'; $('#iChain').style.display='none';
     $('#openBox').innerHTML='';
-    $('#fJob').value=''; $('#fPart').value='';
-    $('#fJob').readOnly=false; $('#fPart').readOnly=false;
-    $('#fMp').value=''; $('#fVen').value='';
+    $('#fJob').value=''; $('#fJob').readOnly=false;
+    $('#fRoute').value=''; fillMp('',''); $('#fVen').value='';
     $('#fSdate').value=TODAY;
     const e=new Date(); e.setDate(e.getDate()+7); $('#fEdate').value=e.toISOString().slice(0,10);
-    $('#fQuote').value=''; $('#fMold').value=''; syncMold();
+    $('#fQuote').value=''; $('#fMap').value=''; syncMap();
     lotBody.innerHTML=''; lotRow('','');
     $('#mMsg').textContent=''; $('#mMsg').className='msg';
     $('#mS').style.display='';
     dim.classList.add('on'); mo.style.display='';
-    $('#fPart').focus();
+    $('#fJob').focus();
   }
 
   /* ── 기존 반출건 수정 ── */
@@ -293,11 +324,13 @@
     const o=OSP.find(x=>String(x.no)===String(no)); if(!o) return;
     if(!(CAN_S||CAN_E)) return KI.msg('❌ 수정 권한이 없습니다.');
     editNo=o.no; NEW=false; mode('edit');
-    $('#fJob').value=o.job||''; $('#fPart').value=o.part||'';
-    $('#fMp').value=o.mp||''; $('#fVen').value=o.vendor||'';
+    $('#fJob').value=o.job||'';
+    $('#fRoute').value=sel&&sel.std?String(sel.std.standard_process_no):'';
+    fillMp($('#fRoute').value,o.mp||'');
+    $('#fVen').value=o.vendor||'';
     $('#fSdate').value=o.sdate||''; $('#fEdate').value=o.edate||'';
     $('#fQuote').value=o.quote==null?'':o.quote;
-    $('#fMold').value=o.mold_no||''; syncMold();
+    $('#fMap').value=o.map_part||(MOLDS.find(x=>x.mold_no===o.mold_no)||{}).part_no||''; syncMap();
     const L=Array.isArray(o.lots)&&o.lots.length ? o.lots
           : (o.lot?String(o.lot).split(',').map(x=>({lot:x.trim(),qty:null})):[{lot:o.part,qty:o.qty}]);
     lotBody.innerHTML=''; L.forEach(x=>lotRow(x.lot,x.qty));
@@ -311,14 +344,16 @@
   }
   $('#mEC').addEventListener('click',cancelEdit);
 
-  function syncMold(){
-    const v=$('#fMold').value.trim();
-    const m=MOLDS.find(x=>x.mold_no===v);
-    $('#mapInfo').innerHTML = m ? '🧩 금형제번 <b>'+esc(m.mold_no)+'</b> · 매칭품번(제품번호) <b>'+
-        esc(m.part_no||'-')+'</b>'+(m.asset_owner?' · 자산처 '+esc(m.asset_owner):'')
-      : (v?'<span style="color:#b05c12">⚠ 금형정보에 없는 값</span>':'');
+  /* 매칭품번(제품번호) → 기준정보 › 금형정보 기준으로 금형제번 자동 매칭 */
+  const moldOf = v => MOLDS.find(x=>String(x.part_no||'')===String(v));
+  function syncMap(){
+    const v=$('#fMap').value.trim();
+    const m=moldOf(v);
+    $('#mapInfo').innerHTML = m ? '🧩 매칭품번 <b>'+esc(m.part_no)+'</b> · 금형제번 <b>'+esc(m.mold_no||'-')+
+        '</b>'+(m.asset_owner?' · 자산처 '+esc(m.asset_owner):'')
+      : (v?'<span style="color:#b05c12">⚠ 금형정보에 등록되지 않은 매칭품번입니다.</span>':'');
   }
-  $('#fMold').addEventListener('input',syncMold);
+  $('#fMap').addEventListener('input',syncMap);
 
   /* ── 반출 LOT · 수량 (다건) ── */
   const lotBody=$('#lotBody');
@@ -343,6 +378,7 @@
     [...lotBody.querySelectorAll('tr')].forEach((t,i)=>t.querySelector('.no').textContent=i+1);
     const L=lotList(), sum=L.reduce((a,b)=>a+b.qty,0);
     $('#fSum').textContent='LOT '+L.length+'건 · 합계 '+sum.toLocaleString();
+    $('#fQty').value=sum.toLocaleString();
   }
   const lotText=o=>{
     const L=Array.isArray(o.lots)?o.lots:(o.lot?[{lot:o.lot,qty:o.qty}]:[]);
@@ -354,19 +390,20 @@
   async function save(){
     const m=$('#mMsg');
     if(!sel && !NEW && !editNo) return;
-    const part=$('#fPart').value.trim();
-    if(!part){ m.className='msg err'; m.textContent='LOT 번호를 입력하세요.'; return; }
+    const lots=lotList();
+    if(!lots.length || lots.some(x=>!x.lot)){
+      m.className='msg err'; m.textContent='반출 LOT 번호를 입력하세요.'; return; }
+    const part = sel ? sel.part : lots[0].lot;   /* LOT 표의 첫 행이 대표 LOT */
+    if(!$('#fRoute').value && RT.length){
+      m.className='msg err'; m.textContent='표준공정을 선택하세요.'; return; }
     const mp=$('#fMp').value, ven=$('#fVen').value;
     if(!mp){ m.className='msg err'; m.textContent='가공공정을 선택하세요.'; return; }
     if(!ven){ m.className='msg err'; m.textContent='외주처를 선택하세요.'; return; }
     const q=$('#fQuote').value.replace(/[^0-9.]/g,'');
-    const lots=lotList();
-    if(!lots.length || lots.some(x=>!x.lot)){
-      m.className='msg err'; m.textContent='반출 LOT 번호를 입력하세요.'; return; }
     const qty=lots.reduce((a,b)=>a+b.qty,0);
-    const mo2=MOLDS.find(x=>x.mold_no===$('#fMold').value.trim());
+    const mo2=moldOf($('#fMap').value.trim());
     const body={part:part, job:$('#fJob').value.trim()||null, mp:mp, vendor:ven,
-      mold_no:$('#fMold').value||null, map_part:mo2?mo2.part_no:null,
+      map_part:$('#fMap').value.trim()||null, mold_no:mo2?mo2.mold_no:null,
       lot:lots.map(x=>x.lot).join(','), qty:qty||null, lots:lots,
       sdate:$('#fSdate').value||null, edate:$('#fEdate').value||null,
       quote:q===''?null:Number(q), st:'진행'};
@@ -395,7 +432,7 @@
       await KI.upd(TBL.ospOrder,'no=eq.'+no,{idate:TODAY, st:'완료'});
       m.className='msg ok'; m.textContent='✓ 입고 처리되었습니다.';
       KI.msg('✓ 입고 처리');
-      const keep=sel?sel.part:$('#fPart').value.trim(); await load();
+      const keep=sel?sel.part:(lotList()[0]||{}).lot; await load();
       const c=ROWS.map(calc).find(x=>x.part===keep); if(c) open(c);
     }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
   }
@@ -420,13 +457,13 @@
       KI.get(OBJ.moldSpec+'?select=mold_no,part_no,asset_owner&order=mold_no.asc')
     ]);
     ROWS=rows; OSP=osp; VEN=ven; PROC=proc; RT=rt; MOLDS=molds;
-    const mp=$('#fMp'), vn=$('#fVen'), mv=mp.value, vv=vn.value;
-    mp.innerHTML='<option value="">선택</option>'+PROC.map(p=>'<option value="'+esc(p.process_code)+'">'+
-      esc(p.process_code)+' · '+esc(p.process_name)+'</option>').join('');
+    const rs=$('#fRoute'), vn=$('#fVen'), mp=$('#fMp'), rv=rs.value, mv=mp.value, vv=vn.value;
+    rs.innerHTML='<option value="">선택</option>'+RT.map(r=>'<option value="'+esc(String(r.standard_process_no))+'">'+
+      esc(r.standard_process_name||'')+' ('+((r.steps||[]).length)+'단계)</option>').join('');
     vn.innerHTML='<option value="">선택</option>'+VEN.map(v=>'<option>'+esc(v.vendor_name)+'</option>').join('');
-    mp.value=mv; vn.value=vv;
-    dl.innerHTML=MOLDS.filter(m=>m.mold_no).map(m=>'<option value="'+esc(m.mold_no)+'">'+
-      esc(m.part_no||'')+(m.asset_owner?' · '+esc(m.asset_owner):'')+'</option>').join('');
+    rs.value=rv; vn.value=vv; fillMp(rv,mv);
+    dl.innerHTML=MOLDS.filter(m=>m.part_no).map(m=>'<option value="'+esc(m.part_no)+'">'+
+      esc(m.mold_no||'')+(m.asset_owner?' · '+esc(m.asset_owner):'')+'</option>').join('');
     draw();
     KI.msg('LOT '+ROWS.length+'건 · 외주 반출중 '+OSP.filter(o=>o.sdate&&!o.idate).length+'건');
   }
