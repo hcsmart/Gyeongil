@@ -1,5 +1,5 @@
 /* ============================================================
-   KI MES 공통 코어 : 인증 · 헤더 · Supabase · 그리드 엔진
+   GI MES 공통 코어 : 인증 · 헤더 · Supabase · 그리드 엔진
 ============================================================ */
 const KI = (function(){
 const C = KI_CFG;
@@ -178,7 +178,7 @@ function chrome(curId){
   /* 1차 */
   const t1=el('div','top1');
   t1.innerHTML =
-    '<a class="logo" href="'+(KI_CFG.LANDING||'mold_due.html')+'"><b>KI</b>MES<i>(Mold)</i></a>'+
+    '<a class="logo" href="'+(KI_CFG.LANDING||'mold_due.html')+'"><b>GI</b>MES<i>(Mold)</i></a>'+
     '<nav class="modules" id="kiMod"></nav>'+
     '<div class="user">'+
       '<button class="mini" id="kiUser">👤</button>'+

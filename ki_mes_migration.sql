@@ -658,49 +658,30 @@ end $$;
 -- 5-1) 외주 입고일 기록 시 LOT 이동이력 자동 반영 (트리거)
 -- ------------------------------------------------------------
 create or replace function public.ki_fn_lot_trace()
-returns trigger language plpgsql security definer set search_path = public as $fn$
-declare v_steps jsonb; v_step jsonb;
+returns trigger language plpgsql security definer set search_path to 'public' as $function$
+declare v_steps jsonb; v_step jsonb; v_job text; v_proc text;
 begin
   if new.idate is null or btrim(new.idate) = '' then return new; end if;
   if tg_op = 'UPDATE' and coalesce(old.idate,'') = coalesce(new.idate,'') then return new; end if;
-  if new.job is null or new.part is null or new.mp is null then return new; end if;
-
+  if new.part is null or new.mp is null then return new; end if;
   v_step := jsonb_build_object('mp', new.mp, 'vendor', coalesce(new.vendor,''), 'date', new.idate);
-
-  select steps into v_steps from public.machining_purchase_progress_rows
-   where job = new.job and coalesce(proc,'') = coalesce(new.proc,'') and part = new.part limit 1;
-
+  /* LOT 번호 기준으로 기존 진행 행에 이어붙인다 */
+  select steps, job, proc into v_steps, v_job, v_proc
+    from public.machining_purchase_progress_rows where part = new.part order by no asc limit 1;
   if not found then
     insert into public.machining_purchase_progress_rows(job, proc, part, steps)
     values (new.job, new.proc, new.part, jsonb_build_array(v_step));
     return new;
   end if;
-
   v_steps := coalesce(v_steps, '[]'::jsonb);
   if exists (select 1 from jsonb_array_elements(v_steps) s
-              where s->>'mp' = new.mp and s->>'date' = new.idate) then
-    return new;
-  end if;
-
+              where s->>'mp' = new.mp and s->>'date' = new.idate) then return new; end if;
   update public.machining_purchase_progress_rows
      set steps = v_steps || jsonb_build_array(v_step)
-   where job = new.job and coalesce(proc,'') = coalesce(new.proc,'') and part = new.part;
+   where part = new.part
+     and no = (select min(no) from public.machining_purchase_progress_rows where part = new.part);
   return new;
-end $fn$;
-
-do $$
-begin
-  if to_regclass('public.outsourcing_order_status_rows') is not null then
-    drop trigger if exists ki_trg_lot_trace on public.outsourcing_order_status_rows;
-    create trigger ki_trg_lot_trace after insert or update of idate
-      on public.outsourcing_order_status_rows for each row execute function public.ki_fn_lot_trace();
-  end if;
-  if to_regclass('public.outsourcing_receipt_confirm_candidates') is not null then
-    drop trigger if exists ki_trg_lot_trace_r on public.outsourcing_receipt_confirm_candidates;
-    create trigger ki_trg_lot_trace_r after insert or update of idate
-      on public.outsourcing_receipt_confirm_candidates for each row execute function public.ki_fn_lot_trace();
-  end if;
-end $$;
+end $function$;
 
 -- 모든 ki_v_* 뷰 조회 권한
 do $$

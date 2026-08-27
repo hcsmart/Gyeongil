@@ -186,6 +186,7 @@ table.grid{width:100%;border-collapse:collapse;table-layout:fixed}
 .grid th{height:27px;background:linear-gradient(#f3f6f8,#dce3e9);border-right:1px solid #aab7c3;
   border-bottom:1px solid #91a0af;color:#4a5968;font-weight:800;text-align:center;padding:0 5px;
   white-space:nowrap;position:sticky;top:28px;z-index:2}
+.ck-tb + .grid-wrap .grid th{top:0}   /* 툴바가 표 밖일 때 머리 겹침/빈줄 방지 */
 .grid td{height:26px;border-right:1px solid #d0d7de;border-bottom:1px solid #d9dfe5;padding:0 6px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .grid tr:nth-child(even) td{background:#fafbfc}

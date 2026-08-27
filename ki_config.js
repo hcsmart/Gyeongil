@@ -1,10 +1,10 @@
 /* ============================================================
-   KI MES 공통 설정
+   GI MES 공통 설정
    · 이전 시 아래 SUPABASE 2줄과 DB_PREFIX만 변경
 ============================================================ */
 const KI_CFG = {
-  APP_NAME : 'KI MES',
-  VER      : 'v12.1',
+  APP_NAME : 'GI MES',
+  VER      : 'v12.2',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',

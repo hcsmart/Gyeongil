@@ -9,7 +9,6 @@
 .lr-list{margin:7px;flex:1;min-height:300px;display:flex;flex-direction:column;
   border:1px solid #8494a4;background:#fff}
 .lr-list .grid-wrap{margin:0;border:0;flex:1}
-.lr-list .grid th{top:0}
 .grid tr.clk{cursor:pointer}
 .grid tr.clk:hover td{background:#eef5fc}
 .lr-bar{height:9px;background:#eef1f4;border:1px solid #dbe1e7;position:relative;min-width:52px}
@@ -53,39 +52,12 @@
   if(!await KI.guard('lot-route'))return;
   const $=KI.$, el=KI.el, esc=KI.esc;
   const cur=KI.chrome('lot-route');
-
-  /* 화면 좌측 상단 브랜드명만 GI MES로 표시 (KI 내부 네임스페이스는 유지) */
-  function renameMesBrand(){
-    document.title=document.title.replace(/^KI\s+MES/i,'GI MES');
-    const candidates=[...document.querySelectorAll('body *')].filter(el=>{
-      const t=(el.textContent||'').trim();
-      if(!/^KI\s*MES(?:\s*\(Mold\))?/i.test(t) || t.length>80) return false;
-      const r=el.getBoundingClientRect();
-      return r.top<90 && r.left<280;
-    });
-    if(!candidates.length) return false;
-    const brand=candidates.sort((a,b)=>a.children.length-b.children.length)[0];
-    const w=document.createTreeWalker(brand,NodeFilter.SHOW_TEXT);
-    let n;
-    while((n=w.nextNode())){
-      if(/\bKI\b/.test(n.nodeValue)){
-        n.nodeValue=n.nodeValue.replace(/\bKI\b/,'GI');
-        return true;
-      }
-    }
-    return false;
-  }
-  renameMesBrand();
-  const brandObserver=new MutationObserver(()=>renameMesBrand());
-  brandObserver.observe(document.body,{childList:true,subtree:true});
-  setTimeout(()=>brandObserver.disconnect(),2000);
   const CAN_S=KI.can('lot-route','save'), CAN_E=KI.can('lot-route','edit');
   const TODAY=new Date().toISOString().slice(0,10);
   let ROWS=[], OSP=[], VEN=[], PROC=[], RT=[], MOLDS=[], sel=null;
 
   const ui=KI.page(cur,[
     ['조회','primary',()=>load()],
-    ['신규등록','',()=>openNew()],
     ['엑셀(CSV)','',()=>csv()],
     ['인쇄','',()=>window.print()]
   ]);
@@ -139,32 +111,9 @@
       '<button class="btn primary" id="mS">📤 반출 등록</button></div>';
   document.body.appendChild(dim); document.body.appendChild(mo);
   mo.style.display='none';
-
-  /* ── 신규등록 모달 ── */
-  const nmo=el('div','lr-mo');
-  nmo.innerHTML='<div class="lr-mh"><span>신규등록</span><button class="x" id="nX">✕</button></div>'+ 
-    '<div class="lr-mb">'+
-      '<div class="lr-open" style="margin:0"><h5>LOT 신규 진행등록 (반출)</h5>'+ 
-      '<div style="padding:10px"><div class="lr-f">'+
-        '<label>JOB *</label><input type="text" id="nJob" placeholder="예: A26026">'+
-        '<label>부품번호(LOT) *</label><input type="text" id="nPart" placeholder="예: T99A1">'+
-        '<label>가공공정 *</label><select id="nMp"></select>'+ 
-        '<label>외주처 *</label><select id="nVen"></select>'+ 
-        '<label>출고(반출)일</label><input type="date" id="nSdate">'+
-        '<label>납기일</label><input type="date" id="nEdate">'+
-        '<label>단가</label><input type="text" id="nQuote" placeholder="숫자만">'+
-        '<label>금형제번</label><input type="text" id="nMold" list="dlMold" autocomplete="off" placeholder="입력 후 선택">'+
-      '</div><div id="nMapInfo" style="margin-top:6px;color:#5b7fa5;font-size:11px"></div></div></div>'+ 
-    '</div>'+ 
-    '<div class="lr-mf"><span class="msg" id="nMsg" style="font-weight:700"></span>'+ 
-      '<button class="btn" id="nC" style="margin-left:auto">닫기</button>'+ 
-      '<button class="btn primary" id="nS">📤 신규 등록</button></div>';
-  document.body.appendChild(nmo); nmo.style.display='none';
-
   const dl=el('datalist'); dl.id='dlMold'; document.body.appendChild(dl);
-  function close(){ dim.classList.remove('on'); mo.style.display='none'; nmo.style.display='none'; sel=null; }
+  function close(){ dim.classList.remove('on'); mo.style.display='none'; sel=null; }
   $('#mX').addEventListener('click',close); $('#mC').addEventListener('click',close);
-  $('#nX').addEventListener('click',close); $('#nC').addEventListener('click',close);
   dim.addEventListener('click',close);
 
   const pName=c=>{const p=PROC.find(x=>x.process_code===c);return p?p.process_name:''};
@@ -280,55 +229,6 @@
     dim.classList.add('on'); mo.style.display='';
   }
 
-  function openNew(){
-    $('#nJob').value='';
-    $('#nPart').value='';
-    $('#nMp').value='';
-    $('#nVen').value='';
-    $('#nSdate').value=TODAY;
-    const e=new Date(); e.setDate(e.getDate()+7); $('#nEdate').value=e.toISOString().slice(0,10);
-    $('#nQuote').value='';
-    $('#nMold').value='';
-    $('#nMapInfo').textContent='';
-    $('#nMsg').textContent=''; $('#nMsg').className='msg';
-    $('#nS').style.display=(CAN_S||CAN_E)?'':'none';
-    dim.classList.add('on'); nmo.style.display='';
-    setTimeout(()=>$('#nJob').focus(),0);
-  }
-
-  function syncNewMold(){
-    const v=$('#nMold').value.trim();
-    const m=MOLDS.find(x=>x.mold_no===v);
-    $('#nMapInfo').innerHTML = m ? '🧩 '+esc(m.mold_no)+' · '+esc(m.part_no||'')+
-        (m.asset_owner?' · '+esc(m.asset_owner):'')
-      : (v?'<span style="color:#b05c12">⚠ 금형정보에 없는 값</span>':'');
-  }
-  $('#nMold').addEventListener('input',syncNewMold);
-
-  async function saveNew(){
-    const m=$('#nMsg');
-    const job=$('#nJob').value.trim(), part=$('#nPart').value.trim();
-    const mp=$('#nMp').value, ven=$('#nVen').value;
-    if(!job){ m.className='msg err'; m.textContent='JOB을 입력하세요.'; $('#nJob').focus(); return; }
-    if(!part){ m.className='msg err'; m.textContent='부품번호(LOT)를 입력하세요.'; $('#nPart').focus(); return; }
-    if(!mp){ m.className='msg err'; m.textContent='가공공정을 선택하세요.'; return; }
-    if(!ven){ m.className='msg err'; m.textContent='외주처를 선택하세요.'; return; }
-    const q=$('#nQuote').value.replace(/[^0-9.]/g,'');
-    const mo2=MOLDS.find(x=>x.mold_no===$('#nMold').value.trim());
-    m.className='msg'; m.textContent='등록중...';
-    try{
-      await KI.ins(TBL.ospOrder,[{part:part, job:job, mp:mp, vendor:ven,
-        mold_no:$('#nMold').value||null, map_part:mo2?mo2.part_no:null,
-        odate:null, sdate:$('#nSdate').value||null, edate:$('#nEdate').value||null,
-        quote:q===''?null:Number(q), st:'진행'}]);
-      m.className='msg ok'; m.textContent='✓ '+part+' 신규 등록되었습니다.';
-      KI.msg('✓ '+part+' 신규 등록');
-      await load();
-      setTimeout(close,300);
-    }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
-  }
-  $('#nS').addEventListener('click',saveNew);
-
   function syncMold(){
     const v=$('#fMold').value.trim();
     const m=MOLDS.find(x=>x.mold_no===v);
@@ -394,10 +294,6 @@
     mp.innerHTML='<option value="">선택</option>'+PROC.map(p=>'<option value="'+esc(p.process_code)+'">'+
       esc(p.process_code)+' · '+esc(p.process_name)+'</option>').join('');
     vn.innerHTML='<option value="">선택</option>'+VEN.map(v=>'<option>'+esc(v.vendor_name)+'</option>').join('');
-    const nmp=$('#nMp'), nvn=$('#nVen');
-    nmp.innerHTML='<option value="">선택</option>'+PROC.map(p=>'<option value="'+esc(p.process_code)+'">'+
-      esc(p.process_code)+' · '+esc(p.process_name)+'</option>').join('');
-    nvn.innerHTML='<option value="">선택</option>'+VEN.map(v=>'<option>'+esc(v.vendor_name)+'</option>').join('');
     mp.value=mv; vn.value=vv;
     dl.innerHTML=MOLDS.filter(m=>m.mold_no).map(m=>'<option value="'+esc(m.mold_no)+'">'+
       esc(m.part_no||'')+(m.asset_owner?' · '+esc(m.asset_owner):'')+'</option>').join('');
