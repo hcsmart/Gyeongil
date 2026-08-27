@@ -106,7 +106,7 @@ const MENU = [
     ]}
   ]},
 
-  { key:'osp', name:'외주LOT관리', second:[
+  { key:'osp', name:'LOT관리', second:[
     { key:'o-lot', name:'LOT 추적', icon:'🔎', groups:[
       { name:'추적', items:[
         {id:'lot-route', f:'lot_route.html', n:'LOT 진행현황',

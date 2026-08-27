@@ -42,6 +42,19 @@
 .lr-open{margin:9px 0 0;border:1px solid #dde4ea}
 .lr-open h5{margin:0;padding:5px 9px;background:#eef2f6;border-bottom:1px solid #dde4ea;
   font-size:11px;color:#41556a}
+.lr-lot{margin-top:9px;border:1px solid #dde4ea}
+.lr-lot .lh{display:flex;align-items:center;gap:7px;padding:4px 8px;background:#f4f7fa;
+  border-bottom:1px solid #dde4ea;font-size:11px;color:#41556a;font-weight:700}
+.lr-lot .lh .sum{margin-left:auto;color:#1d568c}
+.lr-lot table{width:100%;border-collapse:collapse}
+.lr-lot th{background:#fafbfc;border-bottom:1px solid #e4e9ee;font-size:11px;color:#526171;
+  height:23px;font-weight:700}
+.lr-lot td{border-bottom:1px solid #eef1f4;padding:3px 5px}
+.lr-lot input{height:24px;border:1px solid #aeb9c4;padding:0 6px;font:inherit;width:100%}
+.lr-lot .del{width:24px;height:22px;border:1px solid #c9d2da;background:#fff;color:#a0505a;
+  cursor:pointer;border-radius:2px}
+.lr-lot .add{height:21px;padding:0 8px;border:1px solid #6f8398;background:#fff;color:#41556a;
+  border-radius:2px;font-size:11px;font-weight:700;cursor:pointer}
 </style>
 <script src="ki_config.js"></script>
 <script src="ki_core.js"></script>
@@ -104,7 +117,14 @@
         '<label>납기일</label><input type="date" id="fEdate">'+
         '<label>단가</label><input type="text" id="fQuote" placeholder="숫자만">'+
         '<label>금형제번</label><input type="text" id="fMold" list="dlMold" autocomplete="off" placeholder="입력 후 선택">'+
-      '</div><div id="mapInfo" style="margin-top:5px;color:#5b7fa5;font-size:11px"></div></div></div>'+
+      '</div><div id="mapInfo" style="margin-top:5px;color:#5b7fa5;font-size:11px"></div>'+
+      '<div class="lr-lot"><div class="lh">📦 반출 LOT · 수량'+
+        '<button class="add" id="fAdd">+ LOT 추가</button>'+
+        '<span class="sum" id="fSum">합계 0</span></div>'+
+        '<table><thead><tr><th style="width:44px">NO</th><th>LOT (부품번호)</th>'+
+        '<th style="width:120px">수량</th><th style="width:38px"></th></tr></thead>'+
+        '<tbody id="lotBody"></tbody></table></div>'+
+      '</div></div>'+
     '</div>'+
     '<div class="lr-mf"><span class="msg" id="mMsg" style="font-weight:700"></span>'+
       '<button class="btn" id="mC" style="margin-left:auto">닫기</button>'+
@@ -202,11 +222,13 @@
     $('#openBox').innerHTML = op.length
       ? '<div class="lr-open"><h5>외주 반출중 (입고 대기) '+op.length+'건</h5>'+
         '<table class="grid"><thead><tr><th style="width:80px">가공공정</th><th style="width:120px">외주처</th>'+
+        '<th>LOT · 수량</th>'+
         '<th style="width:88px">출고일</th><th style="width:88px">납기</th><th style="width:60px">경과</th>'+
         '<th style="width:96px">입고</th></tr></thead><tbody>'+
         op.map(o=>{const d=Math.round((new Date(TODAY)-new Date(o.sdate))/864e5);
           const late=o.edate&&o.edate<TODAY;
           return '<tr><td class="center">'+esc(o.mp||'')+'</td><td>'+esc(o.vendor||'')+'</td>'+
+          '<td>'+lotText(o)+'</td>'+
           '<td class="center">'+esc(o.sdate||'')+'</td>'+
           '<td class="center"'+(late?' style="color:#b23030;font-weight:700"':'')+'>'+esc(o.edate||'-')+'</td>'+
           '<td class="num">'+d+'일</td>'+
@@ -224,6 +246,7 @@
     $('#fQuote').value='';
     const prev=OSP.filter(o=>String(o.part||'')===String(c.part)&&o.mold_no)[0];
     $('#fMold').value=prev?prev.mold_no:''; syncMold();
+    lotBody.innerHTML=''; lotRow(c.part||'','');
     $('#mMsg').textContent=''; $('#mMsg').className='msg';
     $('#mS').style.display=(CAN_S||CAN_E)?'':'none';
     dim.classList.add('on'); mo.style.display='';
@@ -238,6 +261,37 @@
   }
   $('#fMold').addEventListener('input',syncMold);
 
+  /* ── 반출 LOT · 수량 (다건) ── */
+  const lotBody=$('#lotBody');
+  function lotRow(lot,qty){
+    const t=el('tr');
+    t.innerHTML='<td class="center no"></td>'+
+      '<td><input type="text" class="lLot" value="'+esc(lot||'')+'" placeholder="LOT 번호"></td>'+
+      '<td><input type="text" class="lQty" value="'+(qty==null?'':esc(String(qty)))+
+        '" placeholder="숫자만" style="text-align:right"></td>'+
+      '<td class="center"><button class="del" title="행 삭제">✕</button></td>';
+    t.querySelector('.del').addEventListener('click',()=>{ t.remove(); lotSync(); });
+    t.querySelectorAll('input').forEach(i=>i.addEventListener('input',lotSync));
+    lotBody.appendChild(t); lotSync(); return t;
+  }
+  function lotList(){
+    return [...lotBody.querySelectorAll('tr')].map(t=>({
+      lot:t.querySelector('.lLot').value.trim(),
+      qty:Number(t.querySelector('.lQty').value.replace(/[^0-9.]/g,''))||0
+    })).filter(x=>x.lot||x.qty);
+  }
+  function lotSync(){
+    [...lotBody.querySelectorAll('tr')].forEach((t,i)=>t.querySelector('.no').textContent=i+1);
+    const L=lotList(), sum=L.reduce((a,b)=>a+b.qty,0);
+    $('#fSum').textContent='LOT '+L.length+'건 · 합계 '+sum.toLocaleString();
+  }
+  const lotText=o=>{
+    const L=Array.isArray(o.lots)?o.lots:(o.lot?[{lot:o.lot,qty:o.qty}]:[]);
+    if(!L.length) return '-';
+    return L.map(x=>esc(x.lot)+(x.qty?' <b>'+Number(x.qty).toLocaleString()+'</b>':'')).join(', ');
+  };
+  $('#fAdd').addEventListener('click',()=>lotRow('',''));
+
   async function save(){
     const m=$('#mMsg');
     if(!sel) return;
@@ -245,14 +299,19 @@
     if(!mp){ m.className='msg err'; m.textContent='가공공정을 선택하세요.'; return; }
     if(!ven){ m.className='msg err'; m.textContent='외주처를 선택하세요.'; return; }
     const q=$('#fQuote').value.replace(/[^0-9.]/g,'');
+    const lots=lotList();
+    if(!lots.length || lots.some(x=>!x.lot)){
+      m.className='msg err'; m.textContent='반출 LOT 번호를 입력하세요.'; return; }
+    const qty=lots.reduce((a,b)=>a+b.qty,0);
     const mo2=MOLDS.find(x=>x.mold_no===$('#fMold').value.trim());
     m.className='msg'; m.textContent='등록중...';
     try{
       await KI.ins(TBL.ospOrder,[{part:sel.part, job:sel.job||null, mp:mp, vendor:ven,
         mold_no:$('#fMold').value||null, map_part:mo2?mo2.part_no:null,
+        lot:lots.map(x=>x.lot).join(','), qty:qty||null, lots:lots,
         odate:null, sdate:$('#fSdate').value||null, edate:$('#fEdate').value||null,
         quote:q===''?null:Number(q), st:'진행'}]);
-      m.className='msg ok'; m.textContent='✓ '+mp+' 공정으로 반출 등록되었습니다.';
+      m.className='msg ok'; m.textContent='✓ '+mp+' 공정으로 반출 등록되었습니다. (LOT '+lots.length+'건 · '+qty.toLocaleString()+')';
       KI.msg('✓ '+sel.part+' → '+mp+' 반출');
       const keep=sel.part; await load();
       const c=ROWS.map(calc).find(x=>x.part===keep); if(c) open(c);
