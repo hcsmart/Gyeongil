@@ -38,7 +38,8 @@
     ['엑셀(CSV)','',()=>csv()],
     ['인쇄','',()=>window.print()]
   ] : [
-    ['새로고침','primary',()=>load()],
+    ['＋ 발주 없이 등록','primary',()=>newDirect()],
+    ['새로고침','',()=>load()],
     ['엑셀(CSV)','',()=>csv()],
     ['인쇄','',()=>window.print()]
   ]);
@@ -48,7 +49,8 @@
       '실물 <b>출고 · 입고 처리</b>는 [외주 출고 · 입고] 화면에서 합니다.'
     : '외주처로 <b>실물을 내보내고 받는</b> 화면입니다. 좌측에서 LOT을 고르고 <b>[출고 처리] · [입고 처리]</b>를 누르세요.<br>'+
       '발주만 하고 아직 안 보낸 건은 <b>출고대기</b>, 보낸 뒤 미입고는 <b>반출중</b>입니다. '+
-      '발주 내용 변경은 [외주발주] 화면에서 합니다.';
+      '발주 없이 급히 내보내는 건은 <b>[＋ 발주 없이 등록]</b>으로 바로 기록할 수 있습니다. '+
+      '기존 발주 건의 내용 변경은 [외주발주] 화면에서 합니다.';
   ui.pg.appendChild(nt);
 
   const sum=el('div','gv-sum'); sum.style.margin='0 7px';
@@ -95,12 +97,13 @@
 
   /* 품질(출고·입고) 모드에서는 발주 항목을 읽기 전용으로 */
   const ORDER_FIELDS=['fItem','fPart','fMp','fVen','fOdate','fEdate','fQuote','fMold','fMap','fJob','fPname'];
-  function applyMode(){
-    if(ORDER) return;
+  let DIRECT=false;          /* 발주 없이 직접 등록 중 */
+  function lockFields(lock){
     ORDER_FIELDS.forEach(id=>{ const e=$('#'+id); if(!e)return;
-      e.readOnly=true; e.disabled=(e.tagName==='SELECT');
-      e.style.background='#f2f5f8'; e.style.color='#5d6b78'; });
+      e.readOnly=lock; e.disabled=(lock && e.tagName==='SELECT');
+      e.style.background=lock?'#f2f5f8':''; e.style.color=lock?'#5d6b78':''; });
   }
+  function applyMode(){ if(!ORDER) lockFields(true); }
   const fmt=v=>(v==null||v==='')?'':Number(v).toLocaleString();
   const addD=(d,n)=>{const t=new Date(d);t.setDate(t.getDate()+n);return t.toISOString().slice(0,10)};
 
@@ -190,8 +193,25 @@
       '<div class="st '+(r.idate?'done':'')+'">입고<small>'+esc(r.idate||'대기')+'</small></div>';
   }
 
+  function newDirect(){
+    DIRECT=true; sel=null;
+    document.querySelectorAll('#list .ui-row.sel').forEach(x=>x.classList.remove('sel'));
+    lockFields(false);
+    $('#ttl').textContent='발주 없이 등록 — 출고 · 입고 직접 기록';
+    $('#fItem').value=''; $('#fPart').value=''; $('#fJob').value=''; $('#fPname').value='';
+    $('#fMold').value=''; $('#fMap').value=''; $('#fMp').value=''; $('#fVen').value='';
+    $('#fOdate').value=''; $('#fSdate').value=TODAY; $('#fEdate').value=addD(TODAY,7);
+    $('#fIdate').value=''; $('#fQuote').value=''; $('#mapInfo').innerHTML='';
+    $('#warn').innerHTML='<div class="note" style="margin:0;border-left-color:#b05c12;background:#fdf8f1;color:#8a5a2b">'+
+      '발주 없이 등록합니다. 발주일은 비워두고 <b>출고일</b>부터 기록됩니다. 나중에 [외주발주] 화면에서 보완할 수 있습니다.</div>';
+    drawSteps(null); $('#hist').innerHTML='';
+    $('#bDel').style.display='none'; $('#bIn').style.display='none'; $('#bOut').style.display='none';
+    $('#bSave').style.display=CAN_S?'':'none';
+    $('#oMsg').textContent='';
+  }
   function clearSel(){
     if(!ORDER){
+      DIRECT=false; lockFields(true);
       sel=null;
       document.querySelectorAll('#list .ui-row.sel').forEach(x=>x.classList.remove('sel'));
       $('#ttl').textContent='LOT 선택';
@@ -217,6 +237,7 @@
     $('#oMsg').textContent='';
   }
   function pick(){
+    if(!ORDER){ DIRECT=false; lockFields(true); }
     $('#ttl').textContent=(ORDER?'발주 — ':'출고 · 입고 — ')+(sel.part||'')+' · '+(sel.item||'');
     $('#fItem').value=sel.item||''; $('#fPart').value=sel.part||'';
     $('#fJob').value=sel.job||''; $('#fPname').value=sel.partName||'';
@@ -254,6 +275,22 @@
   }
   async function save(){
     const m=$('#oMsg');
+    if(!ORDER && DIRECT){
+      const b=body();
+      if(!b.part){ m.className='msg err'; m.textContent='LOT번호를 입력하세요.'; return; }
+      if(!b.vendor){ m.className='msg err'; m.textContent='외주처를 선택하세요.'; return; }
+      m.className='msg'; m.textContent='저장중...';
+      try{
+        const r=await KI.ins(TBL.ospOrder,[b]);
+        m.className='msg ok'; m.textContent='✓ 등록되었습니다. (발주 없이 직접 기록)';
+        KI.msg('✓ '+b.part+' 등록');
+        DIRECT=false; lockFields(true);
+        const no=r&&r[0]?r[0].no:null;
+        await load();
+        if(no){ sel=ROWS.find(x=>String(x.no)===String(no))||null; if(sel)pick(); }
+      }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
+      return;
+    }
     if(!ORDER){
       if(!sel){ m.className='msg err'; m.textContent='좌측에서 LOT을 선택하세요.'; return; }
       const sd=$('#fSdate').value||null, idt=$('#fIdate').value||null;
