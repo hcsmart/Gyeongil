@@ -222,7 +222,7 @@ insert into public.ki_table_menu(table_name,menus) values
  ('ki_inspection_detail',array['mold-insp']), ('ki_inspection_item',array['insp-item']),
  ('ki_mold_master',array['mold-spec']), ('ki_mold_type',array['mold-spec']),
  ('ki_material',array['mold-spec']), ('ki_machine',array['machine']),
- ('ki_check_item',array['chk-mach','chk-mold']),
+ ('ki_check_item',array['chk-mach']),
  ('ki_factory',array['factory']), ('ki_zone',array['zone']), ('ki_asset',array['asset']),
  ('ki_sensor',array['sensor']), ('ki_env_alert',array['env-alert']), ('ki_env_reading',array['sensor']),
  ('ki_employee',array['user-info']), ('ki_permission',array['user-info']),
@@ -396,10 +396,6 @@ left join public.ki_material  mt on mt.material_code = m.material_code;
 create view public.ki_v_check_machine with (security_invoker=true) as
 select check_id, check_type, item_name, criteria, cycle, qr_code, link_no, sort_order, is_active, remark
 from public.ki_check_item where target='설비';
-
-create view public.ki_v_check_mold with (security_invoker=true) as
-select check_id, check_type, item_name, criteria, cycle, qr_code, link_no, sort_order, is_active, remark
-from public.ki_check_item where target='금형';
 
 /* 수명관리 뷰 */
 create view public.ki_v_shot_ledger with (security_invoker=true) as
@@ -673,7 +669,7 @@ insert into public.ki_factory(factory_code,factory_name,width_m,height_m) values
  ('F1','1공장 (금형가공)',120,70),('F2','2공장 (조립·검사)',90,60)
 on conflict do nothing;
 
--- 설비 점검기준 (일상)
+-- 설비 점검기준 (일상) — QR / 연동번호
 insert into public.ki_check_item(target,check_type,item_name,criteria,qr_code,link_no,sort_order)
 select * from (values
  ('설비','일상','오버로드 프로텍트 (정상범위)','압력계 정상범위 · 경고등 소등','PRESS-1','2,3',1),
@@ -684,14 +680,7 @@ select * from (values
  ('설비','일상','안전장치 (센서, 양수조작버튼)','광전센서 · 양수조작 정상 동작','PRESS-6',null,6),
  ('설비','일상','오일러 급유 (적정량, 흐름상태)','유면 MIN 이상 · 적하 확인','PRESS-7',null,7),
  ('설비','일상','피치세팅 10회 체크','10회 연속 피치 편차 없음','PRESS-8',null,8),
- ('설비','일상','안전보호구 착용','크레인/사다리 사용 시 안전모 착용',null,null,9),
- ('금형','일상','금형 외관 · 균열 확인','크랙 · 파손 · 변형 없음','MOLD-1','2',1),
- ('금형','일상','펀치 / 다이 상태','치핑 · 마모 · 버 발생 없음',null,null,2),
- ('금형','일상','스프링 · 리프터 파손','절손 · 처짐 없음','MOLD-3',null,3),
- ('금형','일상','가이드 포스트 급유','급유 상태 양호 · 소착 없음','MOLD-4',null,4),
- ('금형','일상','스크랩 배출 상태','스크랩 막힘 없음','MOLD-5',null,5),
- ('금형','일상','미스피드 / 센서 작동','센서 감지 및 정지 동작 정상','MOLD-6',null,6),
- ('금형','일상','체결 볼트 / 클램프','풀림 없음 · 규정 토크',null,null,7)
+ ('설비','일상','안전보호구 착용','크레인/사다리 사용 시 안전모 착용',null,null,9)
 ) v(a,b,c,d,e,f,g)
 where not exists (select 1 from public.ki_check_item);
 

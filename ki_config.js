@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v9.3',
+  VER      : 'v9.4',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -52,7 +52,7 @@ const OBJ = {
   moldSpec : P+'v_mold_master', moldType : P+'v_mold_type',
   material : P+'v_material',    machine  : P+'v_machine',
   /* 기준정보 — 점검기준 */
-  chkMach  : P+'v_check_machine', chkMold : P+'v_check_mold',
+  chkMach  : P+'v_check_machine',
   cycleRule : P+'v_cycle_rule',
   /* 수명관리 */
   shotLedger : P+'v_shot_ledger', gradeItem : P+'v_grade_item',
@@ -77,8 +77,7 @@ const MENU = [
       { name:'점검항목 기준', items:[
         {id:'insp-item',  f:'inspection_item.html', n:'정기점검 항목', d:'분류 · 방법 · 판정기준'},
         {id:'daily-item', f:'daily_item.html',      n:'일상점검 항목', d:'상형 8 / 하형 8'},
-        {id:'wash-step',  f:'wash_step.html',       n:'세척 단계',    d:'정기세척 6단계'},
-        {id:'chk-mold',   f:'check_mold.html',      n:'금형 QR 점검기준', d:'QR · 연동번호'}
+        {id:'wash-step',  f:'wash_step.html',       n:'세척 단계',    d:'정기세척 6단계'}
       ]},
       { name:'평가 기준', items:[
         {id:'grade-item', f:'grade_item.html', n:'등급 평가항목', d:'13항목 · 배점'}
