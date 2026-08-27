@@ -6,12 +6,12 @@
 <title>KI MES</title>
 <link rel="stylesheet" href="ki_style.css">
 <style>
-.ol-panel{margin:7px 7px 0;border:1px solid #8494a4;background:#fff}
+.ol-panel{margin:7px 7px 0;border:1px solid #8494a4;background:#fff;flex:none}
 .ol-h{height:27px;display:flex;align-items:center;gap:8px;padding:0 9px;
   background:linear-gradient(#f3f6f8,#e4eaef);border-bottom:1px solid #aab6c1;
   font-weight:800;color:#2f4559}
 .ol-h .sub{font-weight:400;color:#7b8794;font-size:11px}
-.ol-bd{padding:8px 9px}
+.ol-bd{padding:7px 9px 8px}
 .ol-f{display:grid;grid-template-columns:84px 1fr 84px 1fr 84px 1fr 84px 1fr;gap:5px 6px;align-items:center}
 .ol-f label{color:#526171;font-weight:700;font-size:11px}
 .ol-f input,.ol-f select{height:25px;border:1px solid #aeb9c4;padding:0 6px;font:inherit;width:100%}
@@ -25,9 +25,10 @@
 .ol-step .st small{display:block;font-weight:400;font-size:10px}
 .ol-step .ar{width:18px;text-align:center;color:#9aa6b1;font-weight:800}
 .ol-btn{display:flex;gap:5px;align-items:center;margin-top:7px;padding-top:7px;border-top:1px solid #e3e8ec}
-.ol-list{margin:7px;flex:1;min-height:220px;display:flex;flex-direction:column;
+.ol-list{margin:7px;flex:1;min-height:300px;display:flex;flex-direction:column;
   border:1px solid #8494a4;background:#fff}
 .ol-list .grid-wrap{margin:0;border:0;flex:1}
+.ol-list .grid th{top:0}
 .grid tr.clk{cursor:pointer}
 .grid tr.clk:hover td{background:#eef5fc}
 .grid tr.on td{background:#dbe9f7 !important}
@@ -51,21 +52,10 @@
     ['엑셀(CSV)','',()=>csv()],
     ['인쇄','',()=>window.print()]
   ]);
-  const nt=el('div','note');
-  nt.innerHTML='외주처로 <b>실물을 내보내고 받는</b> 물류이동 화면입니다. '+
-    '위에서 등록·수정하고 <b>[출고 처리] · [입고 처리]</b>로 진행합니다. 아래 목록의 행을 클릭하면 위로 불러옵니다.';
-  ui.pg.appendChild(nt);
-
-  const sum=el('div','gv-sum'); sum.style.margin='0 7px';
-  sum.innerHTML=[['wait','출고대기'],['out','반출중 (미입고)'],['soon','납기 임박 (3일)'],
-                 ['late','납기 경과'],['done','입고 완료 (당월)']]
-    .map(x=>'<div class="b"><div class="v" id="s_'+x[0]+'">0</div><div class="k">'+x[1]+'</div></div>').join('');
-  ui.pg.appendChild(sum);
-
   /* ── 상단 : 등록 · 수정 ── */
   const P=el('div','ol-panel');
   P.innerHTML='<div class="ol-h"><span id="ttl">신규 등록</span>'+
-      '<span class="sub" id="sub">LOT번호와 외주처만 있으면 등록됩니다.</span>'+
+      '<span class="sub" id="sub"></span>'+
       '<span style="margin-left:auto" class="sub" id="mapInfo"></span></div>'+
     '<div class="ol-bd">'+
       '<div class="ol-step" id="steps"></div>'+
@@ -206,7 +196,7 @@
   function clearSel(){
     sel=null; draw();
     $('#ttl').textContent='신규 등록';
-    $('#sub').textContent='LOT번호와 외주처만 있으면 등록됩니다. 발주일은 비워도 됩니다.';
+    $('#sub').textContent='';
     ['fPart','fItem','fMold','fMap','fPname','fJob','fOdate','fIdate','fQuote']
       .forEach(id=>$('#'+id).value='');
     $('#fMp').value=''; $('#fVen').value='';
