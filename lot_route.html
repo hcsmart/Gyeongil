@@ -228,7 +228,7 @@
           '<span style="font-size:10px;color:#7b8794">'+c.done+'/'+c.total+'</span></td>'+
         '<td class="center" style="white-space:nowrap">'+
           '<button class="lr-go go">진행등록 ▸</button>'+
-          (CAN_D?'<button class="lr-go del" style="background:#fff;color:#a0505a;border-color:#c9a0a8;margin-left:4px">삭제</button>':'')+
+          (CAN_D&&c.no!=null?'<button class="lr-go del" style="background:#fff;color:#a0505a;border-color:#c9a0a8;margin-left:4px">삭제</button>':'')+
         '</td>';
       t.querySelector('.go').addEventListener('click',ev=>{ ev.stopPropagation(); open(c); });
       const db=t.querySelector('.del');
@@ -473,6 +473,11 @@
       KI.get(OBJ.moldSpec+'?select=mold_no,part_no,asset_owner&order=mold_no.asc')
     ]);
     ROWS=rows; OSP=osp; VEN=ven; PROC=proc; RT=rt; MOLDS=molds;
+    /* 진행이력이 아직 없는 반출건(입고 전)도 목록에 노출 */
+    const have=new Set(ROWS.map(r=>String(r.part||'')));
+    OSP.forEach(o=>{ const k=String(o.part||'');
+      if(!k||have.has(k)) return; have.add(k);
+      ROWS=ROWS.concat([{no:null,job:o.job,proc:o.proc,part:o.part,steps:[],map_part:o.map_part||''}]); });
     const rs=$('#fRoute'), vn=$('#fVen'), mp=$('#fMp'), rv=rs.value, mv=mp.value, vv=vn.value;
     rs.innerHTML='<option value="">선택</option>'+RT.map(r=>'<option value="'+esc(String(r.standard_process_no))+'">'+
       esc(r.standard_process_name||'')+' ('+((r.steps||[]).length)+'단계)</option>').join('');
