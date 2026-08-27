@@ -104,11 +104,11 @@
     m.className='msg'; m.textContent='저장중...';
     try{
       const shot=Number(String($('#fShot').value).replace(/[^0-9.]/g,''))||null;
-      const h=await KI.ins(OBJ.dailyCheck,[{mold_code:code, check_date:$('#fDate').value||null,
+      const h=await KI.ins(TBL.dailyCheck,[{mold_code:code, check_date:$('#fDate').value||null,
         checker:$('#fBy').value.trim(), shot_count:shot, actions:acts,
         judgement: ng?'조건부합격':'합격', issue:$('#fIssue').value||null, action_taken:$('#fAct').value||null}]);
       const id=h[0].check_id;
-      await KI.ins(OBJ.dailyCheckDet, dets.map(d=>Object.assign({check_id:id},d)));
+      await KI.ins(TBL.dailyCheckDet, dets.map(d=>Object.assign({check_id:id},d)));
       m.className='msg ok'; m.textContent='✓ 저장되었습니다.'+(ng?' (불량 '+ng+'건)':'');
       KI.msg('✓ 일상점검 저장 — '+code+(ng?' · 불량 '+ng+'건':' · 전체 양호'));
       $('#fIssue').value=''; $('#fAct').value='';

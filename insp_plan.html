@@ -101,7 +101,7 @@
     const ks=Object.keys(dirty);
     if(!ks.length) return KI.msg('변경된 계획이 없습니다.');
     try{
-      await KI.upsert(OBJ.inspPlan+'?on_conflict=mold_code,year',
+      await KI.upsert(TBL.inspPlan+'?on_conflict=mold_code,year',
         ks.map(c=>({mold_code:c,year:year,months:dirty[c],updated_at:new Date().toISOString()})));
       dirty={}; await load(); KI.msg('✓ 연간 계획 '+ks.length+'건 저장');
     }catch(e){ alert('❌ '+e.message); }

@@ -151,17 +151,17 @@
     if(c.tot==null) return alert('13개 항목을 모두 선택해야 저장할 수 있습니다.');
     const m=$('#gMsg'); m.className='msg'; m.textContent='저장중...';
     try{
-      const ev=await KI.ins(OBJ.gradeEval,[{mold_code:sel.mold_code,
+      const ev=await KI.ins(TBL.gradeEval,[{mold_code:sel.mold_code,
         eval_date:$('#eDate').value||null, evaluator:$('#eBy').value||null,
         total_score:c.tot, grade:c.g, applied:!!apply, method:'평가표',
         remark:$('#eRem').value||null}]);
       const id=ev[0].eval_id;
       const dets=ITEMS.map(it=>{ const e=$('#sc'+it.item_no);
         return {eval_id:id,item_no:it.item_no,score:Number(e.dataset.v||e.value||0)}; });
-      await KI.ins(OBJ.gradeEvalDet,dets);
+      await KI.ins(TBL.gradeEvalDet,dets);
       if(apply){
         const cyc=c.g==='A'?365:c.g==='B'?180:90;
-        await KI.upd('ki_mold','mold_code=eq.'+encodeURIComponent(sel.mold_code),
+        await KI.upd(TBL.mold,'mold_code=eq.'+encodeURIComponent(sel.mold_code),
           {grade:c.g, cycle_days:cyc});
         sel.grade=c.g;
       }

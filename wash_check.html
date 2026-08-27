@@ -144,7 +144,7 @@
     const shot=Number(String($('#fShot').value).replace(/[^0-9.]/g,''))||null;
     m.className='msg'; m.textContent='저장중...';
     try{
-      await KI.ins(OBJ.wash,[{mold_code:sel.mold_code, wash_date:$('#fDate').value||null,
+      await KI.ins(TBL.wash,[{mold_code:sel.mold_code, wash_date:$('#fDate').value||null,
         wash_type:type, worker:$('#fBy').value.trim(), shot_count:shot,
         steps:steps, judgement:$('#fJudge').value, remark:$('#fRem').value||null}]);
       m.className='msg ok';
@@ -169,7 +169,7 @@
        tgt.map(r=>r.mold_code).join(', ')+'\n\n계속할까요?'))return;
     try{
       const all=STEPS.filter(s=>s.is_active!==false).map(s=>s.step_name);
-      await KI.ins(OBJ.wash, tgt.map(r=>({mold_code:r.mold_code, wash_date:$('#fDate').value||null,
+      await KI.ins(TBL.wash, tgt.map(r=>({mold_code:r.mold_code, wash_date:$('#fDate').value||null,
         wash_type:'정기', worker:by, shot_count:r.cur_shot, steps:all, judgement:'양호',
         remark:'일괄 등록'})));
       await load(); alert('✓ '+tgt.length+'건 정기세척 등록 완료');

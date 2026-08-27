@@ -108,7 +108,7 @@
     try{
       for(const c of Object.keys(byMold)){
         const body=Object.assign({mold_code:c,year:year,updated_at:new Date().toISOString()},byMold[c]);
-        await KI.upsert(OBJ.shotLedger+'?on_conflict=mold_code,year',[body]);
+        await KI.upsert(TBL.shotLedger+'?on_conflict=mold_code,year',[body]);
       }
       dirty={}; await load(); KI.msg('✓ 타발수 대장이 저장되었습니다.');
     }catch(e){ alert('❌ '+e.message); }
@@ -122,7 +122,7 @@
     if(!pick)return;
     const m=cand.find(x=>x.mold_code===pick.trim());
     if(!m) return alert('금형대장에 없는 품번입니다. [금형기준 › 금형대장]에서 먼저 등록하세요.');
-    try{ await KI.ins(OBJ.shotLedger,[{mold_code:m.mold_code,year:year}]); await load(); KI.msg('✓ 추가되었습니다.'); }
+    try{ await KI.ins(TBL.shotLedger,[{mold_code:m.mold_code,year:year}]); await load(); KI.msg('✓ 추가되었습니다.'); }
     catch(e){ alert('❌ '+e.message); }
   }
 
@@ -187,9 +187,9 @@
           grade = total<=20?'A' : total<=38?'B' : 'C';
         }
         const cyc = grade==='A'?365:grade==='B'?180:90;
-        await KI.upd('ki_mold','mold_code=eq.'+encodeURIComponent(r.mold_code),
+        await KI.upd(TBL.mold,'mold_code=eq.'+encodeURIComponent(r.mold_code),
           {grade:grade, cycle_days:cyc});
-        await KI.ins(OBJ.gradeEval,[{mold_code:r.mold_code, evaluator:(KI.me()||{}).emp_name||'자동',
+        await KI.ins(TBL.gradeEval,[{mold_code:r.mold_code, evaluator:(KI.me()||{}).emp_name||'자동',
           total_score:total, grade:grade, applied:true, method:mode==='1'?'자동(평가표)':'자동(간이)'}]);
         out.push(r.mold_code+' : '+grade+(total?' ('+total+'점)':'')); n++;
       }
