@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<style>
+.ol-step{display:flex;align-items:center;gap:0;margin:8px 0 2px}
+.ol-step .st{flex:1;text-align:center;padding:7px 4px;border:1px solid #c6cfd8;background:#f4f6f8;color:#8b98a5;font-weight:700;position:relative}
+.ol-step .st.on{background:#e9f2fc;border-color:#7ea9d2;color:#1d568c}
+.ol-step .st.done{background:#2f7d4d;border-color:#2f7d4d;color:#fff}
+.ol-step .st.ng{background:#fbe4e4;border-color:#d99;color:#b23030}
+.ol-step .st small{display:block;font-weight:400;font-size:10px;margin-top:1px}
+.ol-step .ar{width:22px;text-align:center;color:#9aa6b1;font-weight:800}
+.ol-f{display:grid;grid-template-columns:96px 1fr 96px 1fr;gap:6px;align-items:center}
+.ol-f label{color:#526171;font-weight:700}
+.ol-f input,.ol-f select{height:26px;border:1px solid #aeb9c4;padding:0 6px;font:inherit;width:100%}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  if(!await KI.guard('osp-lot'))return;
+  const $=KI.$, el=KI.el, esc=KI.esc;
+  const cur=KI.chrome('osp-lot');
+  const CAN_S=KI.can('osp-lot','save'), CAN_E=KI.can('osp-lot','edit'), CAN_D=KI.can('osp-lot','delete');
+  const TODAY=new Date().toISOString().slice(0,10);
+  let ROWS=[], VEN=[], PROC=[], sel=null;
+
+  const ui=KI.page(cur,[
+    ['＋ 신규 LOT','primary',()=>clearSel()],
+    ['새로고침','',()=>load()],
+    ['엑셀(CSV)','',()=>csv()],
+    ['인쇄','',()=>window.print()]
+  ]);
+  const nt=el('div','note');
+  nt.innerHTML='<b>발주(반출) → 가공 → 입고</b>를 LOT 단위로 한 화면에서 관리합니다. '+
+    '좌측에서 LOT을 고르면 우측에서 입고 처리·수정하고, 신규 발주는 [＋ 신규 LOT]로 등록합니다. '+
+    '입고일이 없는 LOT은 <b>미입고 재공</b>이며, 납기가 지나면 <b style="color:#b23030">경과</b>로 표시됩니다.';
+  ui.pg.appendChild(nt);
+
+  const sum=el('div','gv-sum'); sum.style.margin='0 7px';
+  sum.innerHTML=[['out','반출중 (미입고)'],['soon','납기 임박 (3일)'],['late','납기 경과'],['done','입고 완료 (당월)']]
+    .map(x=>'<div class="b"><div class="v" id="s_'+x[0]+'">0</div><div class="k">'+x[1]+'</div></div>').join('');
+  ui.pg.appendChild(sum);
+
+  const w=el('div','gv-wrap');
+  w.innerHTML=
+    '<div class="gv-left" style="width:430px"><div class="pane-h">외주 LOT 목록</div>'+
+      '<div class="ui-find"><input type="text" id="q" placeholder="LOT · 제품 · 외주처">'+
+        '<select id="fs" style="height:23px;border:1px solid #aeb9c4">'+
+        '<option value="">전체</option><option>반출중</option><option>납기임박</option><option>납기경과</option><option>입고완료</option></select></div>'+
+      '<div class="ui-list" id="list"></div></div>'+
+    '<div class="gv-right"><div class="pane-h" id="ttl">신규 LOT 등록</div><div class="gv-bd">'+
+      '<div class="ol-step" id="steps"></div>'+
+      '<div id="warn" style="margin:6px 0"></div>'+
+      '<div class="ol-f">'+
+        '<label>제품번호</label><input type="text" id="fItem">'+
+        '<label>LOT번호 *</label><input type="text" id="fPart">'+
+        '<label>가공공정 *</label><select id="fMp"></select>'+
+        '<label>외주처 *</label><select id="fVen"></select>'+
+        '<label>발주일</label><input type="date" id="fOdate">'+
+        '<label>납기일</label><input type="date" id="fEdate">'+
+        '<label>입고일</label><input type="date" id="fIdate">'+
+        '<label>단가(외주금액)</label><input type="text" id="fQuote" placeholder="숫자만">'+
+      '</div>'+
+      '<div style="margin-top:8px" class="ol-f">'+
+        '<label style="color:#8b98a5">JOB(선택)</label><input type="text" id="fJob">'+
+        '<label style="color:#8b98a5">부품명(선택)</label><input type="text" id="fPname">'+
+      '</div>'+
+      '<div style="margin-top:12px" id="hist"></div>'+
+    '</div><div class="gv-foot"><span class="msg" id="oMsg" style="font-weight:700"></span>'+
+      '<button class="btn" id="bDel" style="margin-left:auto;color:#b23030">삭제</button>'+
+      '<button class="btn green" id="bIn">📦 입고 처리 (오늘)</button>'+
+      '<button class="btn primary" id="bSave">💾 저장</button></div></div>';
+  ui.pg.appendChild(w);
+
+  const fmt=v=>(v==null||v==='')?'':Number(v).toLocaleString();
+  const addD=(d,n)=>{const t=new Date(d);t.setDate(t.getDate()+n);return t.toISOString().slice(0,10)};
+
+  function statusOf(r){
+    if(r.idate) return '입고완료';
+    if(r.edate && r.edate < TODAY) return '납기경과';
+    if(r.edate && r.edate <= addD(TODAY,3)) return '납기임박';
+    return '반출중';
+  }
+  function badge(st){
+    const c={'입고완료':'#e2f0e6;color:#15803d','납기경과':'#fbe4e4;color:#b23030',
+             '납기임박':'#fdeeda;color:#b05c12','반출중':'#e9f2fc;color:#1d568c'}[st];
+    return '<span class="badge" style="background:'+(c||'#eee')+'">'+esc(st)+'</span>';
+  }
+  function drawSum(){
+    const mon=TODAY.slice(0,7);
+    $('#s_out').textContent = ROWS.filter(r=>!r.idate).length;
+    $('#s_soon').textContent= ROWS.filter(r=>statusOf(r)==='납기임박').length;
+    $('#s_late').textContent= ROWS.filter(r=>statusOf(r)==='납기경과').length;
+    $('#s_done').textContent= ROWS.filter(r=>r.idate && String(r.idate).slice(0,7)===mon).length;
+  }
+  function drawList(){
+    const q=$('#q').value.trim().toLowerCase(), f=$('#fs').value;
+    const box=$('#list'); box.innerHTML='';
+    const rank={'납기경과':0,'납기임박':1,'반출중':2,'입고완료':3};
+    ROWS.filter(r=>(!q||[r.part,r.item,r.vendor,r.job].some(v=>String(v||'').toLowerCase().includes(q)))
+              && (!f||statusOf(r)===f))
+      .sort((a,b)=>rank[statusOf(a)]-rank[statusOf(b)] || String(a.edate||'9999').localeCompare(String(b.edate||'9999')))
+      .forEach(r=>{
+        const st=statusOf(r);
+        const row=el('div','ui-row'+(sel&&sel.no===r.no?' sel':''));
+        row.style.gridTemplateColumns='120px 1fr 78px';
+        row.innerHTML='<div style="font-weight:700">'+esc(r.part||'')+'</div>'+
+          '<div>'+esc(r.item||'')+'<small style="display:block;color:#96a2ad">'+
+            esc(r.vendor||'')+' · '+esc(r.mp||'')+' · 반출 '+esc(r.odate||'-')+' · 납기 '+esc(r.edate||'-')+'</small></div>'+
+          '<div class="center">'+badge(st)+'</div>';
+        row.addEventListener('click',()=>{ sel=r;
+          box.querySelectorAll('.ui-row.sel').forEach(x=>x.classList.remove('sel'));
+          row.classList.add('sel'); pick();
+        });
+        box.appendChild(row);
+      });
+  }
+  ['q','fs'].forEach(id=>$('#'+id).addEventListener('input',drawList));
+
+  function drawSteps(r){
+    const box=$('#steps');
+    if(!r){ box.innerHTML=''; return; }
+    const st=statusOf(r);
+    const days = r.odate ? Math.round((new Date(r.idate||TODAY)-new Date(r.odate))/864e5) : null;
+    box.innerHTML=
+      '<div class="st done">발주 · 반출<small>'+esc(r.odate||'-')+'</small></div><div class="ar">▸</div>'+
+      '<div class="st '+(r.idate?'done':(st==='납기경과'?'ng':'on'))+'">가공중'+
+        '<small>'+(days!=null?days+'일 경과':'-')+(r.edate?' · 납기 '+esc(r.edate):'')+'</small></div><div class="ar">▸</div>'+
+      '<div class="st '+(r.idate?'done':'')+'">입고<small>'+esc(r.idate||'대기')+'</small></div>';
+  }
+
+  function clearSel(){
+    sel=null;
+    document.querySelectorAll('#list .ui-row.sel').forEach(x=>x.classList.remove('sel'));
+    $('#ttl').textContent='신규 LOT 등록';
+    $('#fItem').value=''; $('#fPart').value=''; $('#fJob').value=''; $('#fPname').value='';
+    $('#fMp').value=''; $('#fVen').value='';
+    $('#fOdate').value=TODAY; $('#fEdate').value=addD(TODAY,7); $('#fIdate').value='';
+    $('#fQuote').value='';
+    $('#warn').innerHTML=''; drawSteps(null); $('#hist').innerHTML='';
+    $('#bDel').style.display='none'; $('#bIn').style.display='none';
+    $('#oMsg').textContent='';
+  }
+  function pick(){
+    $('#ttl').textContent='LOT — '+(sel.part||'')+' · '+(sel.item||'');
+    $('#fItem').value=sel.item||''; $('#fPart').value=sel.part||'';
+    $('#fJob').value=sel.job||''; $('#fPname').value=sel.partName||'';
+    $('#fMp').value=sel.mp||''; $('#fVen').value=sel.vendor||'';
+    $('#fOdate').value=sel.odate||''; $('#fEdate').value=sel.edate||''; $('#fIdate').value=sel.idate||'';
+    $('#fQuote').value=sel.quote!=null?sel.quote:'';
+    const st=statusOf(sel), wn=$('#warn');
+    if(st==='납기경과')
+      wn.innerHTML='<div class="note" style="margin:0;border-left-color:#b23030;background:#fdf3f3;color:#8a3b3b">'+
+        '⚠ <b>납기 경과</b> — '+esc(sel.edate)+' 납기 · '+Math.round((new Date(TODAY)-new Date(sel.edate))/864e5)+'일 지연 중입니다. 외주처('+esc(sel.vendor||'')+') 확인이 필요합니다.</div>';
+    else if(st==='납기임박')
+      wn.innerHTML='<div class="note" style="margin:0;border-left-color:#b05c12;background:#fdf8f1;color:#8a5a2b">납기 임박 — '+esc(sel.edate)+'</div>';
+    else wn.innerHTML='';
+    drawSteps(sel);
+    $('#bDel').style.display=CAN_D?'':'none';
+    $('#bIn').style.display=(CAN_E&&!sel.idate)?'':'none';
+    $('#oMsg').textContent='';
+  }
+
+  function body(){
+    const q=$('#fQuote').value.replace(/[^0-9.]/g,'');
+    const idate=$('#fIdate').value||null;
+    return { item:$('#fItem').value||null, part:$('#fPart').value.trim(),
+      job:$('#fJob').value||null, partName:$('#fPname').value||null,
+      mp:$('#fMp').value||null, vendor:$('#fVen').value||null,
+      odate:$('#fOdate').value||null, edate:$('#fEdate').value||null, idate:idate,
+      quote:q===''?null:Number(q),
+      st: idate?'완료':'진행' };
+  }
+  async function save(){
+    const m=$('#oMsg');
+    const b=body();
+    if(!b.part){ m.className='msg err'; m.textContent='LOT번호를 입력하세요.'; return; }
+    if(!b.mp||!b.vendor){ m.className='msg err'; m.textContent='가공공정과 외주처를 선택하세요.'; return; }
+    m.className='msg'; m.textContent='저장중...';
+    try{
+      if(sel){ await KI.upd(TBL.ospOrder,'no=eq.'+sel.no, b); m.className='msg ok'; m.textContent='✓ 수정되었습니다.'; }
+      else{ await KI.ins(TBL.ospOrder,[b]); m.className='msg ok'; m.textContent='✓ LOT이 등록되었습니다.'; }
+      KI.msg('✓ '+b.part+' 저장');
+      const keep=sel?sel.no:null;
+      await load();
+      if(keep){ sel=ROWS.find(r=>r.no===keep)||null; if(sel)pick(); } else clearSel();
+    }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
+  }
+  async function receive(){
+    if(!sel) return;
+    if(!confirm(sel.part+' 을(를) 오늘('+TODAY+') 입고 처리할까요?\n입고 처리하면 LOT 이동이력에 반영됩니다.'))return;
+    const m=$('#oMsg');
+    try{
+      await KI.upd(TBL.ospOrder,'no=eq.'+sel.no, {idate:TODAY, st:'완료'});
+      m.className='msg ok'; m.textContent='✓ 입고 처리되었습니다.';
+      KI.msg('✓ '+sel.part+' 입고');
+      const keep=sel.no; await load();
+      sel=ROWS.find(r=>r.no===keep)||null; if(sel)pick();
+    }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
+  }
+  async function delRow(){
+    if(!sel) return;
+    if(!confirm(sel.part+' LOT 발주를 삭제할까요?\n삭제하면 되돌릴 수 없습니다.'))return;
+    const m=$('#oMsg');
+    try{
+      await KI.del(TBL.ospOrder,'no=eq.'+sel.no);
+      KI.msg('✓ 삭제되었습니다.');
+      await load(); clearSel();
+    }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
+  }
+  $('#bSave').addEventListener('click',save);
+  $('#bIn').addEventListener('click',receive);
+  $('#bDel').addEventListener('click',delRow);
+  if(!CAN_S&&!CAN_E){ $('#bSave').disabled=true; $('#bSave').style.opacity=.5; }
+
+  async function drawHist(){}
+
+  function csv(){
+    const head=['LOT번호','제품번호','부품명','가공공정','외주처','발주일','납기일','입고일','단가','상태','JOB'];
+    const rows=ROWS.map(r=>[r.part,r.item,r.partName,r.mp,r.vendor,r.odate,r.edate,r.idate,r.quote,statusOf(r),r.job]
+      .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
+    const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+rows.join('\n')],{type:'text/csv'}));
+    a.download='외주LOT_'+TODAY+'.csv'; a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  async function load(){
+    const [rows,ven,proc]=await Promise.all([
+      KI.get(OBJ.ospOrder+'?select=*&order=no.desc'),
+      KI.get(OBJ.vendor+'?select=vendor_name&order=vendor_name.asc'),
+      KI.get(OBJ.process+'?select=process_code,process_name&order=sort_order.asc')
+    ]);
+    ROWS=rows; VEN=ven; PROC=proc;
+    const mp=$('#fMp'), vn=$('#fVen');
+    const mv=mp.value, vv=vn.value;
+    mp.innerHTML='<option value="">선택</option>'+PROC.map(p=>'<option value="'+esc(p.process_code)+'">'+
+      esc(p.process_code)+' · '+esc(p.process_name)+'</option>').join('');
+    vn.innerHTML='<option value="">선택</option>'+VEN.map(v=>'<option>'+esc(v.vendor_name)+'</option>').join('');
+    mp.value=mv; vn.value=vv;
+    if(sel) sel=ROWS.find(r=>r.no===sel.no)||null;
+    drawSum(); drawList();
+    if(sel) pick(); else if(!$('#fOdate').value) clearSel();
+    KI.msg('외주 LOT '+ROWS.length+'건 · 미입고 '+ROWS.filter(r=>!r.idate).length+'건');
+  }
+  try{ await load(); }
+  catch(e){
+    const b=document.querySelector('#list');
+    if(b) b.innerHTML='<div style="padding:18px;color:#b0442f;line-height:1.8">'+
+      '❌ 데이터를 불러오지 못했습니다.<br><b>'+KI.esc(e.message)+'</b></div>';
+    KI.msg('❌ '+e.message);
+  }
+})();
+</script>
+</body>
+</html>

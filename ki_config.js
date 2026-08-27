@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v10.8',
+  VER      : 'v10.9',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -122,10 +122,7 @@ const MENU = [
   { key:'osp', name:'외주LOT관리', second:[
     { key:'o-io', name:'외주 입출고', icon:'↔', groups:[
       { name:'외주 진행', items:[
-        {id:'osp-order',   f:'osp_order.html',   n:'외주발주',       d:'JOB·부품(LOT) 발주현황'},
-        {id:'osp-issue',   f:'osp_issue.html',   n:'외주출고(반출)', d:'외주처 반출 LOT'},
-        {id:'osp-receipt', f:'osp_receipt.html', n:'외주입고',       d:'가공 완료 입고 확인'},
-        {id:'osp-stock',   f:'osp_stock.html',   n:'미입고 재공',    d:'외주처 보유 재공·경과일'}
+        {id:'osp-lot', f:'osp_lot.html', n:'외주 LOT 관리', d:'발주 · 반출 · 입고 · 미입고 통합'}
       ]}
     ]},
     { key:'o-lot', name:'LOT 추적', icon:'🔎', groups:[
@@ -291,110 +288,6 @@ const VIEWS = {
         ['순서',56,'num','sort_order'],['사용',56,'center','is_active','bool']]
 },
 
-'osp-order':{
-  table:OBJ.ospOrder, order:'no.asc',
-  note:'<b>입고일</b>을 입력하면 해당 LOT의 이동이력이 자동으로 기록됩니다. (LOT 이동이력 · 진행현황에 즉시 반영)',
-  edit:{ table:TBL.ospOrder, pk:'no', auto:true, fields:[
-    ['st','상태','sel',['발주','진행','완료','취소'],'req'],
-    ['job','JOB(관리번호)','text',null,'req'],
-    ['item','제품명','text'],
-    ['part','부품번호(LOT)','text',null,'req'],
-    ['partName','부품명','text'],
-    ['proc','공정','text'],
-    ['procName','공정순서','text'],
-    ['mp','가공공정','ref',{table:OBJ.process,v:'process_code',t:'process_name'},'req'],
-    ['vendor','외주처','ref',{table:OBJ.vendor,v:'vendor_name',order:'vendor_name'},'req'],
-    ['odate','발주일','date'],
-    ['edate','납기','date'],
-    ['idate','입고일','date'],
-    ['quote','외주금액','num']
-  ]},
-  search:[['외주처','sel-vendor','vendor'],['JOB(관리번호)','text','job'],['부품번호','text','part'],
-          ['가공공정','sel-mp','mp'],['발주일','date2','odate'],['상태','sel-ost','st']],
-  cols:[['No',46,'center','no'],['상태',64,'center','st','st'],['발주일',88,'center','odate'],
-        ['외주처',110,'','vendor'],['JOB(관리번호)',118,'','job'],['제품명',140,'','item'],
-        ['부품번호(LOT)',110,'','part'],['부품명',150,'','partName'],
-        ['공정',50,'center','proc'],['순서',56,'center','procName'],['가공공정',86,'center','mp','mp'],
-        ['납기',88,'center','edate'],['입고일',88,'center','idate'],['외주금액',92,'num','quote','won']]
-},
-'osp-issue':{
-  table:OBJ.ospOrder, order:'odate.desc', post:'issue',
-  edit:{ table:TBL.ospOrder, pk:'no', auto:true, fields:[
-    ['st','상태','sel',['발주','진행','완료','취소'],'req'],
-    ['job','JOB(관리번호)','text',null,'req'],
-    ['item','제품명','text'],
-    ['part','부품번호(LOT)','text',null,'req'],
-    ['partName','부품명','text'],
-    ['proc','공정','text'],
-    ['procName','공정순서','text'],
-    ['mp','가공공정','ref',{table:OBJ.process,v:'process_code',t:'process_name'},'req'],
-    ['vendor','외주처','ref',{table:OBJ.vendor,v:'vendor_name',order:'vendor_name'},'req'],
-    ['odate','발주일','date'],
-    ['edate','납기','date'],
-    ['idate','입고일','date'],
-    ['quote','외주금액','num']
-  ]},
-  search:[['외주처','sel-vendor','vendor'],['JOB(관리번호)','text','job'],['부품번호','text','part'],
-          ['가공공정','sel-mp','mp'],['반출일','date2','odate'],['상태','sel-ost','st']],
-  cols:[['No',46,'center','_i'],['반출일(발주)',96,'center','odate'],['외주처',120,'','vendor'],
-        ['JOB(관리번호)',118,'','job'],['부품번호(LOT)',110,'','part'],['부품명',150,'','partName'],
-        ['공정',50,'center','proc'],['가공공정',86,'center','mp','mp'],['납기',88,'center','edate'],
-        ['회수(입고)일',96,'center','idate'],['상태',64,'center','st','st'],['제품명',0,'','item']]
-},
-'osp-receipt':{
-  table:OBJ.ospRecv, order:'no.asc',
-  note:'입고 확인 결과를 등록합니다. <b>입고일</b> 입력 시 LOT 이동이력에 자동 반영됩니다.',
-  edit:{ table:TBL.ospRecv, pk:'no', auto:true, fields:[
-    ['status','확인상태','sel',['대기','확인','완료'],'req'],
-    ['job','JOB(관리번호)','text',null,'req'],
-    ['item','제품명','text'],
-    ['part','부품번호(LOT)','text',null,'req'],
-    ['partName','부품명','text'],
-    ['proc','공정','text'],
-    ['procName','공정순서','text'],
-    ['mp','가공공정','ref',{table:OBJ.process,v:'process_code',t:'process_name'},'req'],
-    ['mpName','가공공정명','text'],
-    ['vendor','외주처','ref',{table:OBJ.vendor,v:'vendor_name',order:'vendor_name'},'req'],
-    ['odate','발주일','date'],
-    ['idate','입고일','date'],
-    ['cdate','확정일','date'],
-    ['quote','외주금액','num']
-  ]},
-  search:[['외주처','sel-vendor','vendor'],['JOB(관리번호)','text','job'],['부품번호','text','part'],
-          ['가공공정','sel-mp','mp'],['입고일','date2','idate'],['확인상태','sel-rst','status']],
-  cols:[['No',46,'center','no'],['확인',64,'center','status','st'],['입고일',88,'center','idate'],
-        ['외주처',118,'','vendor'],['JOB(관리번호)',118,'','job'],
-        ['부품번호(LOT)',110,'','part'],['부품명',140,'','partName'],
-        ['공정',50,'center','proc'],['순서',56,'center','procName'],
-        ['가공공정',72,'center','mp'],['가공공정명',130,'','mpName'],
-        ['발주일',88,'center','odate'],['외주금액',92,'num','quote','won']]
-},
-'osp-stock':{
-  table:OBJ.ospOrder, order:'odate.asc', post:'stock',
-  note:'외주처가 보유 중인 재공입니다. 행을 선택해 <b>수정</b>에서 입고일을 넣으면 입고 처리되고 LOT 이동이력이 기록됩니다.',
-  edit:{ table:TBL.ospOrder, pk:'no', auto:true, fields:[
-    ['st','상태','sel',['발주','진행','완료','취소'],'req'],
-    ['job','JOB(관리번호)','text',null,'req'],
-    ['item','제품명','text'],
-    ['part','부품번호(LOT)','text',null,'req'],
-    ['partName','부품명','text'],
-    ['proc','공정','text'],
-    ['procName','공정순서','text'],
-    ['mp','가공공정','ref',{table:OBJ.process,v:'process_code',t:'process_name'},'req'],
-    ['vendor','외주처','ref',{table:OBJ.vendor,v:'vendor_name',order:'vendor_name'},'req'],
-    ['odate','발주일','date'],
-    ['edate','납기','date'],
-    ['idate','입고일','date'],
-    ['quote','외주금액','num']
-  ]},
-  search:[['외주처','sel-vendor','vendor'],['JOB(관리번호)','text','job'],['부품번호','text','part'],
-          ['가공공정','sel-mp','mp'],['반출일','date2','odate'],['경과일(이상)','num','_days']],
-  cols:[['No',46,'center','_i'],['경과',62,'num','_days','days'],['외주처',120,'','vendor'],
-        ['JOB(관리번호)',118,'','job'],['부품번호(LOT)',110,'','part'],['부품명',150,'','partName'],
-        ['공정',50,'center','proc'],['가공공정',86,'center','mp','mp'],
-        ['반출일',88,'center','odate'],['납기',88,'center','edate'],
-        ['납기상태',80,'center','_due','st'],['외주금액',92,'num','quote','won'],['제품명',0,'','item']]
-},
 'lot-trace':{
   manual:true,
   table:OBJ.lotProg, order:'no.asc', post:'trace',
