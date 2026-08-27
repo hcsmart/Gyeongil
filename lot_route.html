@@ -14,6 +14,8 @@
 .lr-bar{height:9px;background:#eef1f4;border:1px solid #dbe1e7;position:relative;min-width:52px}
 .lr-bar i{position:absolute;left:0;top:0;bottom:0;background:#5b9bd5}
 .lr-bar i.full{background:#2f7d4d}
+.lr-bar i.wip{background:#bcd7f0}
+.lr-chain .wip{background:#bcd7f0;color:#1d568c;padding:1px 7px;border-radius:2px;font-weight:700}
 .lr-go{height:21px;padding:0 8px;border:1px solid #2e77bd;background:#2e77bd;color:#fff;
   border-radius:2px;font-size:11px;font-weight:700;cursor:pointer}
 .lr-go:hover{background:#1d568c}
@@ -196,11 +198,16 @@
     const seen=new Set(st.map(s=>s.mp));
     const hit=sd.filter(x=>seen.has(x)), total=sd.length||st.length||1;
     const done=m?hit.length:st.length;
-    const rest=sd.filter(x=>!seen.has(x));
+    let rest=sd.filter(x=>!seen.has(x));
+    /* 반출중인 단계는 '진행중'으로 분리 — 다음 공정은 그 다음 단계 */
+    const wipMp = (moving && last.mp && !seen.has(last.mp)) ? last.mp : '';
+    const wip = wipMp && sd.includes(wipMp) ? 1 : 0;
+    if(wipMp) rest = rest.filter(x=>x!==wipMp);
     return {no:r.no, job:r.job, part:r.part, proc:r.proc, map_part:r.map_part||'',
       route_no:r.route_no||'', moving:moving, steps:st, last:last, std:m?m.rt:null,
-      sd:sd, seen:seen, done:done, total:total, rest:rest,
-      rate: total?Math.round(done/total*100):0};
+      sd:sd, seen:seen, done:done, total:total, rest:rest, wip:wip, wipMp:wipMp,
+      rate: total?Math.round(done/total*100):0,
+      wipRate: total?Math.round((done+wip)/total*100):0};
   }
   const ospOf = part => OSP.filter(o=>String(o.part||'')===String(part));
   function ospState(part){
@@ -236,8 +243,11 @@
                  (c.rest.length>1?' <small style="color:#96a2ad">외 '+(c.rest.length-1)+'</small>':'')
                :(c.std?'<span style="color:#15803d;font-weight:700">완료</span>':'-'))+'</td>'+
         '<td style="display:flex;align-items:center;gap:5px">'+
-          '<div class="lr-bar"><i class="'+(c.rate>=100?'full':'')+'" style="width:'+Math.min(c.rate,100)+'%"></i></div>'+
-          '<span style="font-size:10px;color:#7b8794">'+c.done+'/'+c.total+'</span></td>'+
+          '<div class="lr-bar">'+
+            (c.wip?'<i class="wip" style="width:'+Math.min(c.wipRate,100)+'%"></i>':'')+
+            '<i class="'+(c.rate>=100?'full':'')+'" style="width:'+Math.min(c.rate,100)+'%"></i></div>'+
+          '<span style="font-size:10px;color:#7b8794">'+c.done+'/'+c.total+
+            (c.wip?' <b style="color:#2e77bd">+1</b>':'')+'</span></td>'+
         '<td class="center" style="white-space:nowrap">'+
           '<button class="lr-go go">진행등록 ▸</button>'+
           (CAN_D?'<button class="lr-go del" style="background:#fff;color:#a0505a;border-color:#c9a0a8;margin-left:4px">삭제</button>':'')+
@@ -264,15 +274,16 @@
     $('#mTtl').textContent='진행등록 — '+(c.part||'');
     $('#iJob').textContent=c.job||'-';   $('#iPart').textContent=c.part||'-';
     $('#iStd').textContent=c.std?c.std.standard_process_name:'(미매칭)';
-    $('#iRate').innerHTML=c.done+'/'+c.total+' <b style="color:#1d568c">'+c.rate+'%</b>';
+    $('#iRate').innerHTML=c.done+'/'+c.total+' <b style="color:#1d568c">'+c.rate+'%</b>'+
+      (c.wip?' <span class="badge" style="background:#e9f2fc;color:#1d568c">'+esc(c.wipMp)+' 반출중</span>':'');
     $('#iCur').innerHTML=esc(c.last.mp||'-')+(pName(c.last.mp)?' · '+esc(pName(c.last.mp)):'')+
       (c.moving?' <span class="badge" style="background:#e9f2fc;color:#1d568c">반출중</span>':'');
     $('#iVen').textContent=c.last.vendor||'-';
     /* 공정 경로 */
     $('#iChain').innerHTML = c.sd.length
       ? c.sd.map(x=>{
-          const done=c.seen.has(x), nx=(!done && x===c.rest[0]);
-          return '<span class="'+(done?'cur':nx?'nx':'rest')+'">'+esc(x)+
+          const done=c.seen.has(x), wip=(!done && x===c.wipMp), nx=(!done && !wip && x===c.rest[0]);
+          return '<span class="'+(done?'cur':wip?'wip':nx?'nx':'rest')+'">'+esc(x)+
                  (pName(x)?' '+esc(pName(x)):'')+'</span>';
         }).join(' <span style="color:#b6c2cd">→</span> ')
       : '<span style="color:#96a2ad">표준공정에 매칭되지 않았습니다. 실제 경유: </span>'+
