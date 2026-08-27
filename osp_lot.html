@@ -61,19 +61,17 @@
       '<div class="ol-step" id="steps"></div>'+
       '<div class="ol-f">'+
         '<label>LOT번호 *</label><input type="text" id="fPart">'+
-        '<label>제품번호</label><input type="text" id="fItem">'+
         '<label>금형제번</label><input type="text" id="fMold" list="dlMold" autocomplete="off" placeholder="입력 후 선택">'+
         '<label>매핑품번</label><input type="text" id="fMap" list="dlMap" autocomplete="off" placeholder="입력 후 선택">'+
+        '<label>JOB</label><input type="text" id="fJob">'+
         '<label>외주처 *</label><select id="fVen"></select>'+
         '<label>가공공정</label><select id="fMp"></select>'+
-        '<label>부품명</label><input type="text" id="fPname">'+
-        '<label>JOB</label><input type="text" id="fJob">'+
+        '<label>단가</label><input type="text" id="fQuote" placeholder="숫자만">'+
+        '<label></label><span></span>'+
         '<label>발주일</label><input type="date" id="fOdate">'+
         '<label>출고(반출)일</label><input type="date" id="fSdate">'+
         '<label>납기일</label><input type="date" id="fEdate">'+
         '<label>입고일</label><input type="date" id="fIdate">'+
-        '<label>단가</label><input type="text" id="fQuote" placeholder="숫자만">'+
-        '<label></label><span></span><label></label><span></span><label></label><span></span>'+
       '</div>'+
       '<datalist id="dlMold"></datalist><datalist id="dlMap"></datalist>'+
       '<div class="ol-btn">'+
@@ -90,7 +88,7 @@
   const L=el('div','ol-list');
   const tb=el('div','ck-tb');
   tb.innerHTML='<span style="font-weight:700;color:#526171">검색</span>'+
-    '<input type="text" id="q" placeholder="LOT · 매핑품번 · 금형제번 · 제품 · 외주처" '+
+    '<input type="text" id="q" placeholder="LOT · 금형제번 · 매핑품번 · 외주처 · JOB" '+
       'style="height:24px;border:1px solid #aeb9c4;padding:0 6px;width:250px">'+
     '<span style="font-weight:700;color:#526171;margin-left:8px">상태</span>'+
     '<select id="fs"><option value="">전체</option><option>출고대기</option><option>반출중</option>'+
@@ -101,8 +99,8 @@
   tbl.innerHTML='<thead><tr>'+
     '<th style="width:78px">상태</th><th style="width:110px">LOT번호</th>'+
     '<th style="width:92px">금형제번</th><th style="width:104px">매핑품번</th>'+
-    '<th style="width:130px">제품번호</th><th style="width:120px">부품명</th>'+
-    '<th style="width:74px">가공공정</th><th style="width:110px">외주처</th>'+
+    '<th style="width:88px">가공공정</th><th style="width:130px">외주처</th>'+
+    '<th style="width:110px">JOB</th>'+
     '<th style="width:88px">발주일</th><th style="width:88px">출고일</th>'+
     '<th style="width:88px">납기</th><th style="width:88px">입고일</th>'+
     '<th style="width:64px">경과</th><th style="width:88px">단가</th></tr></thead><tbody></tbody>';
@@ -129,7 +127,7 @@
   function draw(){
     const q=$('#q').value.trim().toLowerCase(), f=$('#fs').value;
     const rank={'납기경과':0,'납기임박':1,'출고대기':2,'반출중':3,'입고완료':4};
-    const rows=ROWS.filter(r=>(!q||[r.part,r.item,r.vendor,r.job,r.mold_no,r.map_part,r.partName]
+    const rows=ROWS.filter(r=>(!q||[r.part,r.mold_no,r.map_part,r.vendor,r.job]
         .some(v=>String(v||'').toLowerCase().includes(q))) && (!f||statusOf(r)===f))
       .sort((a,b)=>rank[statusOf(a)]-rank[statusOf(b)]
         || String(a.edate||'9999').localeCompare(String(b.edate||'9999')));
@@ -141,8 +139,8 @@
       t.innerHTML='<td class="center">'+badge(statusOf(r))+'</td>'+
         '<td style="font-weight:800;color:#22537f">'+esc(r.part||'')+'</td>'+
         '<td class="center">'+esc(r.mold_no||'')+'</td><td>'+esc(r.map_part||'')+'</td>'+
-        '<td>'+esc(r.item||'')+'</td><td>'+esc(r.partName||'')+'</td>'+
         '<td class="center">'+esc(r.mp||'')+'</td><td>'+esc(r.vendor||'')+'</td>'+
+        '<td>'+esc(r.job||'')+'</td>'+
         '<td class="center">'+esc(r.odate||'-')+'</td>'+
         '<td class="center">'+esc(r.sdate||'-')+'</td>'+
         '<td class="center">'+esc(r.edate||'-')+'</td>'+
@@ -152,7 +150,7 @@
       t.addEventListener('click',()=>{ sel=r; draw(); pick(); });
       tbody.appendChild(t);
     });
-    if(!rows.length) tbody.innerHTML='<tr><td colspan="14" class="center" style="height:52px;color:#8894a0">조건에 맞는 LOT이 없습니다.</td></tr>';
+    if(!rows.length) tbody.innerHTML='<tr><td colspan="13" class="center" style="height:52px;color:#8894a0">조건에 맞는 LOT이 없습니다.</td></tr>';
     $('#cnt').textContent=rows.length+'건';
   }
 
@@ -189,7 +187,7 @@
     sel=null; draw();
     $('#ttl').textContent='신규 등록';
     $('#sub').textContent='';
-    ['fPart','fItem','fMold','fMap','fPname','fJob','fOdate','fIdate','fQuote']
+    ['fPart','fMold','fMap','fJob','fOdate','fIdate','fQuote']
       .forEach(id=>$('#'+id).value='');
     $('#fMp').value=''; $('#fVen').value='';
     $('#fSdate').value=TODAY; $('#fEdate').value=addD(TODAY,7);
@@ -201,9 +199,9 @@
   function pick(){
     $('#ttl').textContent='수정 — '+(sel.part||'');
     $('#sub').textContent=(sel.vendor||'')+' · '+statusOf(sel);
-    $('#fPart').value=sel.part||''; $('#fItem').value=sel.item||'';
+    $('#fPart').value=sel.part||'';
     $('#fMold').value=sel.mold_no||''; $('#fMap').value=sel.map_part||'';
-    $('#fPname').value=sel.partName||''; $('#fJob').value=sel.job||'';
+    $('#fJob').value=sel.job||'';
     $('#fMp').value=sel.mp||''; $('#fVen').value=sel.vendor||'';
     $('#fOdate').value=sel.odate||''; $('#fSdate').value=sel.sdate||'';
     $('#fEdate').value=sel.edate||''; $('#fIdate').value=sel.idate||'';
@@ -219,9 +217,9 @@
   function body(){
     const q=$('#fQuote').value.replace(/[^0-9.]/g,'');
     const sd=$('#fSdate').value||null, idt=$('#fIdate').value||null;
-    return { part:$('#fPart').value.trim(), item:$('#fItem').value||null,
+    return { part:$('#fPart').value.trim(),
       mold_no:$('#fMold').value||null, map_part:$('#fMap').value||null,
-      partName:$('#fPname').value||null, job:$('#fJob').value||null,
+      job:$('#fJob').value||null,
       mp:$('#fMp').value||null, vendor:$('#fVen').value||null,
       odate:$('#fOdate').value||null, sdate:sd, edate:$('#fEdate').value||null, idate:idt,
       quote:q===''?null:Number(q), st: idt?'완료':(sd?'진행':'발주') };
@@ -269,10 +267,10 @@
   $('#bDel').addEventListener('click',delRow);
 
   function csv(){
-    const head=['상태','LOT번호','금형제번','매핑품번','제품번호','부품명','가공공정','외주처',
-                '발주일','출고일','납기일','입고일','단가','JOB'];
-    const rows=ROWS.map(r=>[statusOf(r),r.part,r.mold_no,r.map_part,r.item,r.partName,r.mp,r.vendor,
-      r.odate,r.sdate,r.edate,r.idate,r.quote,r.job]
+    const head=['상태','LOT번호','금형제번','매핑품번','가공공정','외주처','JOB',
+                '발주일','출고일','납기일','입고일','단가'];
+    const rows=ROWS.map(r=>[statusOf(r),r.part,r.mold_no,r.map_part,r.mp,r.vendor,r.job,
+      r.odate,r.sdate,r.edate,r.idate,r.quote]
       .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
     const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+rows.join('\n')],{type:'text/csv'}));
     a.download='외주물류_'+TODAY+'.csv'; a.click(); URL.revokeObjectURL(a.href);
@@ -309,7 +307,7 @@
       if(sel){ draw(); pick(); } else clearSel();
     } else clearSel();
   }
-  catch(e){ tbody.innerHTML='<tr><td colspan="14" class="center" style="height:60px;color:#b0442f">❌ '+
+  catch(e){ tbody.innerHTML='<tr><td colspan="13" class="center" style="height:60px;color:#b0442f">❌ '+
     KI.esc(e.message)+'</td></tr>'; KI.msg('❌ '+e.message); }
 })();
 </script>
