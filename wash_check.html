@@ -191,6 +191,10 @@
       KI.get(OBJ.washStep+'?select=*&order=step_no.asc')
     ]);
     STAT=st; STEPS=sp;
+    if(!sel){
+      const pm=new URLSearchParams(location.search).get('mold');
+      if(pm) sel=STAT.find(r=>r.mold_code===pm)||null;
+    }
     if(sel) sel=STAT.find(r=>r.mold_code===sel.mold_code)||null;
     drawSum(); drawList(); drawSteps();
     if(sel) pick();

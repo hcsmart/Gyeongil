@@ -241,6 +241,10 @@
       if(!L.date){ L.date=r.check_date; L.checker=r.checker; L.ng=r.ng_count||0; }
       if(r.check_date===TODAY) L.today=true;
     });
+    if(!sel){
+      const pm=new URLSearchParams(location.search).get('mold');
+      if(pm) sel=MOLDS.find(r=>r.mold_code===pm)||null;
+    }
     if(sel) sel=MOLDS.find(m=>m.mold_code===sel.mold_code)||null;
     drawSum(); drawList();
     if(sel) pick(); else drawItems();

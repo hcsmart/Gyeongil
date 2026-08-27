@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<style>
+.pb-go{height:22px;padding:0 9px;border:1px solid #2e77bd;background:#2e77bd;color:#fff;
+  border-radius:2px;font-size:11px;font-weight:700;cursor:pointer}
+.pb-go:hover{background:#1d568c}
+.pb-go.off{border-color:#c3ccd6;background:#f4f6f8;color:#9aa6b1;cursor:default}
+.grid tr.clk{cursor:pointer}
+.grid tr.clk:hover td{background:#eef5fc}
+.pb-bar{height:9px;background:#eef1f4;border:1px solid #dbe1e7;position:relative;min-width:56px}
+.pb-bar i{position:absolute;left:0;top:0;bottom:0;background:#5b9bd5}
+.pb-bar i.warn{background:#e0a34a}.pb-bar i.ng{background:#c9524f}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  if(!await KI.guard('plan-board'))return;
+  const $=KI.$, el=KI.el, esc=KI.esc;
+  const cur=KI.chrome('plan-board');
+  const YEAR=new Date().getFullYear(), TODAY=new Date();
+  let ROWS=[], LEDGER={};
+
+  const ui=KI.page(cur,[
+    ['조회','primary',()=>load()],
+    ['엑셀(CSV)','',()=>csv()],
+    ['인쇄','',()=>window.print()]
+  ]);
+  const nt=el('div','note');
+  nt.innerHTML='정기점검과 세척점검의 <b>도래현황 · 예측일</b>을 한 화면에서 봅니다. '+
+    '행을 클릭하면 해당 <b>점검 등록 화면</b>으로 이동해 바로 등록할 수 있습니다.<br>'+
+    '<b>예측일</b> — 정기는 최근 점검일 + 주기, 세척은 최근 3개월 평균 타발수로 잔여 한도 소진 시점을 자동 산출합니다.';
+  ui.pg.appendChild(nt);
+
+  const sum=el('div','gv-sum'); sum.style.margin='0 7px';
+  sum.innerHTML=[['i_late','정기 지연'],['i_soon','정기 임박'],
+                 ['w_due','세척 도래'],['w_soon','세척 임박'],['ok','정상']]
+    .map(x=>'<div class="b"><div class="v" id="s_'+x[0]+'">0</div><div class="k">'+x[1]+'</div></div>').join('');
+  ui.pg.appendChild(sum);
+
+  const tb=el('div','ck-tb');
+  tb.innerHTML='<span style="font-weight:700;color:#526171">종류</span>'+
+    '<select id="fk"><option value="">전체</option><option>정기</option><option>세척</option></select>'+
+    '<span style="font-weight:700;color:#526171;margin-left:8px">상태</span>'+
+    '<select id="fs"><option value="">전체</option><option>지연 · 도래</option><option>임박</option><option>정상</option><option>미실시 · 미지정</option></select>'+
+    '<span style="font-weight:700;color:#526171;margin-left:8px">품번</span>'+
+    '<input type="text" id="q" placeholder="품번 · 금형명" style="height:24px;border:1px solid #aeb9c4;padding:0 6px;width:170px">'+
+    '<span class="sp" id="cnt"></span>';
+  ui.pg.appendChild(tb);
+  ['fk','fs'].forEach(id=>$('#'+id).addEventListener('change',draw));
+  $('#q').addEventListener('input',draw);
+
+  const gw=el('div','grid-wrap'); const tbl=el('table','grid');
+  tbl.innerHTML='<thead><tr>'+
+    '<th style="width:56px">종류</th><th style="width:92px">품번</th><th style="width:150px">금형명</th>'+
+    '<th style="width:96px">고객사</th><th style="width:110px">기준</th>'+
+    '<th style="width:92px">최근 실시</th><th style="width:96px">예정 · 예측</th>'+
+    '<th style="width:70px">D-day</th><th style="width:120px">진행</th>'+
+    '<th style="width:92px">상태</th><th style="width:78px">등록</th></tr></thead><tbody></tbody>';
+  gw.appendChild(tbl); ui.pg.appendChild(gw);
+  const tbody=tbl.querySelector('tbody');
+
+  const fmt=v=>v==null?'':Number(v).toLocaleString();
+  const d2s=d=>d?d.toISOString().slice(0,10):'';
+  const dayDiff=(a,b)=>Math.round((new Date(a)-new Date(b))/864e5);
+
+  function badge(st){
+    const c={'지연':'#fbe4e4;color:#b23030','도래(타발수)':'#fbe4e4;color:#b23030','도래(기간)':'#fbe4e4;color:#b23030',
+             '임박':'#fdeeda;color:#b05c12','예정':'#e9f2fc;color:#1d568c','여유':'#e2f0e6;color:#15803d',
+             '정상':'#e2f0e6;color:#15803d','미실시':'#f1f3f5;color:#77828c','미지정':'#f1f3f5;color:#77828c'}[st];
+    return '<span class="badge" style="background:'+(c||'#eee')+'">'+esc(st)+'</span>';
+  }
+  const grp = st => /지연|도래/.test(st)?'지연 · 도래' : st==='임박'?'임박'
+                  : /미실시|미지정/.test(st)?'미실시 · 미지정' : '정상';
+
+  /* 최근 3개월 평균 월 타발수 */
+  function avgMonthly(code){
+    const l=LEDGER[code]; if(!l)return null;
+    const ms=[...Array(12)].map((_,i)=>l['m'+(i+1)]);
+    const inc=[];
+    let prev=null;
+    ms.forEach(v=>{ if(v==null)return; if(prev!=null && v-prev>0) inc.push(v-prev); prev=v; });
+    if(!inc.length)return null;
+    const last=inc.slice(-3);
+    return last.reduce((a,b)=>a+b,0)/last.length;
+  }
+
+  function build(due, wash){
+    const out=[];
+    due.forEach(r=>{
+      out.push({kind:'정기', code:r.mold_code, name:r.mold_name, cust:r.customer_name,
+        rule:(r.grade||'-')+'등급 · '+(r.cycle_days?r.cycle_days+'일':'주기 미지정'),
+        last:r.last_inspection, next:r.next_inspection,
+        dday:r.d_day, pct:null, status:r.due_status, go:'mold_inspection.html'});
+    });
+    wash.forEach(r=>{
+      const avg=avgMonthly(r.mold_code);
+      const remain=Math.max((r.limit_shot||0)-(r.used_shot||0),0);
+      let pred=null;
+      if(r.last_wash_date){
+        const byDays=new Date(r.last_wash_date); byDays.setDate(byDays.getDate()+(r.limit_days||365));
+        let byShot=null;
+        if(avg&&avg>0){ const d=new Date(); d.setDate(d.getDate()+Math.round(remain/avg*30)); byShot=d; }
+        pred = byShot && byShot<byDays ? byShot : byDays;
+      }
+      out.push({kind:'세척', code:r.mold_code, name:r.mold_name, cust:r.customer_name,
+        rule:(r.prod_type||'')+' · '+(r.rule_label||''),
+        last:r.last_wash_date, next:d2s(pred),
+        dday: pred?dayDiff(pred,TODAY):null,
+        pct: r.shot_pct==null?null:Number(r.shot_pct),
+        status:r.wash_status, go:'wash_check.html'});
+    });
+    return out;
+  }
+
+  function draw(){
+    const fk=$('#fk').value, fs=$('#fs').value, q=$('#q').value.trim().toLowerCase();
+    const rows=ROWS.filter(r=>(!fk||r.kind===fk) && (!fs||grp(r.status)===fs)
+      && (!q||[r.code,r.name,r.cust].some(v=>String(v||'').toLowerCase().includes(q))))
+      .sort((a,b)=>{
+        const rank=s=>/지연|도래/.test(s)?0:s==='임박'?1:/미실시|미지정/.test(s)?2:3;
+        return rank(a.status)-rank(b.status) || (a.dday??9999)-(b.dday??9999);
+      });
+    tbody.innerHTML='';
+    rows.forEach(r=>{
+      const t=el('tr','clk');
+      const dd = r.dday==null?'' : (r.dday>=0?'D-'+r.dday:'<b style="color:#b23030">D+'+Math.abs(r.dday)+'</b>');
+      let bar='';
+      if(r.kind==='세척' && r.pct!=null){
+        const c=r.pct>=100?'ng':r.pct>=90?'warn':'';
+        bar='<div class="pb-bar"><i class="'+c+'" style="width:'+Math.min(r.pct,100)+'%"></i></div>'+
+            '<span style="font-size:10px;color:#7b8794">'+r.pct+'%</span>';
+      }else if(r.kind==='정기' && r.dday!=null){
+        bar='<span style="font-size:10px;color:#7b8794">'+(r.last?'최근 '+esc(r.last):'')+'</span>';
+      }
+      const can = r.kind==='정기' ? KI.can('mold-insp','save') : KI.can('wash-check','save');
+      t.innerHTML='<td class="center">'+(r.kind==='정기'
+          ?'<span class="badge" style="background:#e9f2fc;color:#1d568c">정기</span>'
+          :'<span class="badge" style="background:#eef3ea;color:#3f7d3f">세척</span>')+'</td>'+
+        '<td style="font-weight:700">'+esc(r.code)+'</td><td>'+esc(r.name||'')+'</td>'+
+        '<td>'+esc(r.cust||'')+'</td><td style="font-size:11px;color:#5d6b78">'+esc(r.rule)+'</td>'+
+        '<td class="center">'+esc(r.last||'-')+'</td>'+
+        '<td class="center" style="font-weight:700;color:#22537f">'+esc(r.next||'-')+'</td>'+
+        '<td class="center">'+dd+'</td>'+
+        '<td style="display:flex;align-items:center;gap:5px">'+bar+'</td>'+
+        '<td class="center">'+badge(r.status)+'</td>'+
+        '<td class="center"><button class="pb-go'+(can?'':' off')+'">'+(can?'등록 ▸':'권한없음')+'</button></td>';
+      if(can) t.addEventListener('click',()=>{ location.href=r.go+'?mold='+encodeURIComponent(r.code); });
+      tbody.appendChild(t);
+    });
+    if(!rows.length) tbody.innerHTML='<tr><td colspan="11" class="center" style="height:52px;color:#8894a0">조건에 맞는 대상이 없습니다.</td></tr>';
+    $('#cnt').textContent=rows.length+'건';
+    const g={i_late:0,i_soon:0,w_due:0,w_soon:0,ok:0};
+    ROWS.forEach(r=>{
+      if(r.kind==='정기'){ if(r.status==='지연')g.i_late++; else if(r.status==='임박')g.i_soon++; else g.ok++; }
+      else { if(/도래/.test(r.status))g.w_due++; else if(r.status==='임박')g.w_soon++; else g.ok++; }
+    });
+    Object.keys(g).forEach(k=>$('#s_'+k).textContent=g[k]);
+  }
+
+  function csv(){
+    const head=['종류','품번','금형명','고객사','기준','최근실시','예정·예측','D-day','소진율','상태'];
+    const body=ROWS.map(r=>[r.kind,r.code,r.name,r.cust,r.rule,r.last,r.next,r.dday,r.pct,r.status]
+      .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
+    const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
+    a.download='점검계획_통합_'+d2s(TODAY)+'.csv'; a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  async function load(){
+    const [due,wash,led]=await Promise.all([
+      KI.get(OBJ.moldDue+'?select=*'),
+      KI.get(OBJ.washStat+'?select=*'),
+      KI.get(OBJ.shotLedger+'?select=*&year=eq.'+YEAR)
+    ]);
+    LEDGER={}; led.forEach(r=>LEDGER[r.mold_code]=r);
+    ROWS=build(due,wash);
+    draw();
+    KI.msg('정기 '+due.length+'건 · 세척 '+wash.length+'건');
+  }
+  try{ await load(); }
+  catch(e){ tbody.innerHTML='<tr><td colspan="11" class="center" style="height:60px;color:#b0442f">❌ '+
+    KI.esc(e.message)+'</td></tr>'; KI.msg('❌ '+e.message); }
+})();
+</script>
+</body>
+</html>

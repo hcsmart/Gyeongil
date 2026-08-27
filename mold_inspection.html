@@ -227,6 +227,10 @@
     DUE=due; ITEMS=items;
     LEDGER={}; led.forEach(r=>LEDGER[r.mold_code]=r);
     RULE={};   rules.forEach(r=>RULE[r.target]=r);
+    if(!sel){
+      const pm=new URLSearchParams(location.search).get('mold');
+      if(pm) sel=DUE.find(r=>r.mold_code===pm)||null;
+    }
     if(sel) sel=DUE.find(r=>r.mold_code===sel.mold_code)||null;
     drawSum(); drawList();
     if(sel) pick(); else drawItems();

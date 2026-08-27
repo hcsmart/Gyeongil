@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v10.2',
+  VER      : 'v10.3',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -89,6 +89,9 @@ const MENU = [
     ]},
 
     { key:'m-plan', name:'점검계획', icon:'📅', groups:[
+      { name:'통합 현황', items:[
+        {id:'plan-board', f:'plan_board.html', n:'점검 도래 · 예측', d:'정기 · 세척 통합 → 클릭 시 등록'}
+      ]},
       { name:'정기점검', items:[
         {id:'insp-plan', f:'insp_plan.html', n:'정기점검 계획', d:'등급별 월 배정 · 실시율'},
         {id:'mold-due',  f:'mold_due.html',  n:'정기점검 도래현황', d:'D-day · 지연 · 임박'}
