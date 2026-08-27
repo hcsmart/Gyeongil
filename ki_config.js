@@ -109,7 +109,7 @@ const MENU = [
   { key:'osp', name:'LOT관리', second:[
     { key:'o-lot', name:'LOT 추적', icon:'🔎', groups:[
       { name:'추적', items:[
-        {id:'lot-route', f:'lot_route.html', n:'LOT 진행현황',
+        {id:'lot-route', f:'lot_route.html', n:'LOT 진행등록',
          d:'진척 · 다음공정 반출 · 입고 등록'},
         {id:'lot-trace', f:'lot_trace.html', n:'LOT 이동이력', d:'외주업체 경유 이력'}
       ]}
