@@ -4,11 +4,11 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v10.3',
+  VER      : 'v10.4',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
-  LANDING      : 'mold_due.html',   // 로그인 후 기본 화면
+  LANDING      : 'plan_board.html',   // 로그인 후 기본 화면
   AUTH_DOMAIN  : 'ki.local',        // 아이디 → 로그인 이메일 : <아이디>@ki.local
   ADMIN_FN     : 'ki-admin-user',   // 계정관리 Edge Function
   MIN_PW       : 6,   // Supabase Auth 기본 최소 길이
@@ -89,15 +89,9 @@ const MENU = [
     ]},
 
     { key:'m-plan', name:'점검계획', icon:'📅', groups:[
-      { name:'통합 현황', items:[
-        {id:'plan-board', f:'plan_board.html', n:'점검 도래 · 예측', d:'정기 · 세척 통합 → 클릭 시 등록'}
-      ]},
-      { name:'정기점검', items:[
-        {id:'insp-plan', f:'insp_plan.html', n:'정기점검 계획', d:'등급별 월 배정 · 실시율'},
-        {id:'mold-due',  f:'mold_due.html',  n:'정기점검 도래현황', d:'D-day · 지연 · 임박'}
-      ]},
-      { name:'세척점검', items:[
-        {id:'wash-due', f:'wash_due.html', n:'세척 도래현황', d:'타발수 · 기간 도래 판정'}
+      { name:'점검계획', items:[
+        {id:'plan-board', f:'plan_board.html', n:'점검 도래 · 예측',
+         d:'정기 · 세척 통합 · 연간 계획표 자동생성'}
       ]}
     ]},
 
@@ -213,18 +207,6 @@ MENU.forEach(m1=>m1.second.forEach(m2=>m2.groups.forEach(g=>g.items.forEach(it=>
    search: [라벨, 종류, 필드]
 ============================================================ */
 const VIEWS = {
-'mold-due':{
-  table:OBJ.moldDue, order:'next_inspection.asc',
-  search:[['금형코드','text','mold_code'],['금형명','text','mold_name'],['고객사','text','customer_name'],
-          ['도래상태','sel-due','due_status'],['점검예정일','date2','next_inspection'],['공장','sel-fac','factory_code']],
-  cols:[['금형코드',92,'','mold_code'],['금형명',150,'','mold_name'],['고객사',100,'','customer_name'],
-        ['금형종류',100,'center','mold_type'],['보관위치',110,'','location'],
-        ['타발수',92,'num','shot_count','n0'],['수명',92,'num','shot_limit','n0'],
-        ['수명소진',96,'','shot_rate_pct','bar'],['주기(일)',64,'num','cycle_days'],
-        ['최근점검',92,'center','last_inspection'],['점검예정',92,'center','next_inspection'],
-        ['D-day',70,'num','d_day','dday'],['도래',70,'center','due_status','st'],
-        ['상태',70,'center','status','st'],['비고',0,'','remark']]
-},
 'mold-insp':{
   table:OBJ.inspHist, order:'inspection_date.desc',
   edit:{ table:TBL.inspResult, pk:'inspection_no', auto:true, fields:[
@@ -584,20 +566,6 @@ const VIEWS = {
     ['is_active','사용','bool'],
     ['remark','비고','area']
   ]}
-},
-'wash-due':{
-  table:OBJ.washStat, order:'mold_code.asc',
-  note:'정기세척 <b>도래 판정</b>입니다. 마지막 정기세척 시점의 누적 타발수를 기준점으로, 사용 타발수가 한도를 넘거나 기간이 지나면 도래로 표시됩니다. '+
-       '기준값은 [점검기준 › 점검주기 기준]에서 바꿉니다.',
-  search:[['품번','text','mold_code'],['금형명','text','mold_name'],['고객사','text','customer_name'],
-          ['생산구분','sel-prod','prod_type'],['판정','sel-wash','wash_status']],
-  cols:[['품번',96,'','mold_code'],['금형명',150,'','mold_name'],['고객사',100,'','customer_name'],
-        ['등급',52,'center','grade','grade'],['생산구분',72,'center','prod_type'],
-        ['기준',120,'center','rule_label'],
-        ['기준점',100,'num','base_shot'],['현재누적',100,'num','cur_shot'],
-        ['사용 타발수',100,'num','used_shot'],['한도',96,'num','limit_shot'],
-        ['소진율',72,'num','shot_pct'],['최근세척',96,'center','last_wash_date'],
-        ['경과일',70,'num','days_since'],['판정',96,'center','wash_status','st']]
 },
 'wash-step':{
   table:OBJ.washStep, order:'step_no.asc',
