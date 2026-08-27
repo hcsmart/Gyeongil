@@ -679,7 +679,12 @@ async function grid(id, need){
     }catch(e){ hint('❌ '+e.message); msg('❌ '+e.message); cnt.textContent='총 0건'; }
     if(btn){btn.textContent=old;btn.disabled=false;}
   }
-  run(null);
+  /* 자동 조회 여부 : def.manual 또는 전역 CFG.MANUAL_QUERY 이면 [조회] 클릭 시에만 */
+  if(def.manual || C.MANUAL_QUERY){
+    hint('검색 조건을 지정한 뒤 상단 [조회] 버튼을 누르세요.');
+    cnt.textContent='총 -건';
+    msg(cur.path+' — 조회 조건을 지정하세요.');
+  }else run(null);
 }
 function csv(cur,def,rows){
   if(!rows||!rows.length){ alert('내보낼 데이터가 없습니다.'); return; }

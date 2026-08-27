@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v9.4',
+  VER      : 'v9.5',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -12,6 +12,7 @@ const KI_CFG = {
   AUTH_DOMAIN  : 'ki.local',        // 아이디 → 로그인 이메일 : <아이디>@ki.local
   ADMIN_FN     : 'ki-admin-user',   // 계정관리 Edge Function
   MIN_PW       : 6,   // Supabase Auth 기본 최소 길이
+  MANUAL_QUERY : false, // true 면 모든 그리드 화면이 [조회] 클릭 시에만 데이터를 불러옴
   MAX_FAIL     : 5,
   LOCKOUT_SEC  : 60
 };
@@ -239,6 +240,7 @@ const VIEWS = {
         ['조치내용',170,'','action_taken'],['다음점검',92,'center','next_inspection'],['비고',0,'','remark']]
 },
 'mold-detail':{
+  manual:true,
   table:OBJ.inspDet, order:'inspection_no.desc',
   search:[['금형코드','text','mold_code'],['점검번호','text','inspection_no'],['점검항목','text','item_name'],
           ['판정','sel-res','result'],['점검일','date2','inspection_date'],['금형명','text','mold_name']],
@@ -402,6 +404,7 @@ const VIEWS = {
         ['납기상태',80,'center','_due','st'],['외주금액',92,'num','quote','won'],['제품명',0,'','item']]
 },
 'lot-trace':{
+  manual:true,
   table:OBJ.lotProg, order:'no.asc', post:'trace',
   search:[['부품번호(LOT)','text','part'],['JOB(관리번호)','text','job'],['외주처','sel-vendor','vendor'],
           ['가공공정','sel-mp','mp'],['이동일','date2','date'],['공정','text','proc']],
@@ -500,6 +503,7 @@ const VIEWS = {
 },
 
 'env-hist':{
+  manual:true,
   table:OBJ.envHist, order:'measured_at.desc',
   search:[['센서','sel-sensor','sensor_code'],['센서명','text','sensor_name'],['구역','text','zone_code'],
           ['측정시각','date2','measured_at']],
