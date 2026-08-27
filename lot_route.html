@@ -231,7 +231,7 @@
           '<span style="font-size:10px;color:#7b8794">'+c.done+'/'+c.total+'</span></td>'+
         '<td class="center" style="white-space:nowrap">'+
           '<button class="lr-go go">진행등록 ▸</button>'+
-          (CAN_D&&c.no!=null?'<button class="lr-go del" style="background:#fff;color:#a0505a;border-color:#c9a0a8;margin-left:4px">삭제</button>':'')+
+          (CAN_D?'<button class="lr-go del" style="background:#fff;color:#a0505a;border-color:#c9a0a8;margin-left:4px">삭제</button>':'')+
         '</td>';
       t.querySelector('.go').addEventListener('click',ev=>{ ev.stopPropagation(); open(c); });
       const db=t.querySelector('.del');
@@ -435,13 +435,17 @@
   }
   async function delRow(c){
     if(!CAN_D) return KI.msg('❌ 삭제 권한이 없습니다.');
-    const op=ospOf(c.part).filter(o=>o.sdate&&!o.idate);
-    let q='['+(c.part||'')+'] LOT 진행이력을 삭제할까요?\n삭제하면 되돌릴 수 없습니다.';
-    if(op.length) q='⚠ 입고 대기중인 외주 반출건이 '+op.length+'건 있습니다.\n'+q;
+    const ops=ospOf(c.part), open=ops.filter(o=>o.sdate&&!o.idate).length;
+    const q='['+(c.part||'')+'] LOT을 삭제할까요?\n'+
+      ' · LOT 진행이력 '+(c.no!=null?'1건':'없음')+'\n'+
+      ' · 외주 반출/발주 '+ops.length+'건'+(open?' (입고대기 '+open+'건 포함)':'')+'\n'+
+      '삭제하면 되돌릴 수 없습니다.';
     if(!confirm(q)) return;
     try{
-      await KI.del(TBL.lotProg,'no=eq.'+c.no);
-      KI.msg('✓ '+(c.part||'')+' 삭제되었습니다.');
+      if(c.no!=null) await KI.del(TBL.lotProg,'no=eq.'+c.no);
+      if(ops.length)  await KI.del(TBL.ospOrder,'part=eq.'+encodeURIComponent(c.part));
+      KI.msg('✓ '+(c.part||'')+' 삭제되었습니다. (진행이력 '+(c.no!=null?1:0)+'건 · 외주 '+ops.length+'건)');
+      if(sel&&sel.part===c.part) close();
       await load();
     }catch(e){ KI.msg('❌ '+e.message); }
   }
