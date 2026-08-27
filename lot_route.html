@@ -186,7 +186,7 @@
     const st=Array.isArray(r.steps)?r.steps:[];
     let last=st[st.length-1]||{}, moving=false;
     /* 입고 전(반출중)이라도 현재 위치를 표시 : 미입고 외주건 중 최근 출고건 */
-    const op=OSP.filter(o=>String(o.part||'')===String(r.part)&&o.sdate&&!o.idate)
+    const op=ospOf(r.part).filter(o=>o.sdate&&!o.idate)
                .sort((a,b)=>String(b.sdate||'').localeCompare(String(a.sdate||''))
                           ||(Number(b.no)||0)-(Number(a.no)||0))[0];
     if(op && String(op.sdate||'')>=String(last.date||'')){
@@ -209,7 +209,8 @@
       rate: total?Math.round(done/total*100):0,
       wipRate: total?Math.round((done+wip)/total*100):0};
   }
-  const ospOf = part => OSP.filter(o=>String(o.part||'')===String(part));
+  const ospOf = part => OSP.filter(o=>String(o.part||'')===String(part) ||
+    (Array.isArray(o.lots)&&o.lots.some(x=>String(x.lot||'')===String(part))));
   function ospState(part){
     const o=ospOf(part).filter(x=>x.sdate&&!x.idate);
     if(o.length) return {t:'반출중', n:o.length, rows:o};
@@ -319,7 +320,7 @@
     $('#fSdate').value=TODAY;
     const e=new Date(); e.setDate(e.getDate()+7); $('#fEdate').value=e.toISOString().slice(0,10);
     $('#fQuote').value='';
-    const prev=OSP.filter(o=>String(o.part||'')===String(c.part)&&(o.map_part||o.mold_no))[0];
+    const prev=ospOf(c.part).filter(o=>(o.map_part||o.mold_no))[0];
     $('#fMap').value=c.map_part||(prev?(prev.map_part||(MOLDS.find(x=>x.mold_no===prev.mold_no)||{}).part_no||''):'');
     syncMap();
     /* 출고 구분 : 사내 신규 반출 · 입고 대기중인 외주건에서 바로 외주 이관 */
