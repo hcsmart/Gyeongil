@@ -9,6 +9,237 @@
 <script src="ki_core.js"></script>
 </head>
 <body>
-<script>KI.grid('mold-insp', []);</script>
+<script>
+(async function(){
+  if(!await KI.guard('mold-insp'))return;
+  const $=KI.$, el=KI.el, esc=KI.esc;
+  const cur=KI.chrome('mold-insp');
+  const CAN_S=KI.can('mold-insp','save');
+  const YEAR=new Date().getFullYear();
+  let DUE=[], ITEMS=[], LEDGER={}, RULE={}, sel=null;
+
+  const ui=KI.page(cur,[
+    ['💾 점검 등록','primary',()=>save()],
+    ['전체 합격','',()=>{ document.querySelectorAll('input[data-ok="1"]').forEach(r=>r.checked=true); calc(); }],
+    ['새로고침','',()=>load()],
+    ['엑셀(CSV)','',()=>csv()]
+  ]);
+  const nt=el('div','note');
+  nt.innerHTML='등급별 정기점검 등록입니다. 좌측 <b>도래현황</b>에서 금형을 고르면 누적 타발수가 자동으로 들어오고, '+
+    '저장 시 <b>다음 점검예정일</b>이 [점검기준 › 점검주기 기준]의 주기로 자동 계산되어 금형대장에 반영됩니다.';
+  ui.pg.appendChild(nt);
+
+  const sum=el('div','gv-sum'); sum.style.margin='0 7px';
+  sum.innerHTML=['지연','임박','예정','여유'].map(k=>
+    '<div class="b"><div class="v" id="s_'+k+'">0</div><div class="k">'+k+'</div></div>').join('');
+  ui.pg.appendChild(sum);
+
+  const w=el('div','gv-wrap');
+  w.innerHTML=
+    '<div class="gv-left" style="width:400px"><div class="pane-h">정기점검 도래현황</div>'+
+      '<div class="ui-find"><input type="text" id="q" placeholder="품번 · 금형명 · 고객사">'+
+        '<select id="fs" style="height:23px;border:1px solid #aeb9c4">'+
+        '<option value="">전체</option><option>지연</option><option>임박</option><option>예정</option><option>여유</option><option>미지정</option></select></div>'+
+      '<div class="ui-list" id="list"></div></div>'+
+    '<div class="gv-right"><div class="pane-h" id="ttl">점검 등록</div><div class="gv-bd">'+
+      '<div style="display:grid;grid-template-columns:100px 1fr 100px 1fr;gap:6px;align-items:center">'+
+        '<label style="color:#526171;font-weight:700">점검일</label><input type="date" id="fDate" style="height:26px;border:1px solid #aeb9c4;padding:0 6px">'+
+        '<label style="color:#526171;font-weight:700">점검자</label><input type="text" id="fBy" style="height:26px;border:1px solid #aeb9c4;padding:0 6px">'+
+        '<label style="color:#526171;font-weight:700">누적 타발수</label><input type="text" id="fShot" style="height:26px;border:1px solid #aeb9c4;padding:0 6px" placeholder="대장 자동">'+
+        '<label style="color:#526171;font-weight:700">다음 점검예정</label><input type="date" id="fNext" style="height:26px;border:1px solid #aeb9c4;padding:0 6px">'+
+      '</div>'+
+      '<div id="warn" style="margin-top:8px"></div>'+
+      '<div style="margin-top:10px;font-weight:800;color:#41556a">점검항목 <span id="itCnt" style="color:#8b98a5;font-weight:400"></span></div>'+
+      '<div id="items" style="margin-top:5px"></div>'+
+      '<div style="margin-top:10px;display:grid;grid-template-columns:100px 1fr 100px 1fr;gap:6px;align-items:center">'+
+        '<label style="color:#526171;font-weight:700">판정</label><input type="text" id="fJudge" readonly style="height:26px;border:1px solid #aeb9c4;padding:0 6px;background:#eef2f6;font-weight:800;color:#1d568c">'+
+        '<label style="color:#526171;font-weight:700">부적합 건수</label><input type="text" id="fNg" readonly style="height:26px;border:1px solid #aeb9c4;padding:0 6px;background:#eef2f6">'+
+      '</div>'+
+      '<div style="margin-top:8px"><label style="color:#526171;font-weight:700">조치내용</label>'+
+        '<textarea id="fAct" style="width:100%;height:48px;border:1px solid #aeb9c4;margin-top:3px;padding:5px;font:inherit"></textarea></div>'+
+      '<div style="margin-top:6px"><label style="color:#526171;font-weight:700">비고</label>'+
+        '<input type="text" id="fRem" style="width:100%;height:26px;border:1px solid #aeb9c4;padding:0 6px;margin-top:3px"></div>'+
+      '<div style="margin-top:12px" id="hist"></div>'+
+    '</div><div class="gv-foot"><span class="msg" id="mMsg" style="font-weight:700"></span>'+
+      '<button class="btn primary" id="bSave" style="margin-left:auto">💾 점검 등록</button></div></div>';
+  ui.pg.appendChild(w);
+  $('#fDate').value=new Date().toISOString().slice(0,10);
+  $('#fBy').value=(KI.me()||{}).emp_name||'';
+
+  const fmt=v=>v==null?'':Number(v).toLocaleString();
+  function badge(st){
+    const c={'지연':'#fbe4e4;color:#b23030','임박':'#fdeeda;color:#b05c12',
+             '예정':'#e9f2fc;color:#1d568c','여유':'#e2f0e6;color:#15803d',
+             '미지정':'#f1f3f5;color:#77828c'}[st];
+    return '<span class="badge" style="background:'+(c||'#eee')+'">'+esc(st)+'</span>';
+  }
+  function drawSum(){
+    const g={'지연':0,'임박':0,'예정':0,'여유':0};
+    DUE.forEach(r=>{ if(g[r.due_status]!=null)g[r.due_status]++; });
+    Object.keys(g).forEach(k=>$('#s_'+k).textContent=g[k]);
+  }
+  function drawList(){
+    const q=$('#q').value.trim().toLowerCase(), f=$('#fs').value;
+    const box=$('#list'); box.innerHTML='';
+    DUE.filter(r=>(!q||[r.mold_code,r.mold_name,r.customer_name].some(v=>String(v||'').toLowerCase().includes(q)))
+                && (!f||r.due_status===f))
+      .forEach(r=>{
+        const row=el('div','ui-row'+(sel&&sel.mold_code===r.mold_code?' sel':''));
+        row.style.gridTemplateColumns='94px 1fr 84px';
+        row.innerHTML='<div style="font-weight:700">'+esc(r.mold_code)+'</div>'+
+          '<div>'+esc(r.mold_name||'')+'<small style="display:block;color:#96a2ad">'+
+            esc(r.customer_name||'')+' · '+esc(r.grade||'-')+'등급 · 주기 '+(r.cycle_days||'-')+'일'+
+            (r.d_day!=null?' · D'+(r.d_day>=0?'-'+r.d_day:'+'+Math.abs(r.d_day)):'')+'</small></div>'+
+          '<div class="center">'+badge(r.due_status)+'</div>';
+        row.addEventListener('click',()=>{ sel=r;
+          box.querySelectorAll('.ui-row.sel').forEach(x=>x.classList.remove('sel'));
+          row.classList.add('sel'); pick();
+        });
+        box.appendChild(row);
+      });
+  }
+  ['q','fs'].forEach(id=>$('#'+id).addEventListener('input',drawList));
+
+  function nextDate(){
+    if(!sel) return;
+    const d=$('#fDate').value; if(!d)return;
+    const cyc = sel.cycle_days || (RULE[sel.grade]&&RULE[sel.grade].cycle_days);
+    if(!cyc){ $('#fNext').value=''; return; }
+    const t=new Date(d); t.setDate(t.getDate()+Number(cyc));
+    $('#fNext').value=t.toISOString().slice(0,10);
+  }
+  $('#fDate').addEventListener('change',nextDate);
+
+  function pick(){
+    $('#ttl').textContent='점검 등록 — '+sel.mold_code+' '+(sel.mold_name||'');
+    const led=LEDGER[sel.mold_code];
+    if(led){ const ms=[...Array(12)].map((_,i)=>led['m'+(i+1)]).filter(v=>v!=null);
+      if(ms.length) $('#fShot').value=fmt(ms[ms.length-1]); }
+    else $('#fShot').value=fmt(sel.shot_count);
+    nextDate();
+    const wn=$('#warn');
+    if(sel.due_status==='지연')
+      wn.innerHTML='<div class="note" style="margin:0;border-left-color:#b23030;background:#fdf3f3;color:#8a3b3b">'+
+        '⚠ <b>점검 지연</b> — 예정일 '+esc(sel.next_inspection||'-')+' 기준 '+Math.abs(sel.d_day)+'일 경과</div>';
+    else if(sel.due_status==='미지정')
+      wn.innerHTML='<div class="note" style="margin:0">점검 예정일이 없습니다. 이번 등록으로 예정일이 설정됩니다.</div>';
+    else wn.innerHTML='';
+    drawItems(); drawHist();
+  }
+
+  function drawItems(){
+    const box=$('#items'); box.innerHTML='';
+    ITEMS.filter(i=>i.is_active!==false).forEach(it=>{
+      const r=el('div','dc-row'); r.style.gridTemplateColumns='36px 1fr 150px 170px 1fr';
+      const nm='r_'+it.item_code;
+      r.innerHTML='<div style="text-align:center;color:#7b8794;font-weight:700">'+esc(it.item_code)+'</div>'+
+        '<div style="color:#2b3844">'+esc(it.item_name)+
+          '<small style="display:block;color:#96a2ad">'+esc(it.category||'')+' · '+esc(it.method||'')+'</small></div>'+
+        '<div style="color:#7b8794;font-size:11px">'+esc(it.criteria||'')+'</div>'+
+        '<div class="rd">'+
+          '<label class="ok"><input type="radio" name="'+nm+'" value="합격" data-ok="1" checked> 합격</label>'+
+          '<label style="color:#b05c12;font-weight:700"><input type="radio" name="'+nm+'" value="주의"> 주의</label>'+
+          '<label class="ng"><input type="radio" name="'+nm+'" value="불합격"> 불합격</label>'+
+        '</div>'+
+        '<input class="nt" id="mv_'+it.item_code+'" placeholder="측정값'+(it.unit&&it.unit!=='-'?' ('+esc(it.unit)+')':'')+'">';
+      box.appendChild(r);
+    });
+    box.querySelectorAll('input[type=radio]').forEach(r=>r.addEventListener('change',calc));
+    $('#itCnt').textContent='('+box.querySelectorAll('.dc-row').length+'항목)';
+    calc();
+  }
+  function calc(){
+    let ng=0, warn=0;
+    ITEMS.filter(i=>i.is_active!==false).forEach(it=>{
+      const v=(document.querySelector('input[name="r_'+it.item_code+'"]:checked')||{}).value;
+      if(v==='불합격')ng++; else if(v==='주의')warn++;
+    });
+    $('#fNg').value=ng+(warn?' (주의 '+warn+')':'');
+    $('#fJudge').value = ng?'불합격' : warn?'조건부합격' : '합격';
+  }
+
+  async function drawHist(){
+    const h=$('#hist'); if(!sel){h.innerHTML='';return;}
+    const rows=await KI.get(OBJ.inspHist+'?select=*&mold_code=eq.'+encodeURIComponent(sel.mold_code)+
+                            '&order=inspection_date.desc&limit=8');
+    h.innerHTML='<div style="font-weight:800;color:#41556a;margin-bottom:4px">점검 이력</div>'+
+      (rows.length?'<table class="grid"><thead><tr><th style="width:70px">번호</th><th style="width:92px">점검일</th>'+
+      '<th style="width:80px">점검자</th><th style="width:100px">타발수</th><th style="width:80px">판정</th>'+
+      '<th style="width:60px">부적합</th><th style="width:92px">다음점검</th><th>조치내용</th></tr></thead><tbody>'+
+      rows.map(r=>'<tr><td class="center">'+r.inspection_no+'</td><td class="center">'+esc(r.inspection_date)+'</td>'+
+        '<td class="center">'+esc(r.inspector||'')+'</td><td class="num">'+fmt(r.shot_count)+'</td>'+
+        '<td class="center">'+(r.judgement==='불합격'?'<span style="color:#b23030;font-weight:700">불합격</span>':esc(r.judgement||''))+'</td>'+
+        '<td class="num">'+(r.defect_count??0)+'</td><td class="center">'+esc(r.next_inspection||'')+'</td>'+
+        '<td>'+esc(r.action_taken||'')+'</td></tr>').join('')+'</tbody></table>'
+      :'<div style="color:#96a2ad">점검 이력이 없습니다.</div>');
+  }
+
+  async function save(){
+    const m=$('#mMsg');
+    if(!sel){ m.className='msg err'; m.textContent='좌측에서 금형을 선택하세요.'; return; }
+    if(!$('#fBy').value.trim()){ m.className='msg err'; m.textContent='점검자를 입력하세요.'; return; }
+    const act=ITEMS.filter(i=>i.is_active!==false);
+    const dets=act.map(it=>({item_code:it.item_code, item_name:it.item_name, criteria:it.criteria,
+      measured_value:($('#mv_'+it.item_code)||{}).value||null,
+      result:(document.querySelector('input[name="r_'+it.item_code+'"]:checked')||{}).value||'합격'}));
+    const ng=dets.filter(d=>d.result==='불합격').length;
+    const judge=$('#fJudge').value;
+    const shot=Number(String($('#fShot').value).replace(/[^0-9.]/g,''))||null;
+    m.className='msg'; m.textContent='저장중...';
+    try{
+      const r=await KI.ins(TBL.inspResult,[{mold_code:sel.mold_code, inspection_date:$('#fDate').value||null,
+        inspector:$('#fBy').value.trim(), shot_count:shot, judgement:judge, defect_count:ng,
+        action_taken:$('#fAct').value||null, next_inspection:$('#fNext').value||null,
+        remark:$('#fRem').value||null}]);
+      const no=r[0].inspection_no;
+      await KI.ins(TBL.inspDetail, dets.map(d=>Object.assign({inspection_no:no},d)));
+      await KI.upd(TBL.mold,'mold_code=eq.'+encodeURIComponent(sel.mold_code),
+        {last_inspection:$('#fDate').value||null, next_inspection:$('#fNext').value||null,
+         shot_count:shot, status: ng?'점검필요':'정상'});
+      m.className='msg ok';
+      m.textContent='✓ 점검 #'+no+' 등록'+(ng?' · 부적합 '+ng+'건':' · 전 항목 합격')+' · 다음 '+($('#fNext').value||'-');
+      KI.msg('✓ '+sel.mold_code+' 점검 등록 (판정 '+judge+')');
+      $('#fAct').value=''; $('#fRem').value='';
+      document.querySelectorAll('.nt').forEach(n=>n.value='');
+      document.querySelectorAll('input[data-ok="1"]').forEach(r2=>r2.checked=true);
+      await load();
+    }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
+  }
+  $('#bSave').addEventListener('click',save);
+  if(!CAN_S){ $('#bSave').disabled=true; $('#bSave').style.opacity=.5; }
+
+  function csv(){
+    const head=['품번','금형명','고객사','등급','주기','최근점검','점검예정','D-day','판정'];
+    const body=DUE.map(r=>[r.mold_code,r.mold_name,r.customer_name,r.grade,r.cycle_days,
+      r.last_inspection,r.next_inspection,r.d_day,r.due_status]
+      .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
+    const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
+    a.download='정기점검_도래현황_'+new Date().toISOString().slice(0,10)+'.csv'; a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  async function load(){
+    const [due,items,led,rules]=await Promise.all([
+      KI.get(OBJ.moldDue+'?select=*&order=next_inspection.asc.nullslast'),
+      KI.get(OBJ.inspItem+'?select=*&order=sort_order.asc'),
+      KI.get(OBJ.shotLedger+'?select=*&year=eq.'+YEAR),
+      KI.get(OBJ.cycleRule+'?select=*&kind=eq.'+encodeURIComponent('정기'))
+    ]);
+    DUE=due; ITEMS=items;
+    LEDGER={}; led.forEach(r=>LEDGER[r.mold_code]=r);
+    RULE={};   rules.forEach(r=>RULE[r.target]=r);
+    if(sel) sel=DUE.find(r=>r.mold_code===sel.mold_code)||null;
+    drawSum(); drawList();
+    if(sel) pick(); else drawItems();
+    KI.msg('점검 대상 '+DUE.length+'건 · 점검항목 '+ITEMS.length+'개');
+  }
+  try{ await load(); }
+  catch(e){
+    const b=document.querySelector('#list');
+    if(b) b.innerHTML='<div style="padding:18px;color:#b0442f;line-height:1.8">'+
+      '❌ 데이터를 불러오지 못했습니다.<br><b>'+KI.esc(e.message)+'</b></div>';
+    KI.msg('❌ '+e.message);
+  }
+})();
+</script>
 </body>
 </html>

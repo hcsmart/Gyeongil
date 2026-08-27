@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v9.7',
+  VER      : 'v9.8',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -21,6 +21,7 @@ const KI_CFG = {
 const P = KI_CFG.DB_PREFIX;
 const TBL = {                      /* 편집 대상 원천 테이블 */
   mold:'ki_mold', inspItem:'ki_inspection_item', inspResult:'ki_inspection_result',
+  inspDetail:'ki_inspection_detail',
   factory:'ki_factory', zone:'ki_zone', asset:'ki_asset',
   sensor:'ki_sensor', envAlert:'ki_env_alert', machine:'ki_machine',
   shotLedger:'ki_shot_ledger', gradeItem:'ki_grade_item',
@@ -95,7 +96,7 @@ const MENU = [
       ]}
     ]},
 
-    { key:'m-res', name:'점검실적', icon:'📋', groups:[
+    { key:'m-res', name:'점검등록', icon:'📋', groups:[
       { name:'정기점검', items:[
         {id:'mold-insp',   f:'mold_inspection.html',        n:'정기점검 등록', d:'점검 등록 · 이력'},
         {id:'mold-detail', f:'mold_inspection_detail.html', n:'등록 세부내용', d:'항목별 측정값 · 판정'}
