@@ -150,6 +150,12 @@ create table if not exists public.ki_machine (
   machine_no text primary key, machine_name text, tonnage numeric,
   sort_order integer default 0, is_active boolean default true, remark text);
 
+/* --- 기준정보 : 금형 보관위치 --- */
+create table if not exists public.ki_mold_location (
+  location_code text primary key, location_name text not null,
+  factory_code text, sort_order integer default 0,
+  is_active boolean default true, remark text);
+
 /* --- 기준정보 : 점검기준 (설비/금형 공용) --- */
 create table if not exists public.ki_check_item (
   check_id bigserial primary key, target text, check_type text,
@@ -240,7 +246,8 @@ insert into public.ki_table_menu(table_name,menus) values
  ('ki_wash',array['wash-check']),
  ('ki_wash_step',array['wash-step','wash-check']),
  ('ki_insp_plan',array['insp-plan']),
- ('ki_cycle_rule',array['cycle-rule'])
+ ('ki_cycle_rule',array['cycle-rule']),
+ ('ki_mold_location',array['mold-loc'])
 on conflict (table_name) do update set menus = excluded.menus;
 -- 등급 반영을 위해 ki_mold 는 수명관리 화면에서도 수정 가능
 update public.ki_table_menu set menus = array['mold-master','shot-ledger','grade-eval','insp-plan']
@@ -519,7 +526,7 @@ do $$
 declare
   v text[] := array['ki_mold','ki_inspection_item','ki_factory','ki_zone','ki_asset','ki_sensor',
                     'ki_mold_type','ki_material','ki_machine','ki_employee',
-                    'ki_grade_item','ki_daily_item','ki_wash_step','ki_cycle_rule'];
+                    'ki_grade_item','ki_daily_item','ki_wash_step','ki_cycle_rule','ki_mold_location'];
   t text;
 begin
   foreach t in array v loop
@@ -539,9 +546,13 @@ end $$;
 do $$
 begin
   if to_regclass('public.outsourcing_order_status_rows') is not null then
+    execute 'alter table public.outsourcing_order_status_rows
+             add column if not exists mold_no text, add column if not exists map_part text,
+             add column if not exists sdate text';
     execute $v$create view public.ki_v_osp_order with (security_invoker=true) as
       select "no", st, vendor, job, item, proc, "procName", part, "partName", mp,
-             odate, edate, idate, cdate, quote, fix
+             mold_no, map_part,
+             odate, sdate, edate, idate, cdate, quote, fix
       from public.outsourcing_order_status_rows$v$;
   end if;
   if to_regclass('public.outsourcing_receipt_confirm_candidates') is not null then
@@ -737,6 +748,11 @@ insert into public.ki_cycle_rule(rule_id,kind,target,cycle_days,limit_shot,plan_
  ('WASH_MASS','세척','양산',365,1000000,null,'100만타 또는 1년', 11,'양산금형 정기세척'),
  ('WASH_AS'  ,'세척','A/S' ,365, 500000,null,'50만타 또는 1년',  12,'A/S금형 정기세척')
 on conflict (rule_id) do nothing;
+
+-- 금형 보관위치 초기값
+insert into public.ki_mold_location(location_code,location_name,sort_order,remark) values
+ ('현장','현장 (프레스 장착)',90,'생산 중'),('외주','외주처 반출',91,'수리 · 가공 반출')
+on conflict (location_code) do nothing;
 
 -- 정기세척 6단계
 insert into public.ki_wash_step(step_no,step_name) values
