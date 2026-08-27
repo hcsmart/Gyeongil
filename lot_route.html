@@ -123,7 +123,7 @@
         '<label>단가</label><input type="text" id="fQuote" placeholder="숫자만">'+
         '<label>총수량</label><input type="text" id="fQty" readonly value="0" '+
           'style="background:#f4f7fa;font-weight:800;color:#1d568c;text-align:right">'+
-        '<label></label><div></div>'+
+        '<label>출고 구분</label><select id="fFrom"></select>'+
       '</div><div id="mapInfo" style="margin-top:5px;color:#5b7fa5;font-size:11px"></div>'+
       '<div class="lr-lot"><div class="lh">📦 반출 LOT · 수량'+
         '<button class="add" id="fAdd">+ LOT 추가</button>'+
@@ -301,7 +301,18 @@
     const prev=OSP.filter(o=>String(o.part||'')===String(c.part)&&(o.map_part||o.mold_no))[0];
     $('#fMap').value=c.map_part||(prev?(prev.map_part||(MOLDS.find(x=>x.mold_no===prev.mold_no)||{}).part_no||''):'');
     syncMap();
-    lotBody.innerHTML=''; lotRow(c.part||'','');
+    /* 출고 구분 : 사내 신규 반출 · 입고 대기중인 외주건에서 바로 외주 이관 */
+    $('#fFrom').innerHTML='<option value="">사내 → 외주 (신규 반출)</option>'+
+      op.map(o=>'<option value="'+o.no+'">외주 → 외주 이관 : '+esc(o.mp||'')+' · '+
+        esc(o.vendor||'')+' ('+esc(o.sdate||'')+' 반출)</option>').join('');
+    /* 수량 : 첫 반출 수량을 기본값으로 유지 */
+    const first=ospOf(c.part).slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0];
+    const base=first
+      ? (Array.isArray(first.lots)&&first.lots.length ? first.lots
+         : (first.qty?[{lot:first.lot||c.part,qty:first.qty}]:null))
+      : null;
+    lotBody.innerHTML='';
+    (base&&base.length?base:[{lot:c.part||'',qty:''}]).forEach(x=>lotRow(x.lot||c.part||'',x.qty));
     $('#mMsg').textContent=''; $('#mMsg').className='msg';
     $('#mS').style.display=(CAN_S||CAN_E)?'':'none';
     dim.classList.add('on'); mo.style.display='';
@@ -319,6 +330,7 @@
     $('#fSdate').value=TODAY;
     const e=new Date(); e.setDate(e.getDate()+7); $('#fEdate').value=e.toISOString().slice(0,10);
     $('#fQuote').value=''; $('#fMap').value=''; syncMap();
+    $('#fFrom').innerHTML='<option value="">사내 → 외주 (신규 반출)</option>';
     lotBody.innerHTML=''; lotRow('','');
     $('#mMsg').textContent=''; $('#mMsg').className='msg';
     $('#mS').style.display='';
@@ -342,6 +354,7 @@
           : (o.lot?String(o.lot).split(',').map(x=>({lot:x.trim(),qty:null})):[{lot:o.part,qty:o.qty}]);
     lotBody.innerHTML=''; L.forEach(x=>lotRow(x.lot,x.qty));
     if(!lotBody.children.length) lotRow(o.part||'','');
+    $('#fFrom').value='';
     $('#mMsg').className='msg'; $('#mMsg').textContent='✎ 반출번호 '+o.no+' 수정 중입니다.';
     mo.scrollTop=mo.scrollHeight;
   }
@@ -423,9 +436,19 @@
         KI.msg('✓ '+part+' 반출건 수정');
       }else{
         body.odate=null;
-        await KI.ins(TBL.ospOrder,[body]);
-        m.className='msg ok'; m.textContent='✓ '+mp+' 공정으로 반출 등록되었습니다. (LOT '+lots.length+'건 · '+qty.toLocaleString()+')';
-        KI.msg('✓ '+part+' → '+mp+' 반출');
+        const from=$('#fFrom').value;
+        if(from){   /* 외주 → 외주 : 직전 외주건을 이 반출일자로 입고 마감하고 이어서 반출 */
+          const src=OSP.find(x=>String(x.no)===String(from));
+          await KI.upd(TBL.ospOrder,'no=eq.'+from,{idate:body.sdate||TODAY, st:'완료'});
+          await KI.ins(TBL.ospOrder,[body]);
+          m.className='msg ok'; m.textContent='✓ '+(src?esc(src.vendor||''):'')+' → '+ven+
+            ' 외주 이관 등록되었습니다. (LOT '+lots.length+'건 · '+qty.toLocaleString()+')';
+          KI.msg('✓ '+part+' 외주 이관 → '+mp+' · '+ven);
+        }else{
+          await KI.ins(TBL.ospOrder,[body]);
+          m.className='msg ok'; m.textContent='✓ '+mp+' 공정으로 반출 등록되었습니다. (LOT '+lots.length+'건 · '+qty.toLocaleString()+')';
+          KI.msg('✓ '+part+' → '+mp+' 반출');
+        }
       }
       editNo=null; mode('ins');
       await load();
