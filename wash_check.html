@@ -49,7 +49,7 @@
         '<label style="color:#526171;font-weight:700">누적 타발수</label><input type="text" id="fShot" style="height:26px;border:1px solid #aeb9c4;padding:0 6px" placeholder="대장 자동">'+
       '</div>'+
       '<div id="warn" style="margin-top:8px"></div>'+
-      '<div style="margin-top:10px;font-weight:800;color:#41556a">세척 공정 <span id="stepCnt" style="color:#8b98a5;font-weight:400"></span></div>'+
+      '<div style="margin-top:10px;font-weight:800;color:#41556a">세척항목 <span id="stepCnt" style="color:#8b98a5;font-weight:400"></span></div>'+
       '<div id="steps" style="margin-top:5px"></div>'+
       '<div style="margin-top:10px;display:grid;grid-template-columns:100px 1fr;gap:6px;align-items:center">'+
         '<label style="color:#526171;font-weight:700">판정</label><select id="fJudge" style="height:26px;border:1px solid #aeb9c4"><option>양호</option><option>불량</option></select>'+
@@ -115,7 +115,7 @@
       l.innerHTML='<input type="checkbox" class="ws" value="'+esc(s.step_name)+'"> <b style="color:#7b8794">'+s.step_no+'</b> '+esc(s.step_name);
       box.appendChild(l);
     });
-    $('#stepCnt').textContent='('+box.querySelectorAll('.ws').length+'단계 · 정기세척은 전 단계 완료 권장)';
+    $('#stepCnt').textContent='('+box.querySelectorAll('.ws').length+'항목 · 정기세척은 전 항목 완료 권장)';
   }
   async function drawHist(){
     const h=$('#hist'); if(!sel){h.innerHTML='';return;}
@@ -140,7 +140,7 @@
     const type=$('#fType').value;
     const steps=[...document.querySelectorAll('.ws:checked')].map(c=>c.value);
     if(type==='정기' && steps.length<STEPS.length &&
-       !confirm('정기세척인데 '+steps.length+'/'+STEPS.length+'단계만 체크되어 있습니다.\n그대로 등록할까요?')) return;
+       !confirm('정기세척인데 '+steps.length+'/'+STEPS.length+'항목만 체크되어 있습니다.\n그대로 등록할까요?')) return;
     const shot=Number(String($('#fShot').value).replace(/[^0-9.]/g,''))||null;
     m.className='msg'; m.textContent='저장중...';
     try{

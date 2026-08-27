@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v9.6',
+  VER      : 'v9.7',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -78,7 +78,7 @@ const MENU = [
       { name:'점검항목 기준', items:[
         {id:'insp-item',  f:'inspection_item.html', n:'정기점검 항목', d:'분류 · 방법 · 판정기준'},
         {id:'daily-item', f:'daily_item.html',      n:'일상점검 항목', d:'상형 8 / 하형 8'},
-        {id:'wash-step',  f:'wash_step.html',       n:'세척 단계',    d:'정기세척 6단계'}
+        {id:'wash-step',  f:'wash_step.html',       n:'세척항목(순서)', d:'정기세척 6항목'}
       ]},
       { name:'평가 기준', items:[
         {id:'grade-item', f:'grade_item.html', n:'등급 평가항목', d:'13항목 · 배점'}
@@ -593,12 +593,12 @@ const VIEWS = {
 },
 'wash-step':{
   table:OBJ.washStep, order:'step_no.asc',
-  note:'정기세척 <b>6단계</b> 공정입니다. 세척점검 화면의 체크 항목으로 그대로 표시됩니다.',
+  note:'정기세척 <b>세척항목</b>입니다. 순서대로 세척점검 화면의 체크 항목으로 표시됩니다.',
   search:[['단계명','text','step_name']],
-  cols:[['단계',60,'center','step_no'],['세척 공정',360,'','step_name'],['사용',60,'center','is_active','bool']],
+  cols:[['순서',60,'center','step_no'],['세척항목',360,'','step_name'],['사용',60,'center','is_active','bool']],
   edit:{ table:TBL.washStep, pk:'step_no', fields:[
-    ['step_no','단계(1~6)','num',null,'req'],
-    ['step_name','세척 공정','text',null,'req'],
+    ['step_no','순서','num',null,'req'],
+    ['step_name','세척항목','text',null,'req'],
     ['is_active','사용','bool']
   ]}
 },
