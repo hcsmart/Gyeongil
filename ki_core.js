@@ -53,6 +53,7 @@ async function refresh(){
   return true;
 }
 async function signOut(){
+  cacheClear();
   try{ await fetch(C.SUPABASE_URL+'/auth/v1/logout',{method:'POST',headers:HDR()}); }catch(e){}
   saveSess(null); ME=null; PERM={};
 }
@@ -76,6 +77,24 @@ async function adminFn(payload){
 }
 
 let LOGIN_ERR='';
+const PK='ki_me_cache', PTTL=10*60*1000;      /* 10분 캐시 */
+function cacheGet(){
+  try{ const c=JSON.parse(sessionStorage.getItem(PK)||'null');
+    if(c && SESS && c.uid===SESS.uid && Date.now()-c.ts < PTTL) return c;
+  }catch(e){}
+  return null;
+}
+function cacheSet(){
+  try{ sessionStorage.setItem(PK,JSON.stringify({uid:SESS.uid,me:ME,perm:PERM,ts:Date.now()})); }catch(e){}
+}
+function cacheClear(){ try{ sessionStorage.removeItem(PK); }catch(e){} }
+
+/* 캐시가 있으면 네트워크 없이 즉시 복원 (화면 전환 체감 속도) */
+function loadMeCached(){
+  const c=cacheGet(); if(!c) return null;
+  ME=c.me; PERM=c.perm||{};
+  return ME;
+}
 async function loadMe(){
   LOGIN_ERR='';
   /* 1) 사원 조회 — 실패 시 원인을 남긴다 */
@@ -95,6 +114,7 @@ async function loadMe(){
                        encodeURIComponent(ME.emp_no));
     ps.forEach(p=>PERM[p.menu_id]={v:p.can_view,s:p.can_save,e:p.can_edit,d:p.can_delete});
   }catch(e){ console.warn('권한 조회 실패:',e.message); }
+  cacheSet();
   return ME;
 }
 const loginError = ()=>LOGIN_ERR;
@@ -114,7 +134,9 @@ async function guard(menuId){
   loadSess();
   if(!SESS){ toLogin(); return false; }
   if(SESS.exp&&SESS.exp<Date.now()+60000){ if(!await refresh()){ toLogin(); return false; } }
-  if(!ME) await loadMe();
+  if(!ME) loadMeCached();                 /* ① 캐시로 즉시 진행 */
+  if(!ME) await loadMe();                 /* ② 캐시 없을 때만 조회 */
+  else setTimeout(()=>{ loadMe().catch(()=>{}); },0);   /* ③ 백그라운드 갱신 */
   if(!ME){ await signOut(); toLogin(); return false; }
   if(menuId&&!can(menuId,'view')){
     alert('이 화면에 대한 조회 권한이 없습니다.\n관리자에게 문의하세요.');
@@ -223,6 +245,17 @@ function chrome(curId){
         : '<div style="padding:16px;color:#7a8793">검색 결과가 없습니다.</div>';
       return;
     }
+    const PF=new Set();
+    const prefetch=u=>{ if(!u||PF.has(u))return; PF.add(u);
+      try{ const l=document.createElement('link'); l.rel='prefetch'; l.as='document'; l.href=u;
+        document.head.appendChild(l); }catch(e){}
+      try{ fetch(u,{cache:'force-cache'}).catch(()=>{}); }catch(e){} };
+    setTimeout(()=>{
+      box.querySelectorAll('a.item').forEach(a=>{
+        a.addEventListener('mouseenter',()=>prefetch(a.getAttribute('href')));
+        a.addEventListener('click',e=>{ if(a.classList.contains('on')) e.preventDefault(); });
+      });
+    },0);
     box.innerHTML = sec().groups.map(g=>{
       const its=g.items.filter(okItem); if(!its.length) return '';
       return '<div class="group"><div class="group-title">'+esc(g.name)+'</div>'+
@@ -668,7 +701,7 @@ return {CFG:C, $:$, el:el, esc:esc,
         get:get, ins:ins, upd:upd, del:del, upsert:upsert, adminFn:adminFn,
         signIn:signIn, signOut:signOut, logout:logout, refresh:refresh,
         changePassword:changePassword, loadSess:loadSess, loadMe:loadMe,
-        me:()=>ME, loginError:loginError, isAdmin:isAdmin, can:can, session:session, guard:guard,
+        me:()=>ME, loginError:loginError, isAdmin:isAdmin, clearCache:cacheClear, can:can, session:session, guard:guard,
         header:chrome, chrome:chrome, page:page, masters:masters, M:M, msg:msg,
         grid:grid, csv:csv, POST:POST, cell:cell, LK:LK, emailOf:emailOf};
 })();

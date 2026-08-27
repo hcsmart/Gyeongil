@@ -203,7 +203,7 @@
     if(!V('f_name')) return msg('성명을 입력하세요.');
     try{
       const b=body();
-      if(key){ await KI.upd(T_EMP,'emp_no=eq.'+encodeURIComponent(key),b); msg('✓ '+no+' 저장되었습니다.',true); }
+      if(key){ await KI.upd(T_EMP,'emp_no=eq.'+encodeURIComponent(key),b); KI.clearCache(); msg('✓ '+no+' 저장되었습니다.',true); }
       else{
         if(USERS.find(u=>u.emp_no===no)) return msg('이미 등록된 사원번호입니다.');
         b.emp_no=no; await KI.ins(T_EMP,[b]); key=no; $('#f_no').readOnly=true;
@@ -268,7 +268,8 @@
       updated_at:new Date().toISOString()}));
     try{
       await KI.upsert(T_PERM+'?on_conflict=emp_no,menu_id',rows);
-      dirtyPerm=false; msg('✓ 권한 '+rows.length+'건이 저장되었습니다.',true);
+      dirtyPerm=false; KI.clearCache();
+      msg('✓ 권한 '+rows.length+'건이 저장되었습니다. (본인 권한 변경 시 새로고침 후 반영)',true);
     }catch(e){ msg('❌ '+e.message); }
   }
   async function copyPerm(){
