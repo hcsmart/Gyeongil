@@ -62,7 +62,7 @@
       '<div class="ol-f">'+
         '<label>LOT번호 *</label><input type="text" id="fPart">'+
         '<label>금형제번</label><input type="text" id="fMold" list="dlMold" autocomplete="off" placeholder="입력 후 선택">'+
-        '<label>매핑품번</label><input type="text" id="fMap" list="dlMap" autocomplete="off" placeholder="입력 후 선택">'+
+        '<label>매칭품번</label><input type="text" id="fMap" list="dlMap" autocomplete="off" placeholder="입력 후 선택">'+
         '<label>JOB</label><input type="text" id="fJob">'+
         '<label>외주처 *</label><select id="fVen"></select>'+
         '<label>가공공정</label><select id="fMp"></select>'+
@@ -88,7 +88,7 @@
   const L=el('div','ol-list');
   const tb=el('div','ck-tb');
   tb.innerHTML='<span style="font-weight:700;color:#526171">검색</span>'+
-    '<input type="text" id="q" placeholder="LOT · 금형제번 · 매핑품번 · 외주처 · JOB" '+
+    '<input type="text" id="q" placeholder="LOT · 금형제번 · 매칭품번 · 외주처 · JOB" '+
       'style="height:24px;border:1px solid #aeb9c4;padding:0 6px;width:250px">'+
     '<span style="font-weight:700;color:#526171;margin-left:8px">상태</span>'+
     '<select id="fs"><option value="">전체</option><option>출고대기</option><option>반출중</option>'+
@@ -98,7 +98,7 @@
   const tbl=el('table','grid');
   tbl.innerHTML='<thead><tr>'+
     '<th style="width:78px">상태</th><th style="width:110px">LOT번호</th>'+
-    '<th style="width:92px">금형제번</th><th style="width:104px">매핑품번</th>'+
+    '<th style="width:92px">금형제번</th><th style="width:104px">매칭품번</th>'+
     '<th style="width:88px">가공공정</th><th style="width:130px">외주처</th>'+
     '<th style="width:110px">JOB</th>'+
     '<th style="width:88px">발주일</th><th style="width:88px">출고일</th>'+
@@ -267,7 +267,7 @@
   $('#bDel').addEventListener('click',delRow);
 
   function csv(){
-    const head=['상태','LOT번호','금형제번','매핑품번','가공공정','외주처','JOB',
+    const head=['상태','LOT번호','금형제번','매칭품번','가공공정','외주처','JOB',
                 '발주일','출고일','납기일','입고일','단가'];
     const rows=ROWS.map(r=>[statusOf(r),r.part,r.mold_no,r.map_part,r.mp,r.vendor,r.job,
       r.odate,r.sdate,r.edate,r.idate,r.quote]

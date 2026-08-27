@@ -42,7 +42,8 @@
       '<div class="form-lb">소재중량(g)</div><div class="form-fd"><div class="calc" id="f_g">-</div></div>'+
     '</div>'+
     '<div class="form-row">'+
-      '<div class="form-lb">매핑품번</div><div class="form-fd"><input id="f_part" maxlength="40"></div>'+
+      '<div class="form-lb">매칭품번</div><div class="form-fd"><input id="f_part" maxlength="40" '+
+        'placeholder="이 금형으로 생산되는 제품번호"></div>'+
       '<div class="form-lb">자산처</div><div class="form-fd"><input id="f_own" maxlength="40"></div>'+
       '<div class="form-lb">비고</div><div class="form-fd" style="grid-column:span 3"><input id="f_rem" maxlength="200"></div>'+
     '</div>'+
@@ -64,7 +65,7 @@
   const COLS=[['금형제번',100,'','mold_no'],['금형타입',130,'','mold_type_name'],['소재재질',170,'','material_name'],
     ['두께(mm)',86,'num','thickness_mm'],['폭(mm)',84,'num','width_mm'],['피치(mm)',84,'num','pitch_mm'],
     ['비중',66,'num','density'],['소재중량(g)',100,'num','unit_weight_g'],
-    ['매핑품번',120,'','part_no'],['자산처',110,'','asset_owner'],['비고',0,'','remark']];
+    ['매칭품번(제품번호)',120,'','part_no'],['자산처',110,'','asset_owner'],['비고',0,'','remark']];
   const tbl=el('table','grid'), th=el('thead'), tr=el('tr');
   COLS.forEach(c=>{ const t=el('th',null,c[0]); if(c[1])t.style.width=c[1]+'px'; tr.appendChild(t); });
   th.appendChild(tr); tbl.appendChild(th);

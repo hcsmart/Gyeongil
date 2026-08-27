@@ -90,7 +90,7 @@
     '<span class="sp" id="cnt"></span>';
   const gw=el('div','grid-wrap'); const tbl=el('table','grid');
   tbl.innerHTML='<thead><tr>'+
-    '<th style="width:110px">JOB</th><th style="width:104px">부품번호(LOT)</th>'+
+    '<th style="width:110px">JOB</th><th style="width:104px">LOT</th>'+
     '<th style="width:130px">표준공정</th><th style="width:150px">현재 공정</th>'+
     '<th style="width:110px">현재 외주처</th><th style="width:88px">최근 이동</th>'+
     '<th style="width:150px">다음 공정</th><th style="width:120px">진척</th>'+
@@ -104,7 +104,7 @@
   mo.innerHTML='<div class="lr-mh"><span id="mTtl">진행등록</span><button class="x" id="mX">✕</button></div>'+
     '<div class="lr-mb">'+
       '<div class="lr-info" id="infoBox">'+
-        '<b>JOB</b><span id="iJob"></span><b>부품번호(LOT)</b><span id="iPart"></span>'+
+        '<b>JOB</b><span id="iJob"></span><b>LOT</b><span id="iPart"></span>'+
         '<b>표준공정</b><span id="iStd"></span><b>진척</b><span id="iRate"></span>'+
         '<b>현재 공정</b><span id="iCur"></span><b>현재 외주처</b><span id="iVen"></span>'+
       '</div>'+
@@ -113,7 +113,7 @@
       '<div class="lr-open" style="margin-top:10px"><h5>다음 공정 진행등록 (반출)</h5>'+
       '<div style="padding:9px 10px"><div class="lr-f">'+
         '<label>JOB</label><input type="text" id="fJob" placeholder="JOB 번호">'+
-        '<label>부품번호(LOT) *</label><input type="text" id="fPart" placeholder="부품번호">'+
+        '<label>LOT *</label><input type="text" id="fPart" placeholder="LOT 번호">'+
         '<label>가공공정 *</label><select id="fMp"></select>'+
         '<label>외주처 *</label><select id="fVen"></select>'+
         '<label>출고(반출)일</label><input type="date" id="fSdate">'+
@@ -124,7 +124,7 @@
       '<div class="lr-lot"><div class="lh">📦 반출 LOT · 수량'+
         '<button class="add" id="fAdd">+ LOT 추가</button>'+
         '<span class="sum" id="fSum">합계 0</span></div>'+
-        '<table><thead><tr><th style="width:44px">NO</th><th>LOT (부품번호)</th>'+
+        '<table><thead><tr><th style="width:44px">NO</th><th>LOT 번호</th>'+
         '<th style="width:120px">수량</th><th style="width:38px"></th></tr></thead>'+
         '<tbody id="lotBody"></tbody></table></div>'+
       '</div></div>'+
@@ -314,8 +314,8 @@
   function syncMold(){
     const v=$('#fMold').value.trim();
     const m=MOLDS.find(x=>x.mold_no===v);
-    $('#mapInfo').innerHTML = m ? '🧩 '+esc(m.mold_no)+' · '+esc(m.part_no||'')+
-        (m.asset_owner?' · '+esc(m.asset_owner):'')
+    $('#mapInfo').innerHTML = m ? '🧩 금형제번 <b>'+esc(m.mold_no)+'</b> · 매칭품번(제품번호) <b>'+
+        esc(m.part_no||'-')+'</b>'+(m.asset_owner?' · 자산처 '+esc(m.asset_owner):'')
       : (v?'<span style="color:#b05c12">⚠ 금형정보에 없는 값</span>':'');
   }
   $('#fMold').addEventListener('input',syncMold);
@@ -355,7 +355,7 @@
     const m=$('#mMsg');
     if(!sel && !NEW && !editNo) return;
     const part=$('#fPart').value.trim();
-    if(!part){ m.className='msg err'; m.textContent='부품번호(LOT)를 입력하세요.'; return; }
+    if(!part){ m.className='msg err'; m.textContent='LOT 번호를 입력하세요.'; return; }
     const mp=$('#fMp').value, ven=$('#fVen').value;
     if(!mp){ m.className='msg err'; m.textContent='가공공정을 선택하세요.'; return; }
     if(!ven){ m.className='msg err'; m.textContent='외주처를 선택하세요.'; return; }
@@ -402,7 +402,7 @@
   $('#mS').addEventListener('click',save);
 
   function csv(){
-    const head=['JOB','부품번호(LOT)','표준공정','현재공정','현재외주처','최근이동','다음공정','완료','전체','진척률'];
+    const head=['JOB','LOT','표준공정','현재공정','현재외주처','최근이동','다음공정','완료','전체','진척률'];
     const body=ROWS.map(calc).map(c=>[c.job,c.part,c.std?c.std.standard_process_name:'(미매칭)',
       c.last.mp,c.last.vendor,c.last.date,c.rest[0]||'',c.done,c.total,c.rate+'%']
       .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));

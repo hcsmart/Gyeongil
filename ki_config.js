@@ -275,10 +275,10 @@ const VIEWS = {
 'lot-trace':{
   manual:true,
   table:OBJ.lotProg, order:'no.asc', post:'trace',
-  search:[['부품번호(LOT)','text','part'],['JOB(관리번호)','text','job'],['외주처','sel-vendor','vendor'],
+  search:[['LOT','text','part'],['JOB(관리번호)','text','job'],['외주처','sel-vendor','vendor'],
           ['가공공정','sel-mp','mp'],['이동일','date2','date'],['공정','text','proc']],
   cols:[['No',46,'center','_i'],['순번',48,'center','seq'],['JOB(관리번호)',118,'','job'],
-        ['부품번호(LOT)',110,'','part'],['공정',50,'center','proc'],
+        ['LOT',110,'','part'],['공정',50,'center','proc'],
         ['가공공정',72,'center','mp'],['가공공정명',130,'','mpName'],
         ['외주업체',130,'','vendor'],['이동일',90,'center','date'],
         ['전공정',80,'center','prevMp'],['다음공정',80,'center','nextMp'],['경유단계',0,'','chain','chain']]
