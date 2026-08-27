@@ -65,7 +65,8 @@
   if(!await KI.guard('lot-route'))return;
   const $=KI.$, el=KI.el, esc=KI.esc;
   const cur=KI.chrome('lot-route');
-  const CAN_S=KI.can('lot-route','save'), CAN_E=KI.can('lot-route','edit');
+  const CAN_S=KI.can('lot-route','save'), CAN_E=KI.can('lot-route','edit'),
+        CAN_D=KI.can('lot-route','delete');
   const TODAY=new Date().toISOString().slice(0,10);
   let ROWS=[], OSP=[], VEN=[], PROC=[], RT=[], MOLDS=[], sel=null, NEW=false, editNo=null;
 
@@ -94,7 +95,7 @@
     '<th style="width:130px">표준공정</th><th style="width:150px">현재 공정</th>'+
     '<th style="width:110px">현재 외주처</th><th style="width:88px">최근 이동</th>'+
     '<th style="width:150px">다음 공정</th><th style="width:120px">진척</th>'+
-    '<th style="width:84px">외주상태</th><th style="width:88px">진행등록</th></tr></thead><tbody></tbody>';
+    '<th style="width:160px">진행등록 · 삭제</th></tr></thead><tbody></tbody>';
   gw.appendChild(tbl); L.appendChild(tb); L.appendChild(gw); ui.pg.appendChild(L);
   const tbody=tbl.querySelector('tbody');
   ['q','fs'].forEach(id=>$('#'+id).addEventListener('input',draw));
@@ -186,7 +187,7 @@
     const hit=sd.filter(x=>seen.has(x)), total=sd.length||st.length||1;
     const done=m?hit.length:st.length;
     const rest=sd.filter(x=>!seen.has(x));
-    return {job:r.job, part:r.part, proc:r.proc, steps:st, last:last, std:m?m.rt:null,
+    return {no:r.no, job:r.job, part:r.part, proc:r.proc, steps:st, last:last, std:m?m.rt:null,
       sd:sd, seen:seen, done:done, total:total, rest:rest,
       rate: total?Math.round(done/total*100):0};
   }
@@ -225,14 +226,17 @@
         '<td style="display:flex;align-items:center;gap:5px">'+
           '<div class="lr-bar"><i class="'+(c.rate>=100?'full':'')+'" style="width:'+Math.min(c.rate,100)+'%"></i></div>'+
           '<span style="font-size:10px;color:#7b8794">'+c.done+'/'+c.total+'</span></td>'+
-        '<td class="center">'+(os.t==='반출중'
-            ?'<span class="badge" style="background:#e9f2fc;color:#1d568c">반출중 '+os.n+'</span>':'')+'</td>'+
-        '<td class="center"><button class="lr-go">진행등록 ▸</button></td>';
-      t.querySelector('.lr-go').addEventListener('click',ev=>{ ev.stopPropagation(); open(c); });
+        '<td class="center" style="white-space:nowrap">'+
+          '<button class="lr-go go">진행등록 ▸</button>'+
+          (CAN_D?'<button class="lr-go del" style="background:#fff;color:#a0505a;border-color:#c9a0a8;margin-left:4px">삭제</button>':'')+
+        '</td>';
+      t.querySelector('.go').addEventListener('click',ev=>{ ev.stopPropagation(); open(c); });
+      const db=t.querySelector('.del');
+      if(db) db.addEventListener('click',ev=>{ ev.stopPropagation(); delRow(c); });
       t.addEventListener('click',()=>open(c));
       tbody.appendChild(t);
     });
-    if(!list.length) tbody.innerHTML='<tr><td colspan="10" class="center" style="height:52px;color:#8894a0">조건에 맞는 LOT이 없습니다.</td></tr>';
+    if(!list.length) tbody.innerHTML='<tr><td colspan="9" class="center" style="height:52px;color:#8894a0">조건에 맞는 LOT이 없습니다.</td></tr>';
     $('#cnt').textContent=list.length+'건';
   }
 
@@ -425,6 +429,18 @@
       if(c) open(c); else { NEW=true; lotBody.innerHTML=''; lotRow(part,''); }
     }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
   }
+  async function delRow(c){
+    if(!CAN_D) return KI.msg('❌ 삭제 권한이 없습니다.');
+    const op=ospOf(c.part).filter(o=>o.sdate&&!o.idate);
+    let q='['+(c.part||'')+'] LOT 진행이력을 삭제할까요?\n삭제하면 되돌릴 수 없습니다.';
+    if(op.length) q='⚠ 입고 대기중인 외주 반출건이 '+op.length+'건 있습니다.\n'+q;
+    if(!confirm(q)) return;
+    try{
+      await KI.del(TBL.lotProg,'no=eq.'+c.no);
+      KI.msg('✓ '+(c.part||'')+' 삭제되었습니다.');
+      await load();
+    }catch(e){ KI.msg('❌ '+e.message); }
+  }
   async function receive(no){
     if(!confirm('오늘('+TODAY+') 입고 처리할까요?\n입고하면 다음 공정으로 진행할 수 있습니다.'))return;
     const m=$('#mMsg');
@@ -468,7 +484,7 @@
     KI.msg('LOT '+ROWS.length+'건 · 외주 반출중 '+OSP.filter(o=>o.sdate&&!o.idate).length+'건');
   }
   try{ await load(); }
-  catch(e){ tbody.innerHTML='<tr><td colspan="10" class="center" style="height:60px;color:#b0442f">❌ '+
+  catch(e){ tbody.innerHTML='<tr><td colspan="9" class="center" style="height:60px;color:#b0442f">❌ '+
     KI.esc(e.message)+'</td></tr>'; KI.msg('❌ '+e.message); }
 })();
 </script>
