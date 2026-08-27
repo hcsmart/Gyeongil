@@ -31,6 +31,7 @@ create table if not exists public.ki_app_settings (
 /* --- 금형 정기점검 --- */
 create table if not exists public.ki_mold (
   mold_code text primary key, mold_name text, customer_name text, model text, mold_type text,
+  mold_no text, grade text, machine_no text, prod_type text default '양산',
   factory_code text, location text, shot_count numeric default 0, shot_limit numeric,
   cycle_days integer default 90, last_inspection date, next_inspection date,
   status text default '정상', remark text, updated_at timestamptz default now());
@@ -75,6 +76,55 @@ create index if not exists ki_env_reading_idx on public.ki_env_reading(sensor_co
 create table if not exists public.ki_env_alert (
   alert_id bigserial primary key, sensor_code text, occurred_at timestamptz default now(),
   alert_type text, value numeric, threshold numeric, status text default '발생', action text);
+
+/* --- 금형 수명관리 (TJP-EU0702-01) --- */
+create table if not exists public.ki_shot_ledger (
+  mold_code text not null, year integer not null,
+  m1 numeric,m2 numeric,m3 numeric,m4 numeric,m5 numeric,m6 numeric,
+  m7 numeric,m8 numeric,m9 numeric,m10 numeric,m11 numeric,m12 numeric,
+  updated_at timestamptz default now(), primary key (mold_code, year));
+
+create table if not exists public.ki_grade_item (
+  item_no integer primary key, item_name text not null,
+  auto_source text, default_score integer default 2, remark text);
+
+create table if not exists public.ki_grade_eval (
+  eval_id bigserial primary key, mold_code text not null,
+  eval_date date default current_date, evaluator text,
+  total_score integer, grade text, applied boolean default false,
+  method text default '평가표', remark text, created_at timestamptz default now());
+create table if not exists public.ki_grade_eval_detail (
+  eval_id bigint not null, item_no integer not null, score integer, note text,
+  primary key (eval_id, item_no));
+
+create table if not exists public.ki_daily_item (
+  side text not null, item_no integer not null, item_name text not null,
+  is_active boolean default true, primary key (side, item_no));
+
+create table if not exists public.ki_daily_check (
+  check_id bigserial primary key, mold_code text not null,
+  check_date date default current_date, checker text, shot_count numeric,
+  actions text[], judgement text default '합격', issue text, action_taken text,
+  created_at timestamptz default now());
+create table if not exists public.ki_daily_check_detail (
+  check_id bigint not null, side text not null, item_no integer not null,
+  item_name text, result text default '양호', note text,
+  primary key (check_id, side, item_no));
+
+/* --- 세척점검 · 연간 계획일정 --- */
+create table if not exists public.ki_wash (
+  wash_id bigserial primary key, mold_code text not null,
+  wash_date date default current_date, wash_type text default '정기',
+  worker text, shot_count numeric, steps text[],
+  judgement text default '양호', remark text, created_at timestamptz default now());
+create index if not exists ki_wash_mold_idx on public.ki_wash(mold_code, wash_date desc);
+
+create table if not exists public.ki_wash_step (
+  step_no integer primary key, step_name text not null, is_active boolean default true);
+
+create table if not exists public.ki_insp_plan (
+  mold_code text not null, year integer not null, months integer[],
+  updated_at timestamptz default now(), primary key (mold_code, year));
 
 /* --- 기준정보 : 생산기준 --- */
 create table if not exists public.ki_mold_type (
@@ -172,8 +222,21 @@ insert into public.ki_table_menu(table_name,menus) values
  ('outsourcing_order_status_rows',array['osp-order','osp-stock','osp-issue']),
  ('outsourcing_receipt_confirm_candidates',array['osp-receipt']),
  ('machining_purchase_progress_rows',array['osp-order','lot-route']),
- ('machining_standard_routes',array['std-route'])
+ ('machining_standard_routes',array['std-route']),
+ ('ki_shot_ledger',array['shot-ledger']),
+ ('ki_grade_item',array['grade-item','grade-eval']),
+ ('ki_grade_eval',array['grade-eval','shot-ledger']),
+ ('ki_grade_eval_detail',array['grade-eval','shot-ledger']),
+ ('ki_daily_item',array['daily-item','daily-check']),
+ ('ki_daily_check',array['daily-check']),
+ ('ki_daily_check_detail',array['daily-check']),
+ ('ki_wash',array['wash-check']),
+ ('ki_wash_step',array['wash-step','wash-check']),
+ ('ki_insp_plan',array['insp-plan'])
 on conflict (table_name) do update set menus = excluded.menus;
+-- 등급 반영을 위해 ki_mold 는 수명관리 화면에서도 수정 가능
+update public.ki_table_menu set menus = array['mold-master','shot-ledger','grade-eval','insp-plan']
+ where table_name = 'ki_mold';
 
 alter table public.ki_table_menu enable row level security;
 drop policy if exists ki_table_menu_read on public.ki_table_menu;
@@ -318,6 +381,88 @@ from public.ki_check_item where target='설비';
 create or replace view public.ki_v_check_mold with (security_invoker=true) as
 select check_id, check_type, item_name, criteria, cycle, qr_code, link_no, sort_order, is_active, remark
 from public.ki_check_item where target='금형';
+
+/* 수명관리 뷰 */
+create or replace view public.ki_v_shot_ledger with (security_invoker=true) as
+select l.mold_code, m.mold_name, m.customer_name, m.model, m.machine_no, m.mold_no, m.grade,
+       l.year, l.m1,l.m2,l.m3,l.m4,l.m5,l.m6,l.m7,l.m8,l.m9,l.m10,l.m11,l.m12,
+       x.last_val, x.base_val, x.base_is_jan,
+       case when x.last_val is null or x.base_val is null then null else x.last_val-x.base_val end as annual_shot,
+       case when x.last_val is null or x.base_val is null then null
+            when x.last_val-x.base_val >= 4000000 then 5
+            when x.last_val-x.base_val >= 3000000 then 4
+            when x.last_val-x.base_val >= 2000000 then 3
+            when x.last_val-x.base_val >= 1000000 then 2 else 1 end as shot_score,
+       l.updated_at
+from public.ki_shot_ledger l
+join public.ki_mold m on m.mold_code = l.mold_code
+cross join lateral (
+  select (select v from unnest(array[l.m12,l.m11,l.m10,l.m9,l.m8,l.m7,l.m6,l.m5,l.m4,l.m3,l.m2,l.m1]) v
+           where v is not null limit 1) as last_val,
+         coalesce(l.m1,(select v from unnest(array[l.m1,l.m2,l.m3,l.m4,l.m5,l.m6,l.m7,l.m8,l.m9,l.m10,l.m11,l.m12]) v
+           where v is not null limit 1)) as base_val,
+         (l.m1 is not null) as base_is_jan) x;
+
+create or replace view public.ki_v_grade_item with (security_invoker=true) as select * from public.ki_grade_item;
+create or replace view public.ki_v_grade_eval with (security_invoker=true) as
+select e.eval_id, e.eval_date, e.mold_code, m.mold_name, m.customer_name, m.mold_no,
+       e.evaluator, e.total_score, e.grade, e.applied, e.method, e.remark
+from public.ki_grade_eval e left join public.ki_mold m on m.mold_code = e.mold_code;
+create or replace view public.ki_v_daily_item with (security_invoker=true) as select * from public.ki_daily_item;
+create or replace view public.ki_v_daily_check with (security_invoker=true) as
+select c.check_id, c.check_date, c.mold_code, m.mold_name, m.customer_name, m.grade,
+       c.checker, c.shot_count, c.actions, c.judgement, c.issue, c.action_taken,
+       (select count(*) from public.ki_daily_check_detail d
+         where d.check_id=c.check_id and d.result='불량') as ng_count
+from public.ki_daily_check c left join public.ki_mold m on m.mold_code = c.mold_code;
+
+/* 세척 · 계획 뷰 */
+create or replace view public.ki_v_wash_status with (security_invoker=true) as
+select m.mold_code, m.mold_name, m.customer_name, m.grade,
+       coalesce(m.prod_type,'양산') as prod_type,
+       w.wash_date as last_wash_date, w.shot_count as base_shot, s.cur_shot,
+       greatest(coalesce(s.cur_shot,0)-coalesce(w.shot_count,0),0) as used_shot,
+       case when coalesce(m.prod_type,'양산')='A/S' then 500000 else 1000000 end as limit_shot,
+       (current_date - w.wash_date) as days_since,
+       round(greatest(coalesce(s.cur_shot,0)-coalesce(w.shot_count,0),0)::numeric
+             /(case when coalesce(m.prod_type,'양산')='A/S' then 500000 else 1000000 end)*100,1) as shot_pct,
+       case when w.wash_date is null then '미실시'
+            when greatest(coalesce(s.cur_shot,0)-coalesce(w.shot_count,0),0)
+                 >= (case when coalesce(m.prod_type,'양산')='A/S' then 500000 else 1000000 end) then '도래(타발수)'
+            when (current_date - w.wash_date) >= 365 then '도래(기간)'
+            when greatest(coalesce(s.cur_shot,0)-coalesce(w.shot_count,0),0)
+                 >= (case when coalesce(m.prod_type,'양산')='A/S' then 500000 else 1000000 end)*0.9 then '임박'
+            when (current_date - w.wash_date) >= 330 then '임박'
+            else '정상' end as wash_status
+from public.ki_mold m
+left join lateral (select wash_date, shot_count from public.ki_wash x
+   where x.mold_code=m.mold_code and x.wash_type='정기'
+   order by wash_date desc, wash_id desc limit 1) w on true
+left join lateral (
+  select (select v from unnest(array[l.m12,l.m11,l.m10,l.m9,l.m8,l.m7,l.m6,l.m5,l.m4,l.m3,l.m2,l.m1]) v
+           where v is not null limit 1) as cur_shot
+    from public.ki_shot_ledger l
+   where l.mold_code=m.mold_code and l.year=extract(year from current_date)::int) s on true;
+
+create or replace view public.ki_v_wash with (security_invoker=true) as
+select w.wash_id, w.wash_date, w.mold_code, m.mold_name, m.customer_name, m.grade,
+       w.wash_type, w.worker, w.shot_count, w.steps, w.judgement, w.remark,
+       coalesce(array_length(w.steps,1),0) as step_done
+from public.ki_wash w left join public.ki_mold m on m.mold_code = w.mold_code;
+
+create or replace view public.ki_v_wash_step with (security_invoker=true) as select * from public.ki_wash_step;
+
+create or replace view public.ki_v_insp_plan with (security_invoker=true) as
+select p.mold_code, m.mold_name, m.customer_name, m.grade, p.year, p.months,
+       coalesce(array_length(p.months,1),0) as plan_cnt,
+       (select count(distinct extract(month from r.inspection_date)::int)
+          from public.ki_inspection_result r
+         where r.mold_code=p.mold_code
+           and extract(year from r.inspection_date)::int = p.year
+           and extract(month from r.inspection_date)::int = any(p.months)) as done_cnt,
+       (select string_agg(x::text, ',' order by x) from unnest(p.months) x) as plan_months,
+       p.updated_at
+from public.ki_insp_plan p left join public.ki_mold m on m.mold_code = p.mold_code;
 
 /* 시스템 */
 create or replace view public.ki_v_employee with (security_invoker=true) as
@@ -523,6 +668,31 @@ select * from (values
  ('금형','일상','체결 볼트 / 클램프','풀림 없음 · 규정 토크',null,null,7)
 ) v(a,b,c,d,e,f,g)
 where not exists (select 1 from public.ki_check_item);
+
+-- 등급 평가항목 13 (임시 명칭 — 규정 확보 후 화면에서 수정)
+insert into public.ki_grade_item(item_no,item_name,auto_source,default_score,remark) values
+ (1,'타발수 (연간)','shot',1,'타발수 대장 자동'),(2,'금형 구조 난이도',null,2,''),
+ (3,'제품 두께',null,2,''),(4,'제품 재질',null,2,''),(5,'펀치·다이 마모 상태',null,2,''),
+ (6,'유지보수 빈도',null,2,''),(7,'성형 안정성(불량 발생)',null,2,''),
+ (8,'금형 제작년도','year',2,'금형번호 앞자리 자동 · F등급 5점'),(9,'부품 수급성',null,2,''),
+ (10,'도면·표준 관리 상태',null,2,''),(11,'세척·급유 상태',null,2,''),
+ (12,'안전장치 상태',null,2,''),(13,'고객 중요도',null,2,'')
+on conflict (item_no) do nothing;
+
+insert into public.ki_daily_item(side,item_no,item_name) values
+ ('상형',1,'펀치 마모 · 치핑'),('상형',2,'스트리퍼 작동 상태'),('상형',3,'가이드포스트 · 부시 급유'),
+ ('상형',4,'스프링 절손 · 처짐'),('상형',5,'체결 볼트 풀림'),('상형',6,'상형 세척 상태(이물)'),
+ ('상형',7,'파일럿 핀 상태'),('상형',8,'미스피드 센서 작동'),
+ ('하형',1,'다이 마모 · 치핑'),('하형',2,'리프터 작동 상태'),('하형',3,'스크랩 배출 상태'),
+ ('하형',4,'하형 세척 상태(이물)'),('하형',5,'볼 포스트 상태'),('하형',6,'가이드핀 상태'),
+ ('하형',7,'볼트 · 클램프 풀림'),('하형',8,'다이면 평탄 · 손상')
+on conflict do nothing;
+
+-- 정기세척 6단계
+insert into public.ki_wash_step(step_no,step_name) values
+ (1,'금형 분해 · 상하형 분리'),(2,'스크랩 · 이물 제거'),(3,'세척액 세정 (펀치 · 다이)'),
+ (4,'건조 · 수분 제거'),(5,'방청유 · 급유'),(6,'조립 · 작동 확인')
+on conflict (step_no) do nothing;
 
 -- 금형 정기점검 항목
 insert into public.ki_inspection_item(item_code,item_name,category,method,criteria,unit,sort_order)

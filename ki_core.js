@@ -319,6 +319,7 @@ function opts(kind){
     case 'sel-astat':  return ['전체','발생','조치중','해제'];
     case 'sel-ctype':  return ['전체','일상','정기'];
     case 'sel-role':   return ['전체','관리자','사용자'];
+    case 'sel-side':   return ['전체','상형','하형'];
     default: return ['전체'];
   }
 }
@@ -435,6 +436,14 @@ function cell(row,col){
     case 'days':return v==null?'-':v+'일';
     case 'dt':  return v?String(v).replace('T',' ').substring(0,16):'';
     case 'mp':  return v?esc(v)+(pName(v)?' · '+esc(pName(v)):''):'';
+    case 'grade':{
+      const g=String(v||'').toUpperCase();
+      const c={A:'background:#e2f0e6;color:#15803d;border-color:#b7dcc2',
+               B:'background:#e9f2fc;color:#1d568c;border-color:#bcd0e4',
+               C:'background:#fdeeda;color:#b05c12;border-color:#ecd0a8',
+               F:'background:#f1f3f5;color:#77828c;border-color:#d4dae0'}[g];
+      return g?'<span class="badge" style="'+(c||'')+'">'+g+'</span>':'';
+    }
     case 'w2':  return v==null?'':Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
     case 'qr':{
       const q=row.qr_code, lk=row.link_no;
@@ -515,14 +524,14 @@ function makeModal(def, onSaved){
     }
   });
 
-  let editKey=null;
+  let editKey=null, editRow=null;
   const close=()=>mask.classList.remove('on');
   $('#eX',mask).addEventListener('click',close);
   $('#eCancel',mask).addEventListener('click',close);
   mask.addEventListener('click',e=>{ if(e.target===mask) close(); });
 
   function open(row){
-    editKey = row ? row[E.pk] : null;
+    editKey = row ? row[E.pk] : null; editRow=row||null;
     $('#eTitle',mask).childNodes[0].nodeValue = row ? '수정 — '+(row[E.pk]??'') : '신규 등록';
     E.fields.forEach(f=>{
       const [k,,ty]=f, c=$('#e_'+k,mask); if(!c)return;
@@ -553,7 +562,11 @@ function makeModal(def, onSaved){
     if(E.auto && !editKey) delete body[E.pk];
     m.className='msg'; m.textContent='저장중...';
     try{
-      if(editKey!=null) await upd(E.table, E.pk+'=eq.'+encodeURIComponent(editKey), body);
+      if(editKey!=null){
+        let flt=E.pk+'=eq.'+encodeURIComponent(editKey);
+        if(E.pk2 && editRow) flt+='&'+E.pk2+'=eq.'+encodeURIComponent(editRow[E.pk2]);
+        await upd(E.table, flt, body);
+      }
       else              await ins(E.table, [body]);
       close(); await onSaved(editKey!=null?'수정':'등록');
     }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
@@ -583,7 +596,9 @@ async function grid(id, need){
     if(!state.sel) return msg('삭제할 행을 선택하세요.');
     const E=def.edit, k=state.sel[E.pk];
     if(!confirm('선택한 항목('+k+')을 삭제하시겠습니까?'))return;
-    try{ await del(E.table, E.pk+'=eq.'+encodeURIComponent(k)); state.sel=null; await run(null); msg('✓ 삭제되었습니다.'); }
+    let flt=E.pk+'=eq.'+encodeURIComponent(k);
+    if(E.pk2) flt+='&'+E.pk2+'=eq.'+encodeURIComponent(state.sel[E.pk2]);
+    try{ await del(E.table, flt); state.sel=null; await run(null); msg('✓ 삭제되었습니다.'); }
     catch(e){ msg('❌ '+e.message); }
   }
   await masters(need);

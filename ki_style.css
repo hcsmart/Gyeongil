@@ -257,6 +257,38 @@ table.grid{width:100%;border-collapse:collapse;table-layout:fixed}
 .pm-cks label{display:flex;align-items:center;gap:3px;color:#526171;font-size:11px}
 .pm-item.off .nm{color:#a7b3bf}
 
+/* 타발수 대장 · 수명관리 */
+.sl-cell{width:100%;height:22px;border:1px solid transparent;background:transparent;text-align:right;
+  padding:0 4px;color:#42515f;font-size:11px}
+.sl-cell:hover{border-color:#aeb9c4;background:#fff}
+.sl-cell:focus{outline:none;border-color:#2e77bd;background:#fff}
+.sl-cell.chg{background:#fff6df;border-color:#e0b95c}
+.gv-wrap{flex:1;min-height:0;display:flex;gap:7px;margin:7px;overflow:hidden}
+.gv-left{width:330px;flex:0 0 auto;border:1px solid #a0aebc;background:#fff;display:flex;flex-direction:column;min-height:0}
+.gv-right{flex:1;min-width:0;border:1px solid #a0aebc;background:#fff;display:flex;flex-direction:column;overflow:hidden}
+.gv-sum{display:flex;gap:8px;padding:8px;border-bottom:1px solid #d6dde4;background:#f7f9fb;flex:0 0 auto}
+.gv-sum .b{flex:1;border:1px solid #c8d2dc;background:#fff;text-align:center;padding:7px 4px}
+.gv-sum .b .v{font-size:19px;font-weight:900;color:#22537f}
+.gv-sum .b .k{font-size:10px;color:#7b8794;margin-top:2px}
+.gv-bd{flex:1;overflow:auto;padding:8px}
+.gv-row{display:grid;grid-template-columns:44px 1fr 150px;align-items:center;gap:6px;
+  border-bottom:1px solid #eef1f4;padding:4px 2px}
+.gv-row .no{text-align:center;color:#7b8794;font-weight:700}
+.gv-row .nm{color:#2b3844;font-weight:600}
+.gv-row .nm small{display:block;color:#96a2ad;font-weight:400}
+.gv-row select{height:24px;border:1px solid #aeb9c4;width:100%}
+.gv-row .auto{height:24px;display:flex;align-items:center;justify-content:center;
+  background:#e9f2fc;border:1px solid #bcd0e4;color:#1d568c;font-weight:800}
+.gv-foot{display:flex;gap:6px;align-items:center;padding:8px;border-top:1px solid #d6dde4;background:#f7f9fb;flex:0 0 auto}
+.dc-side{margin:6px 0 3px;padding:4px 8px;background:#eaf0f6;border:1px solid #d6dde4;color:#2f4559;font-weight:800}
+.dc-row{display:grid;grid-template-columns:36px 1fr 130px 1fr;align-items:center;gap:6px;
+  border-bottom:1px solid #f0f3f6;padding:3px 2px}
+.dc-row .rd{display:flex;gap:8px;justify-content:center}
+.dc-row .rd label{display:flex;align-items:center;gap:3px;font-size:11px}
+.dc-row .rd .ok{color:#15803d;font-weight:700}
+.dc-row .rd .ng{color:#b23030;font-weight:700}
+.dc-row input.nt{height:22px;border:1px solid #d6dde4;padding:0 6px;width:100%}
+
 /* 상태바 */
 .status{position:fixed;left:0;right:0;bottom:0;height:var(--status);z-index:30;display:flex;align-items:center;
   border-top:1px solid #9aa6b1;background:#e6ebef;padding:0 12px;color:#5f6d78;font-size:11px}

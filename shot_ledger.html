@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  if(!await KI.guard('shot-ledger'))return;
+  const $=KI.$, el=KI.el, esc=KI.esc;
+  const cur=KI.chrome('shot-ledger');
+  const CAN_E = KI.can('shot-ledger','edit')||KI.can('shot-ledger','save');
+  const YEAR = new Date().getFullYear();
+  let ROWS=[], MOLDS=[], year=YEAR, dirty={};
+
+  const ui=KI.page(cur,[
+    ['저장','primary',()=>saveAll()],
+    ['＋ 품번 추가','',()=>addMold()],
+    ['MES 붙여넣기','',()=>$('#mesMask').classList.add('on')],
+    ['등급 자동 산정','green',()=>autoGrade()],
+    ['새로고침','',()=>load()],
+    ['엑셀(CSV)','',()=>csv()]
+  ]);
+
+  const nt=el('div','note');
+  nt.innerHTML='매월 1일, 전월까지의 <b>누적 SHOT수</b>를 해당 월에 기록합니다. '+
+    '<b>연간 타발수 = 최종 입력월 누적 − 1월 누적</b> (1월이 비면 첫 입력월 기준, * 표시) · '+
+    '점수 : 400만↑5 · 300만↑4 · 200만↑3 · 100만↑2 · 미만1 — 등급 평가 1번 항목에 자동 반영됩니다.';
+  ui.pg.appendChild(nt);
+
+  /* 툴바 */
+  const tb=el('div','ck-tb');
+  tb.innerHTML='<span style="font-weight:700;color:#526171">연도</span> <select id="yy"></select>'+
+    '<span style="font-weight:700;color:#526171;margin-left:8px">고객사</span> <select id="cust"><option value="">전체</option></select>'+
+    '<span class="sp" id="cnt"></span>';
+  ui.pg.appendChild(tb);
+  for(let y=YEAR-3;y<=YEAR+1;y++){ const o=el('option',null,y+'년'); o.value=y; if(y===YEAR)o.selected=true; $('#yy').appendChild(o); }
+  $('#yy').addEventListener('change',()=>{ year=Number($('#yy').value); load(); });
+  $('#cust').addEventListener('change',draw);
+
+  /* 표 */
+  const gw=el('div','grid-wrap');
+  const tbl=el('table','grid');
+  const MHEAD=[...Array(12)].map((_,i)=>'<th style="width:70px">'+(i+1)+'월</th>').join('');
+  tbl.innerHTML='<thead><tr><th style="width:86px">고객사</th><th style="width:90px">품번</th>'+
+    '<th style="width:90px">모델</th><th style="width:76px">사용기계</th><th style="width:50px">등급</th>'+
+    MHEAD+'<th style="width:92px">연간 타발수</th><th style="width:50px">점수</th></tr></thead><tbody></tbody>';
+  gw.appendChild(tbl); ui.pg.appendChild(gw);
+  const tbody=tbl.querySelector('tbody');
+
+  const num=v=>v==null||v===''?null:Number(String(v).replace(/[^0-9.-]/g,''));
+  const fmt=v=>v==null?'':Number(v).toLocaleString();
+
+  function annual(r){
+    const ms=[...Array(12)].map((_,i)=>r['m'+(i+1)]);
+    const last=[...ms].reverse().find(v=>v!=null);
+    const base=r.m1!=null?r.m1:ms.find(v=>v!=null);
+    if(last==null||base==null) return {a:null,s:null,star:false};
+    const a=last-base;
+    const s=a>=4e6?5:a>=3e6?4:a>=2e6?3:a>=1e6?2:1;
+    return {a:a,s:s,star:r.m1==null};
+  }
+  function gradeBadge(g){
+    const c={A:'#e2f0e6;color:#15803d',B:'#e9f2fc;color:#1d568c',C:'#fdeeda;color:#b05c12',F:'#f1f3f5;color:#77828c'}[g]||'#fff';
+    return g?'<span class="badge" style="background:'+c+'">'+g+'</span>':'';
+  }
+  function draw(){
+    const c=$('#cust').value;
+    const rows=ROWS.filter(r=>!c||r.customer_name===c);
+    tbody.innerHTML='';
+    rows.forEach(r=>{
+      const t=el('tr');
+      let h='<td>'+esc(r.customer_name||'')+'</td><td style="font-weight:700">'+esc(r.mold_code)+'</td>'+
+        '<td>'+esc(r.model||'')+'</td><td class="center">'+esc(r.machine_no||'')+'</td>'+
+        '<td class="center">'+gradeBadge(r.grade)+'</td>';
+      for(let i=1;i<=12;i++){
+        const k=r.mold_code+'|m'+i;
+        h+='<td><input class="sl-cell'+(dirty[k]!==undefined?' chg':'')+'" data-m="'+i+'" data-c="'+r.mold_code+'"'+
+           (CAN_E?'':' readonly')+' value="'+(r['m'+i]==null?'':fmt(r['m'+i]))+'"></td>';
+      }
+      const x=annual(r);
+      h+='<td class="num" style="font-weight:800;color:#1d568c">'+(x.a==null?'':fmt(x.a)+(x.star?' *':''))+'</td>'+
+         '<td class="center" style="font-weight:800">'+(x.s==null?'':x.s)+'</td>';
+      t.innerHTML=h; tbody.appendChild(t);
+    });
+    if(!rows.length) tbody.innerHTML='<tr><td colspan="19" class="center" style="height:52px;color:#8894a0">'+
+      year+'년 대장이 비어 있습니다. [＋ 품번 추가]로 시작하세요.</td></tr>';
+    $('#cnt').textContent=rows.length+'개 품번 · '+year+'년';
+    tbody.querySelectorAll('.sl-cell').forEach(inp=>{
+      inp.addEventListener('input',()=>{
+        const k=inp.dataset.c+'|m'+inp.dataset.m;
+        dirty[k]=num(inp.value); inp.classList.add('chg');
+      });
+      inp.addEventListener('blur',()=>{ const v=num(inp.value); inp.value=v==null?'':fmt(v); });
+    });
+  }
+
+  async function saveAll(){
+    const ks=Object.keys(dirty);
+    if(!ks.length) return KI.msg('변경된 값이 없습니다.');
+    const byMold={};
+    ks.forEach(k=>{ const [c,m]=k.split('|'); (byMold[c]=byMold[c]||{})[m]=dirty[k]; });
+    try{
+      for(const c of Object.keys(byMold)){
+        const body=Object.assign({mold_code:c,year:year,updated_at:new Date().toISOString()},byMold[c]);
+        await KI.upsert(OBJ.shotLedger+'?on_conflict=mold_code,year',[body]);
+      }
+      dirty={}; await load(); KI.msg('✓ 타발수 대장이 저장되었습니다.');
+    }catch(e){ alert('❌ '+e.message); }
+  }
+
+  async function addMold(){
+    const have=new Set(ROWS.map(r=>r.mold_code));
+    const cand=MOLDS.filter(m=>!have.has(m.mold_code));
+    if(!cand.length) return alert('모든 금형이 이미 대장에 있습니다.');
+    const pick=prompt('추가할 품번(금형코드)을 입력하세요\n'+cand.map(m=>m.mold_code+' '+(m.mold_name||'')).join('\n'));
+    if(!pick)return;
+    const m=cand.find(x=>x.mold_code===pick.trim());
+    if(!m) return alert('금형대장에 없는 품번입니다. [금형기준 › 금형대장]에서 먼저 등록하세요.');
+    try{ await KI.ins(OBJ.shotLedger,[{mold_code:m.mold_code,year:year}]); await load(); KI.msg('✓ 추가되었습니다.'); }
+    catch(e){ alert('❌ '+e.message); }
+  }
+
+  /* ---------- MES 붙여넣기 ---------- */
+  const mes=el('div','mask'); mes.id='mesMask';
+  mes.innerHTML='<div class="modal" style="width:640px"><h3>MES 타발수 붙여넣기<button class="x" id="mesX">✕</button></h3>'+
+    '<div class="bd">'+
+    '<div class="mrow"><label>반영할 월</label><select id="mesM">'+[...Array(12)].map((_,i)=>'<option value="'+(i+1)+'">'+(i+1)+'월</option>').join('')+'</select></div>'+
+    '<div class="mrow"><label>붙여넣기</label><textarea id="mesT" style="height:180px" placeholder="품번[탭/쉼표/공백]SHOT 형식&#10;M-2401\t2350000&#10;M-2402, 1820000"></textarea></div>'+
+    '<div class="mhint">MES → 설비관리 → 금형관리 → 엑셀에서 품번·SHOT 열을 복사해 붙여넣으세요.</div>'+
+    '</div><div class="mfoot"><button class="btn primary" id="mesGo">반영하기</button>'+
+    '<button class="btn" id="mesC">닫기</button><span class="msg" id="mesMsg"></span></div></div>';
+  document.body.appendChild(mes);
+  $('#mesX').addEventListener('click',()=>mes.classList.remove('on'));
+  $('#mesC').addEventListener('click',()=>mes.classList.remove('on'));
+  $('#mesM').value=String(new Date().getMonth()+1);
+  $('#mesGo').addEventListener('click',()=>{
+    const m='m'+$('#mesM').value, msg=$('#mesMsg');
+    const lines=$('#mesT').value.split('\n').map(x=>x.trim()).filter(Boolean);
+    let hit=0, miss=[];
+    lines.forEach(ln=>{
+      const p=ln.split(/[\t, ]+/).filter(Boolean);
+      if(p.length<2)return;
+      const code=p[0], v=num(p[p.length-1]);
+      const r=ROWS.find(x=>x.mold_code===code);
+      if(r&&v!=null){ dirty[code+'|'+m]=v; r[m.replace('m','m')]=v; r[m]=v; hit++; }
+      else miss.push(code);
+    });
+    draw();
+    msg.className='msg '+(hit?'ok':'err');
+    msg.textContent=hit+'건 반영 대기 (저장을 눌러 확정)'+(miss.length?' · 대장에 없음: '+miss.slice(0,5).join(','):'');
+    if(hit) KI.msg('MES '+hit+'건 반영 — [저장] 버튼으로 확정하세요.');
+  });
+
+  /* ---------- 등급 자동 산정 ---------- */
+  async function autoGrade(){
+    if(!KI.can('grade-eval','save') && !KI.isAdmin())
+      return alert('등급 산정은 [등급 평가] 저장 권한이 필요합니다.');
+    const mode=prompt('산정 방식을 선택하세요\n 1 = 평가표 13항목 (규정 · 1번 타발수/8번 제작년도 자동 + 기본점수)\n 2 = 타발수 구간 간이 (300만↑C · 100만↑B · 미만A)','1');
+    if(mode!=='1'&&mode!=='2')return;
+    if(!confirm(year+'년 대장 '+ROWS.length+'개 품번의 등급을 산정해 금형대장에 반영합니다.\nF등급은 제외됩니다. 계속할까요?'))return;
+    try{
+      const items=await KI.get(OBJ.gradeItem+'?select=*&order=item_no.asc');
+      let n=0, out=[];
+      for(const r of ROWS){
+        if(r.grade==='F'){ out.push(r.mold_code+' : F (제외)'); continue; }
+        const x=annual(r); let grade,total=null;
+        if(mode==='2'){
+          if(x.a==null){ out.push(r.mold_code+' : 타발수 없음'); continue; }
+          grade = x.a>=3e6?'C' : x.a>=1e6?'B' : 'A';
+        }else{
+          total=0;
+          items.forEach(it=>{
+            let sc=it.default_score||2;
+            if(it.auto_source==='shot') sc=x.s||1;
+            if(it.auto_source==='year'){
+              const yy=parseInt(String(r.mold_no||'').substring(0,2),10);
+              if(!isNaN(yy)){ const age=(YEAR%100)-yy; sc=age<2?1:age<4?2:age<6?3:age<8?4:5; }
+            }
+            total+=sc;
+          });
+          grade = total<=20?'A' : total<=38?'B' : 'C';
+        }
+        const cyc = grade==='A'?365:grade==='B'?180:90;
+        await KI.upd('ki_mold','mold_code=eq.'+encodeURIComponent(r.mold_code),
+          {grade:grade, cycle_days:cyc});
+        await KI.ins(OBJ.gradeEval,[{mold_code:r.mold_code, evaluator:(KI.me()||{}).emp_name||'자동',
+          total_score:total, grade:grade, applied:true, method:mode==='1'?'자동(평가표)':'자동(간이)'}]);
+        out.push(r.mold_code+' : '+grade+(total?' ('+total+'점)':'')); n++;
+      }
+      await load();
+      alert('등급 산정 완료 — '+n+'건 반영\n\n'+out.join('\n')+
+            '\n\n점검주기가 A365/B180/C90일로 재배정되었습니다.\n(점검 예정일은 다음 점검 실적 등록 시 반영)');
+    }catch(e){ alert('❌ '+e.message); }
+  }
+
+  function csv(){
+    const head=['고객사','품번','모델','사용기계','등급',...[...Array(12)].map((_,i)=>(i+1)+'월'),'연간타발수','점수'];
+    const body=ROWS.map(r=>{ const x=annual(r);
+      return [r.customer_name,r.mold_code,r.model,r.machine_no,r.grade,
+        ...[...Array(12)].map((_,i)=>r['m'+(i+1)]??''),x.a??'',x.s??'']
+        .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','); });
+    const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
+    a.download='타발수대장_'+year+'.csv'; a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  async function load(){
+    dirty={};
+    const [rows,molds]=await Promise.all([
+      KI.get(OBJ.shotLedger+'?select=*&year=eq.'+year+'&order=mold_code.asc'),
+      KI.get(OBJ.moldMst+'?select=mold_code,mold_name&order=mold_code.asc')
+    ]);
+    ROWS=rows; MOLDS=molds;
+    const cs=[...new Set(ROWS.map(r=>r.customer_name).filter(Boolean))].sort();
+    const sel=$('#cust'), keep=sel.value; sel.innerHTML='<option value="">전체</option>';
+    cs.forEach(c=>{ const o=el('option',null,c); o.value=c; sel.appendChild(o); });
+    sel.value=keep;
+    draw();
+    KI.msg(year+'년 타발수 대장 '+ROWS.length+'건');
+  }
+  await load();
+})();
+</script>
+</body>
+</html>

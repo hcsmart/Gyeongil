@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  if(!await KI.guard('daily-check'))return;
+  const $=KI.$, el=KI.el, esc=KI.esc;
+  const cur=KI.chrome('daily-check');
+  const CAN_S=KI.can('daily-check','save');
+  const YEAR=new Date().getFullYear();
+  const ACTIONS=['펀치/다이 연마','펀치/다이 교환','스프링 교환','가이드핀 교환','볼 포스트 교환','금형 세척'];
+  let MOLDS=[], ITEMS=[], LEDGER={};
+
+  const ui=KI.page(cur,[
+    ['💾 점검 결과 저장','primary',()=>save()],
+    ['전체 양호','',()=>{ document.querySelectorAll('input[data-ok]').forEach(r=>{ if(r.dataset.ok==='1')r.checked=true; }); }],
+    ['새로고침','',()=>load()]
+  ]);
+  const nt=el('div','note');
+  nt.innerHTML='금형 일상점검표 — <b>상형 8 / 하형 8 항목</b>. 누적 타발수는 타발수 대장에서 자동으로 가져옵니다. '+
+    '항목명 변경은 [기준정보 › 점검기준 › 일상점검 항목]에서 합니다.';
+  ui.pg.appendChild(nt);
+
+  const w=el('div','gv-wrap');
+  w.innerHTML=
+    '<div class="gv-left"><div class="pane-h">점검 정보</div><div class="gv-bd">'+
+      '<div style="display:grid;grid-template-columns:92px 1fr;gap:6px;align-items:center">'+
+        '<label style="color:#526171;font-weight:700">금형(품번)</label><select id="fMold" style="height:26px;border:1px solid #aeb9c4"></select>'+
+        '<label style="color:#526171;font-weight:700">점검일자</label><input type="date" id="fDate" style="height:26px;border:1px solid #aeb9c4;padding:0 6px">'+
+        '<label style="color:#526171;font-weight:700">점검자</label><input type="text" id="fBy" style="height:26px;border:1px solid #aeb9c4;padding:0 6px">'+
+        '<label style="color:#526171;font-weight:700">누적 타발수</label><input type="text" id="fShot" style="height:26px;border:1px solid #aeb9c4;padding:0 6px" placeholder="대장 자동">'+
+      '</div>'+
+      '<div style="margin-top:10px;font-weight:800;color:#41556a">연마 · 교환 실시</div>'+
+      '<div id="acts" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:5px"></div>'+
+      '<div style="margin-top:10px;font-weight:800;color:#41556a">특이사항</div>'+
+      '<textarea id="fIssue" style="width:100%;height:54px;border:1px solid #aeb9c4;margin-top:4px;padding:5px;font:inherit"></textarea>'+
+      '<div style="margin-top:6px;font-weight:800;color:#41556a">조치내용</div>'+
+      '<textarea id="fAct" style="width:100%;height:54px;border:1px solid #aeb9c4;margin-top:4px;padding:5px;font:inherit"></textarea>'+
+      '<div style="margin-top:8px"><span class="msg" id="dMsg" style="font-weight:700"></span></div>'+
+    '</div></div>'+
+    '<div class="gv-right"><div class="pane-h">점검 항목 · 상형 8 / 하형 8</div>'+
+      '<div class="gv-bd" id="chkBody"></div>'+
+      '<div class="gv-foot"><span id="dcCnt" style="color:#7b8794"></span>'+
+        '<button class="btn primary" id="bSave2" style="margin-left:auto">💾 점검 결과 저장</button></div>'+
+    '</div>';
+  ui.pg.appendChild(w);
+  $('#fDate').value=new Date().toISOString().slice(0,10);
+  $('#fBy').value=(KI.me()||{}).emp_name||'';
+  ACTIONS.forEach((a,i)=>{
+    const l=el('label'); l.style.cssText='display:flex;gap:4px;align-items:center;color:#4d5a68';
+    l.innerHTML='<input type="checkbox" value="'+a+'" class="fa"> '+a;
+    $('#acts').appendChild(l);
+  });
+
+  function drawItems(){
+    const box=$('#chkBody'); box.innerHTML='';
+    ['상형','하형'].forEach(side=>{
+      box.appendChild(el('div','dc-side',side+' ('+ITEMS.filter(i=>i.side===side).length+'항목)'));
+      ITEMS.filter(i=>i.side===side && i.is_active!==false).forEach(it=>{
+        const r=el('div','dc-row');
+        const nm='r_'+side+'_'+it.item_no;
+        r.innerHTML='<div class="no" style="text-align:center;color:#7b8794;font-weight:700">'+it.item_no+'</div>'+
+          '<div style="color:#2b3844">'+esc(it.item_name)+'</div>'+
+          '<div class="rd">'+
+            '<label class="ok"><input type="radio" name="'+nm+'" value="양호" data-ok="1" checked> 양호</label>'+
+            '<label class="ng"><input type="radio" name="'+nm+'" value="불량" data-ok="0"> 불량</label>'+
+          '</div>'+
+          '<input class="nt" id="nt_'+side+'_'+it.item_no+'" placeholder="메모">';
+        box.appendChild(r);
+      });
+    });
+  }
+  async function fillShot(){
+    const code=$('#fMold').value; if(!code)return;
+    const r=LEDGER[code];
+    if(r){
+      const ms=[...Array(12)].map((_,i)=>r['m'+(i+1)]).filter(v=>v!=null);
+      if(ms.length) $('#fShot').value=Number(ms[ms.length-1]).toLocaleString();
+    }
+  }
+  document.addEventListener('change',e=>{ if(e.target.id==='fMold') fillShot(); });
+
+  async function save(){
+    const m=$('#dMsg');
+    const code=$('#fMold').value;
+    if(!code){ m.className='msg err'; m.textContent='금형을 선택하세요.'; return; }
+    if(!$('#fBy').value.trim()){ m.className='msg err'; m.textContent='점검자를 입력하세요.'; return; }
+    const dets=[]; let ng=0;
+    ITEMS.filter(i=>i.is_active!==false).forEach(it=>{
+      const v=(document.querySelector('input[name="r_'+it.side+'_'+it.item_no+'"]:checked')||{}).value||'양호';
+      if(v==='불량')ng++;
+      dets.push({side:it.side,item_no:it.item_no,item_name:it.item_name,result:v,
+        note:($('#nt_'+it.side+'_'+it.item_no)||{}).value||null});
+    });
+    const acts=[...document.querySelectorAll('.fa:checked')].map(c=>c.value);
+    m.className='msg'; m.textContent='저장중...';
+    try{
+      const shot=Number(String($('#fShot').value).replace(/[^0-9.]/g,''))||null;
+      const h=await KI.ins(OBJ.dailyCheck,[{mold_code:code, check_date:$('#fDate').value||null,
+        checker:$('#fBy').value.trim(), shot_count:shot, actions:acts,
+        judgement: ng?'조건부합격':'합격', issue:$('#fIssue').value||null, action_taken:$('#fAct').value||null}]);
+      const id=h[0].check_id;
+      await KI.ins(OBJ.dailyCheckDet, dets.map(d=>Object.assign({check_id:id},d)));
+      m.className='msg ok'; m.textContent='✓ 저장되었습니다.'+(ng?' (불량 '+ng+'건)':'');
+      KI.msg('✓ 일상점검 저장 — '+code+(ng?' · 불량 '+ng+'건':' · 전체 양호'));
+      $('#fIssue').value=''; $('#fAct').value='';
+      document.querySelectorAll('.fa:checked').forEach(c=>c.checked=false);
+      document.querySelectorAll('input[data-ok="1"]').forEach(r=>r.checked=true);
+      document.querySelectorAll('.nt').forEach(n=>n.value='');
+      drawHist();
+    }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
+  }
+  $('#bSave2').addEventListener('click',save);
+  if(!CAN_S){ $('#bSave2').disabled=true; $('#bSave2').style.opacity=.5; }
+
+  async function drawHist(){
+    const rows=await KI.get(OBJ.dailyCheck+'?select=*&order=check_date.desc,check_id.desc&limit=15');
+    $('#dcCnt').innerHTML='최근 점검 : '+rows.slice(0,6).map(r=>
+      esc(r.check_date)+' '+esc(r.mold_code)+(r.ng_count?'<b style="color:#b23030">(불량'+r.ng_count+')</b>':'')).join(' · ');
+  }
+  async function load(){
+    const [molds,items,led]=await Promise.all([
+      KI.get(OBJ.moldMst+'?select=mold_code,mold_name,grade&order=mold_code.asc'),
+      KI.get(OBJ.dailyItem+'?select=*&order=side.desc,item_no.asc'),
+      KI.get(OBJ.shotLedger+'?select=*&year=eq.'+YEAR)
+    ]);
+    MOLDS=molds; ITEMS=items; LEDGER={}; led.forEach(r=>LEDGER[r.mold_code]=r);
+    const s2=$('#fMold'); s2.innerHTML='<option value="">선택</option>';
+    MOLDS.forEach(mm=>{ const o=el('option',null,mm.mold_code+' · '+(mm.mold_name||'')+' ['+(mm.grade||'-')+']');
+      o.value=mm.mold_code; s2.appendChild(o); });
+    drawItems(); drawHist();
+    KI.msg('점검항목 '+ITEMS.length+'개 (상형 '+ITEMS.filter(i=>i.side==='상형').length+' / 하형 '+ITEMS.filter(i=>i.side==='하형').length+')');
+  }
+  await load();
+})();
+</script>
+</body>
+</html>

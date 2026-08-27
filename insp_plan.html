@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<style>
+.pl-m{width:26px;height:22px;border:1px solid #d6dde4;background:#fff;color:#8b98a5;font-size:10px;
+  display:inline-flex;align-items:center;justify-content:center;margin-right:2px;cursor:pointer}
+.pl-m.on{background:#2e77bd;border-color:#2e77bd;color:#fff;font-weight:800}
+.pl-m.done{background:#2f7d4d;border-color:#2f7d4d;color:#fff;font-weight:800}
+.pl-m.miss{background:#fbe4e4;border-color:#e0a5a5;color:#b23030;font-weight:800}
+.pl-lg{display:flex;gap:12px;align-items:center;padding:6px 9px;color:#4d5a68}
+.pl-lg span{display:flex;gap:4px;align-items:center}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  if(!await KI.guard('insp-plan'))return;
+  const $=KI.$, el=KI.el, esc=KI.esc;
+  const cur=KI.chrome('insp-plan');
+  const CAN_E=KI.can('insp-plan','edit')||KI.can('insp-plan','save');
+  const YEAR=new Date().getFullYear(), MON=new Date().getMonth()+1;
+  const CYC={A:[6],B:[3,9],C:[3,6,9,12],F:[]};
+  let year=YEAR, ROWS=[], DONE={}, dirty={};
+
+  const ui=KI.page(cur,[
+    ['저장','primary',()=>save()],
+    ['등급별 자동 배정','green',()=>autoPlan()],
+    ['새로고침','',()=>load()],
+    ['엑셀(CSV)','',()=>csv()]
+  ]);
+  const nt=el('div','note');
+  nt.innerHTML='등급별 연간 점검 횟수 — <b>A 1회/년 · B 1회/6개월(2회) · C 1회/3개월(4회) · F 사용시(미배정)</b>. '+
+    '월 칸을 눌러 배정을 바꿉니다. 실시 여부는 점검 실적으로 자동 판정되며, <b>실시율</b>은 SQ 심사 지표입니다.';
+  ui.pg.appendChild(nt);
+
+  const tb=el('div','ck-tb');
+  tb.innerHTML='<span style="font-weight:700;color:#526171">연도</span> <select id="yy"></select>'+
+    '<span style="font-weight:700;color:#526171;margin-left:8px">등급</span>'+
+    '<select id="fg"><option value="">전체</option><option>A</option><option>B</option><option>C</option><option>F</option></select>'+
+    '<span class="pl-lg"><span><i class="pl-m on"></i>계획</span><span><i class="pl-m done">✓</i>실시</span>'+
+    '<span><i class="pl-m miss">!</i>미실시(경과)</span></span>'+
+    '<span class="sp" id="rate"></span>';
+  ui.pg.appendChild(tb);
+  for(let y=YEAR-2;y<=YEAR+1;y++){ const o=el('option',null,y+'년'); o.value=y; if(y===YEAR)o.selected=true; $('#yy').appendChild(o); }
+  $('#yy').addEventListener('change',()=>{ year=Number($('#yy').value); load(); });
+  $('#fg').addEventListener('change',draw);
+
+  const gw=el('div','grid-wrap'); const tbl=el('table','grid');
+  tbl.innerHTML='<thead><tr><th style="width:96px">품번</th><th style="width:150px">금형명</th>'+
+    '<th style="width:100px">고객사</th><th style="width:52px">등급</th><th style="width:60px">주기</th>'+
+    '<th>연간 계획 (월)</th><th style="width:70px">계획</th><th style="width:70px">실시</th>'+
+    '<th style="width:76px">실시율</th></tr></thead><tbody></tbody>';
+  gw.appendChild(tbl); ui.pg.appendChild(gw);
+  const tbody=tbl.querySelector('tbody');
+
+  const cycName=g=>({A:'1회/년',B:'6개월',C:'3개월',F:'사용시'}[g]||'-');
+  function months(r){ const k=r.mold_code; return dirty[k]!==undefined?dirty[k]:(r.months||[]); }
+  function draw(){
+    const fg=$('#fg').value;
+    const rows=ROWS.filter(r=>!fg||r.grade===fg);
+    tbody.innerHTML='';
+    let plan=0, done=0;
+    rows.forEach(r=>{
+      const ms=months(r), dn=DONE[r.mold_code]||[];
+      plan+=ms.length; done+=ms.filter(m=>dn.includes(m)).length;
+      const t=el('tr');
+      let cells='';
+      for(let m=1;m<=12;m++){
+        const on=ms.includes(m), ok=dn.includes(m);
+        const cls = on ? (ok?'done' : (year<YEAR||(year===YEAR&&m<MON) ? 'miss':'on')) : '';
+        cells+='<button class="pl-m '+cls+'" data-c="'+r.mold_code+'" data-m="'+m+'"'+(CAN_E?'':' disabled')+'>'+
+               (ok?'✓':(on&&cls==='miss'?'!':m))+'</button>';
+      }
+      const rate=ms.length?Math.round(ms.filter(m=>dn.includes(m)).length/ms.length*100):null;
+      t.innerHTML='<td style="font-weight:700">'+esc(r.mold_code)+'</td><td>'+esc(r.mold_name||'')+'</td>'+
+        '<td>'+esc(r.customer_name||'')+'</td><td class="center" style="font-weight:800">'+esc(r.grade||'-')+'</td>'+
+        '<td class="center">'+cycName(r.grade)+'</td><td>'+cells+'</td>'+
+        '<td class="num">'+ms.length+'</td><td class="num">'+ms.filter(m=>dn.includes(m)).length+'</td>'+
+        '<td class="center" style="font-weight:800;color:'+(rate==null?'#96a2ad':rate>=100?'#15803d':rate>=50?'#b05c12':'#b23030')+'">'+
+        (rate==null?'-':rate+'%')+'</td>';
+      tbody.appendChild(t);
+    });
+    if(!rows.length) tbody.innerHTML='<tr><td colspan="9" class="center" style="height:50px;color:#8894a0">대상이 없습니다.</td></tr>';
+    const pct=plan?Math.round(done/plan*100):0;
+    $('#rate').innerHTML='계획 '+plan+'회 · 실시 '+done+'회 · <b style="color:#1d568c;font-size:13px">실시율 '+pct+'%</b>';
+    tbody.querySelectorAll('.pl-m').forEach(b=>b.addEventListener('click',()=>{
+      const c=b.dataset.c, m=Number(b.dataset.m);
+      const r=ROWS.find(x=>x.mold_code===c);
+      const ms=months(r).slice();
+      const i=ms.indexOf(m); if(i>=0)ms.splice(i,1); else ms.push(m);
+      dirty[c]=ms.sort((a,b2)=>a-b2); draw();
+    }));
+  }
+  async function save(){
+    const ks=Object.keys(dirty);
+    if(!ks.length) return KI.msg('변경된 계획이 없습니다.');
+    try{
+      await KI.upsert(OBJ.inspPlan+'?on_conflict=mold_code,year',
+        ks.map(c=>({mold_code:c,year:year,months:dirty[c],updated_at:new Date().toISOString()})));
+      dirty={}; await load(); KI.msg('✓ 연간 계획 '+ks.length+'건 저장');
+    }catch(e){ alert('❌ '+e.message); }
+  }
+  async function autoPlan(){
+    if(!CAN_E) return alert('저장 권한이 없습니다.');
+    if(!confirm(year+'년 계획을 등급 기준으로 다시 배정합니다.\nA=6월 · B=3,9월 · C=3,6,9,12월 · F=미배정\n\n기존 배정은 덮어씁니다. 계속할까요?'))return;
+    ROWS.forEach(r=>{ dirty[r.mold_code]=(CYC[r.grade]||[]).slice(); });
+    draw(); KI.msg('자동 배정 완료 — [저장]을 눌러 확정하세요.');
+  }
+  function csv(){
+    const head=['품번','금형명','고객사','등급','주기',...[...Array(12)].map((_,i)=>(i+1)+'월'),'계획','실시','실시율'];
+    const body=ROWS.map(r=>{ const ms=months(r), dn=DONE[r.mold_code]||[];
+      const rate=ms.length?Math.round(ms.filter(m=>dn.includes(m)).length/ms.length*100):'';
+      return [r.mold_code,r.mold_name,r.customer_name,r.grade,cycName(r.grade),
+        ...[...Array(12)].map((_,i)=>{const m=i+1; return ms.includes(m)?(dn.includes(m)?'실시':'계획'):'';}),
+        ms.length,ms.filter(m=>dn.includes(m)).length,rate===''?'':rate+'%']
+        .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','); });
+    const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
+    a.download='연간점검계획_'+year+'.csv'; a.click(); URL.revokeObjectURL(a.href);
+  }
+  async function load(){
+    dirty={};
+    const [plans,molds,res]=await Promise.all([
+      KI.get(OBJ.inspPlan+'?select=*&year=eq.'+year+'&order=mold_code.asc'),
+      KI.get(OBJ.moldMst+'?select=mold_code,mold_name,customer_name,grade&order=mold_code.asc'),
+      KI.get(OBJ.inspHist+'?select=mold_code,inspection_date')
+    ]);
+    const pm={}; plans.forEach(p=>pm[p.mold_code]=p);
+    ROWS=molds.map(m=>Object.assign({months:[]},pm[m.mold_code]||{},
+      {mold_code:m.mold_code,mold_name:m.mold_name,customer_name:m.customer_name,grade:m.grade}));
+    DONE={};
+    res.forEach(r=>{ if(!r.inspection_date)return;
+      const d=new Date(r.inspection_date);
+      if(d.getFullYear()!==year)return;
+      (DONE[r.mold_code]=DONE[r.mold_code]||[]).push(d.getMonth()+1); });
+    draw();
+    KI.msg(year+'년 계획 대상 '+ROWS.length+'건');
+  }
+  await load();
+})();
+</script>
+</body>
+</html>

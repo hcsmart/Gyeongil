@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  if(!await KI.guard('grade-eval'))return;
+  const $=KI.$, el=KI.el, esc=KI.esc;
+  const cur=KI.chrome('grade-eval');
+  const CAN_S=KI.can('grade-eval','save');
+  const YEAR=new Date().getFullYear();
+  let MOLDS=[], ITEMS=[], LEDGER={}, sel=null;
+
+  const ui=KI.page(cur,[['새로고침','',()=>load()]]);
+  const nt=el('div','note');
+  nt.innerHTML='TJP-EU0702-01 — 13항목 합계로 <b>A ≤20점 · B 21~38점 · C ≥39점</b>. '+
+    '1번(타발수)·8번(제작년도)은 자동 산출. 등급 반영 시 점검주기 <b>A 365 · B 180 · C 90일</b>이 재배정됩니다. F등급(A/S·단종)은 평가 대상이 아닙니다.';
+  ui.pg.appendChild(nt);
+
+  const w=el('div','gv-wrap');
+  w.innerHTML=
+    '<div class="gv-left"><div class="pane-h">금형 목록</div>'+
+      '<div class="ui-find"><input type="text" id="q" placeholder="품번 · 금형명 · 고객사"></div>'+
+      '<div class="ui-list" id="list"></div></div>'+
+    '<div class="gv-right"><div class="pane-h" id="ttl">등급 평가</div>'+
+      '<div class="gv-sum">'+
+        '<div class="b"><div class="v" id="sTot">—</div><div class="k">총점 (13~65)</div></div>'+
+        '<div class="b"><div class="v" id="sGr">—</div><div class="k">산정 등급</div></div>'+
+        '<div class="b"><div class="v" id="sCy">—</div><div class="k">점검주기</div></div>'+
+        '<div class="b"><div class="v" id="sShot">—</div><div class="k">'+YEAR+'년 연간 타발수</div></div>'+
+      '</div>'+
+      '<div class="gv-bd">'+
+        '<div style="display:grid;grid-template-columns:110px 1fr 110px 1fr;gap:6px;margin-bottom:8px">'+
+          '<label style="align-self:center;color:#526171;font-weight:700">평가일자</label><input type="date" id="eDate" style="height:26px;border:1px solid #aeb9c4;padding:0 6px">'+
+          '<label style="align-self:center;color:#526171;font-weight:700">평가자</label><input type="text" id="eBy" style="height:26px;border:1px solid #aeb9c4;padding:0 6px">'+
+        '</div>'+
+        '<div id="rows"></div>'+
+        '<div style="margin-top:8px"><label style="color:#526171;font-weight:700">비고</label>'+
+          '<input type="text" id="eRem" style="width:100%;height:26px;border:1px solid #aeb9c4;padding:0 6px;margin-top:3px"></div>'+
+        '<div style="margin-top:12px" id="hist"></div>'+
+      '</div>'+
+      '<div class="gv-foot">'+
+        '<button class="btn" id="bSave">평가 저장</button>'+
+        '<button class="btn primary" id="bApply">저장하고 등급 반영</button>'+
+        '<span class="msg" id="gMsg" style="margin-left:auto;font-weight:700"></span>'+
+      '</div>'+
+    '</div>';
+  ui.pg.appendChild(w);
+  $('#eDate').value=new Date().toISOString().slice(0,10);
+  $('#eBy').value=(KI.me()||{}).emp_name||'';
+
+  function annualOf(code){
+    const r=LEDGER[code]; if(!r)return {a:null,s:null};
+    return {a:r.annual_shot==null?null:Number(r.annual_shot), s:r.shot_score==null?null:Number(r.shot_score)};
+  }
+  function yearScore(m){
+    if(m.grade==='F') return 5;
+    const yy=parseInt(String(m.mold_no||'').substring(0,2),10);
+    if(isNaN(yy)) return null;
+    const age=(YEAR%100)-yy;
+    return age<2?1:age<4?2:age<6?3:age<8?4:5;
+  }
+  function calc(){
+    let tot=0, all=true;
+    ITEMS.forEach(it=>{
+      const e=$('#sc'+it.item_no); const v=e?Number(e.dataset.v||e.value||0):0;
+      if(!v)all=false; tot+=v;
+    });
+    const g = !all?null : tot<=20?'A' : tot<=38?'B' : 'C';
+    $('#sTot').textContent=all?tot:'—';
+    $('#sGr').textContent=g||'—';
+    $('#sCy').textContent=g?({A:'1회/년',B:'1회/6개월',C:'1회/3개월'}[g]):'—';
+    return {tot:all?tot:null, g:g};
+  }
+  function drawForm(){
+    const box=$('#rows'); box.innerHTML='';
+    if(!sel){ box.innerHTML='<div style="color:#8894a0;padding:20px">좌측에서 금형을 선택하세요.</div>'; return; }
+    const x=annualOf(sel.mold_code);
+    $('#sShot').textContent=x.a==null?'—':Number(x.a).toLocaleString();
+    ITEMS.forEach(it=>{
+      const r=el('div','gv-row');
+      let ctl;
+      if(it.auto_source==='shot'){
+        const v=x.s;
+        ctl='<div class="auto" id="sc'+it.item_no+'" data-v="'+(v||'')+'">'+(v?v+'점 (자동)':'대장 없음')+'</div>';
+      }else if(it.auto_source==='year'){
+        const v=yearScore(sel);
+        ctl='<div class="auto" id="sc'+it.item_no+'" data-v="'+(v||'')+'">'+(v?v+'점 (자동)':'금형번호 확인')+'</div>';
+      }else{
+        ctl='<select id="sc'+it.item_no+'">'+
+          '<option value="">선택</option>'+[1,2,3,4,5].map(n=>'<option value="'+n+'"'+
+          (n===(it.default_score||0)?'':'')+'>'+n+'점</option>').join('')+'</select>';
+      }
+      r.innerHTML='<div class="no">'+it.item_no+'</div>'+
+        '<div class="nm">'+esc(it.item_name)+(it.remark?'<small>'+esc(it.remark)+'</small>':'')+'</div>'+
+        ctl+'<div style="color:#96a2ad;font-size:10px">'+(it.auto_source?'자동':'1~5점')+'</div>';
+      box.appendChild(r);
+    });
+    box.querySelectorAll('select').forEach(s2=>s2.addEventListener('change',calc));
+    calc();
+  }
+  async function drawHist(){
+    const h=$('#hist'); h.innerHTML='';
+    if(!sel)return;
+    const rows=await KI.get(OBJ.gradeEval+'?select=*&mold_code=eq.'+encodeURIComponent(sel.mold_code)+'&order=eval_date.desc&limit=8');
+    if(!rows.length){ h.innerHTML='<div style="color:#96a2ad">평가 이력이 없습니다.</div>'; return; }
+    h.innerHTML='<div style="font-weight:800;color:#41556a;margin-bottom:4px">평가 이력</div>'+
+      '<table class="grid"><thead><tr><th style="width:90px">평가일</th><th style="width:80px">평가자</th>'+
+      '<th style="width:60px">총점</th><th style="width:54px">등급</th><th style="width:60px">반영</th>'+
+      '<th style="width:90px">방식</th><th>비고</th></tr></thead><tbody>'+
+      rows.map(r=>'<tr><td class="center">'+esc(r.eval_date)+'</td><td class="center">'+esc(r.evaluator||'')+
+        '</td><td class="num">'+(r.total_score??'')+'</td><td class="center" style="font-weight:800">'+esc(r.grade||'')+
+        '</td><td class="center">'+(r.applied?'✓':'')+'</td><td class="center">'+esc(r.method||'')+
+        '</td><td>'+esc(r.remark||'')+'</td></tr>').join('')+'</tbody></table>';
+  }
+  function drawList(){
+    const q=$('#q').value.trim().toLowerCase();
+    const box=$('#list'); box.innerHTML='';
+    MOLDS.filter(m=>!q||[m.mold_code,m.mold_name,m.customer_name,m.mold_no]
+        .some(v=>String(v||'').toLowerCase().includes(q)))
+      .forEach(m=>{
+        const r=el('div','ui-row'+(sel&&sel.mold_code===m.mold_code?' sel':''));
+        r.style.gridTemplateColumns='84px 1fr 46px';
+        const x=annualOf(m.mold_code);
+        r.innerHTML='<div style="font-weight:700">'+esc(m.mold_code)+'</div>'+
+          '<div>'+esc(m.mold_name||'')+'<small style="display:block;color:#96a2ad">'+esc(m.customer_name||'')+
+          (x.a!=null?' · '+Number(x.a).toLocaleString()+'타':'')+'</small></div>'+
+          '<div class="center" style="font-weight:900;color:#1d568c">'+esc(m.grade||'-')+'</div>';
+        r.addEventListener('click',()=>{ sel=m;
+          box.querySelectorAll('.ui-row.sel').forEach(x2=>x2.classList.remove('sel'));
+          r.classList.add('sel');
+          $('#ttl').textContent='등급 평가 — '+m.mold_code+' '+(m.mold_name||'');
+          drawForm(); drawHist();
+        });
+        box.appendChild(r);
+      });
+  }
+  $('#q').addEventListener('input',drawList);
+
+  async function save(apply){
+    if(!sel) return KI.msg('금형을 먼저 선택하세요.');
+    if(sel.grade==='F' && apply) return alert('F등급(A/S·단종)은 등급 반영 대상이 아닙니다.');
+    const c=calc();
+    if(c.tot==null) return alert('13개 항목을 모두 선택해야 저장할 수 있습니다.');
+    const m=$('#gMsg'); m.className='msg'; m.textContent='저장중...';
+    try{
+      const ev=await KI.ins(OBJ.gradeEval,[{mold_code:sel.mold_code,
+        eval_date:$('#eDate').value||null, evaluator:$('#eBy').value||null,
+        total_score:c.tot, grade:c.g, applied:!!apply, method:'평가표',
+        remark:$('#eRem').value||null}]);
+      const id=ev[0].eval_id;
+      const dets=ITEMS.map(it=>{ const e=$('#sc'+it.item_no);
+        return {eval_id:id,item_no:it.item_no,score:Number(e.dataset.v||e.value||0)}; });
+      await KI.ins(OBJ.gradeEvalDet,dets);
+      if(apply){
+        const cyc=c.g==='A'?365:c.g==='B'?180:90;
+        await KI.upd('ki_mold','mold_code=eq.'+encodeURIComponent(sel.mold_code),
+          {grade:c.g, cycle_days:cyc});
+        sel.grade=c.g;
+      }
+      m.className='msg ok'; m.textContent='✓ 저장'+(apply?' · 등급 '+c.g+' 반영 (주기 재배정)':'')+' 완료';
+      KI.msg('✓ 평가 저장 완료'); drawList(); drawHist();
+    }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
+  }
+  $('#bSave').addEventListener('click',()=>save(false));
+  $('#bApply').addEventListener('click',()=>save(true));
+  if(!CAN_S){ ['bSave','bApply'].forEach(id=>{ $('#'+id).disabled=true; $('#'+id).style.opacity=.5; }); }
+
+  async function load(){
+    const [molds,items,led]=await Promise.all([
+      KI.get(OBJ.moldMst+'?select=mold_code,mold_name,customer_name,mold_no,grade&order=mold_code.asc'),
+      KI.get(OBJ.gradeItem+'?select=*&order=item_no.asc'),
+      KI.get(OBJ.shotLedger+'?select=mold_code,annual_shot,shot_score&year=eq.'+YEAR)
+    ]);
+    MOLDS=molds; ITEMS=items; LEDGER={}; led.forEach(r=>LEDGER[r.mold_code]=r);
+    drawList(); drawForm();
+    KI.msg('금형 '+MOLDS.length+'개 · 평가항목 '+ITEMS.length+'개');
+  }
+  await load();
+})();
+</script>
+</body>
+</html>

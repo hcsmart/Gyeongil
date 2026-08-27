@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v8.2',
+  VER      : 'v8.4',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -22,6 +22,10 @@ const TBL = {                      /* 편집 대상 원천 테이블 */
   mold:'ki_mold', inspItem:'ki_inspection_item', inspResult:'ki_inspection_result',
   factory:'ki_factory', zone:'ki_zone', asset:'ki_asset',
   sensor:'ki_sensor', envAlert:'ki_env_alert', machine:'ki_machine',
+  shotLedger:'ki_shot_ledger', gradeItem:'ki_grade_item',
+  gradeEval:'ki_grade_eval', gradeEvalDet:'ki_grade_eval_detail',
+  dailyItem:'ki_daily_item', dailyCheck:'ki_daily_check', dailyCheckDet:'ki_daily_check_detail',
+  wash:'ki_wash', washStep:'ki_wash_step', inspPlan:'ki_insp_plan',
   /* 외주 LOT (원천 테이블) */
   ospOrder:'outsourcing_order_status_rows',
   ospRecv :'outsourcing_receipt_confirm_candidates',
@@ -48,6 +52,12 @@ const OBJ = {
   material : P+'v_material',    machine  : P+'v_machine',
   /* 기준정보 — 점검기준 */
   chkMach  : P+'v_check_machine', chkMold : P+'v_check_mold',
+  /* 수명관리 */
+  shotLedger : P+'v_shot_ledger', gradeItem : P+'v_grade_item',
+  gradeEval  : P+'v_grade_eval',  dailyItem : P+'v_daily_item',
+  dailyCheck : P+'v_daily_check',
+  wash       : P+'v_wash',        washStat : P+'v_wash_status',
+  washStep   : P+'v_wash_step',   inspPlan : P+'v_insp_plan',
   /* 시스템 */
   employee : P+'v_employee',   permission : P+'v_permission'
 };
@@ -62,6 +72,15 @@ const MENU = [
         {id:'mold-due',    f:'mold_due.html',              n:'점검 도래현황', d:'주기 도래 · 지연 D-day'},
         {id:'mold-insp',   f:'mold_inspection.html',       n:'점검 실적',     d:'금형별 정기점검 결과'},
         {id:'mold-detail', f:'mold_inspection_detail.html',n:'점검 항목결과', d:'항목별 측정값 · 판정'}
+      ]}
+    ]},
+    { key:'m-life', name:'수명관리', icon:'⏱', groups:[
+      { name:'금형 수명관리 (TJP-EU0702-01)', items:[
+        {id:'shot-ledger', f:'shot_ledger.html', n:'타발수 대장',  d:'월별 누적 SHOT · 연간 타발수 · 점수'},
+        {id:'grade-eval',  f:'grade_eval.html',  n:'등급 평가',   d:'13항목 평가 · A/B/C/F 등급 반영'},
+        {id:'daily-check', f:'daily_check.html', n:'일상점검',    d:'상형 8 / 하형 8 점검표'},
+        {id:'wash-check',  f:'wash_check.html',  n:'세척점검',    d:'일상 · 정기세척 · 도래현황'},
+        {id:'insp-plan',   f:'insp_plan.html',   n:'연간 계획일정', d:'등급별 월 배정 · 실시율'}
       ]}
     ]},
     { key:'m-base', name:'금형기준', icon:'▥', groups:[
@@ -134,7 +153,10 @@ const MENU = [
     { key:'b-chk', name:'점검기준', icon:'🔧', groups:[
       { name:'점검 기준정보', items:[
         {id:'chk-mach', f:'check_machine.html', n:'설비 점검기준', d:'일상 · 정기 점검항목 / 판정기준'},
-        {id:'chk-mold', f:'check_mold.html',    n:'금형 점검기준', d:'일상 · 정기 점검항목 / 판정기준'}
+        {id:'chk-mold', f:'check_mold.html',    n:'금형 점검기준', d:'일상 · 정기 점검항목 / 판정기준'},
+        {id:'grade-item', f:'grade_item.html',  n:'등급 평가항목', d:'13항목 · 기본점수'},
+        {id:'daily-item', f:'daily_item.html',  n:'일상점검 항목', d:'상형 8 / 하형 8'},
+        {id:'wash-step',  f:'wash_step.html',   n:'세척 단계',    d:'정기세척 6단계'}
       ]}
     ]}
   ]},
@@ -208,7 +230,11 @@ const VIEWS = {
 'mold-master':{
   table:OBJ.moldMst, order:'mold_code.asc',
   edit:{ table:TBL.mold, pk:'mold_code', fields:[
-    ['mold_code','금형코드','text',null,'req'],
+    ['mold_code','금형코드(품번)','text',null,'req'],
+    ['mold_no','금형번호','text'],
+    ['grade','등급','sel',['A','B','C','F']],
+    ['prod_type','생산구분','sel',['양산','A/S'],{def:'양산'}],
+    ['machine_no','사용기계','ref',{table:OBJ.machine,v:'machine_no',t:'machine_name'}],
     ['mold_name','금형명','text',null,'req'],
     ['customer_name','고객사','text'],
     ['model','모델','text'],
@@ -225,7 +251,8 @@ const VIEWS = {
   ]},
   search:[['금형코드','text','mold_code'],['금형명','text','mold_name'],['고객사','text','customer_name'],
           ['금형종류','text','mold_type'],['상태','sel-mst','status'],['보관위치','text','location']],
-  cols:[['금형코드',92,'','mold_code'],['금형명',150,'','mold_name'],['고객사',100,'','customer_name'],
+  cols:[['금형코드',92,'','mold_code'],['금형번호',86,'center','mold_no'],['등급',52,'center','grade','grade'],
+        ['금형명',150,'','mold_name'],['고객사',100,'','customer_name'],
         ['모델',90,'','model'],['금형종류',100,'center','mold_type'],['공장',60,'center','factory_code'],
         ['보관위치',110,'','location'],['타발수',96,'num','shot_count','n0'],['수명',96,'num','shot_limit','n0'],
         ['주기(일)',64,'num','cycle_days'],['최근점검',92,'center','last_inspection'],
@@ -474,6 +501,45 @@ const VIEWS = {
         ['구역',80,'center','zone_code'],['알람',80,'center','alert_type','st'],
         ['측정값',86,'num','value'],['임계값',86,'num','threshold'],
         ['상태',80,'center','status','st'],['조치',0,'','action']]
+},
+'grade-item':{
+  table:OBJ.gradeItem, order:'item_no.asc',
+  note:'등급 평가표 13항목입니다. <b>자동산출</b> : 1번(타발수 대장) · 8번(금형번호 앞자리). '+
+       '기본점수는 평가 이력이 없는 금형의 일괄산정에 쓰입니다. 항목명은 규정(TJP-EU0702-01)에 맞게 수정하세요.',
+  search:[['항목명','text','item_name']],
+  cols:[['NO',54,'center','item_no'],['평가항목',280,'','item_name'],
+        ['자동산출',90,'center','auto_source'],['기본점수',80,'num','default_score'],['비고',0,'','remark']],
+  edit:{ table:TBL.gradeItem, pk:'item_no', fields:[
+    ['item_no','항목번호(1~13)','num',null,'req'],
+    ['item_name','평가항목','text',null,'req'],
+    ['auto_source','자동산출','sel',['','shot','year']],
+    ['default_score','기본점수(1~5)','num',{def:2}],
+    ['remark','비고','area']
+  ]}
+},
+'daily-item':{
+  table:OBJ.dailyItem, order:'side.desc,item_no.asc',
+  note:'일상점검표 항목입니다 — <b>상형 8 / 하형 8</b>. 항목명은 현장 규정에 맞게 수정하세요.',
+  search:[['구분','sel-side','side'],['항목명','text','item_name']],
+  cols:[['구분',66,'center','side','st'],['NO',54,'center','item_no'],
+        ['점검항목',320,'','item_name'],['사용',60,'center','is_active','bool']],
+  edit:{ table:TBL.dailyItem, pk:'item_no', pk2:'side', auto:false, fields:[
+    ['side','구분','sel',['상형','하형'],'req'],
+    ['item_no','항목번호(1~8)','num',null,'req'],
+    ['item_name','점검항목','text',null,'req'],
+    ['is_active','사용','bool']
+  ]}
+},
+'wash-step':{
+  table:OBJ.washStep, order:'step_no.asc',
+  note:'정기세척 <b>6단계</b> 공정입니다. 세척점검 화면의 체크 항목으로 그대로 표시됩니다.',
+  search:[['단계명','text','step_name']],
+  cols:[['단계',60,'center','step_no'],['세척 공정',360,'','step_name'],['사용',60,'center','is_active','bool']],
+  edit:{ table:TBL.washStep, pk:'step_no', fields:[
+    ['step_no','단계(1~6)','num',null,'req'],
+    ['step_name','세척 공정','text',null,'req'],
+    ['is_active','사용','bool']
+  ]}
 },
 'machine':{
   table:OBJ.machine, order:'sort_order.asc',
