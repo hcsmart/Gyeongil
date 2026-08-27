@@ -77,7 +77,7 @@ create table if not exists public.ki_env_alert (
   alert_id bigserial primary key, sensor_code text, occurred_at timestamptz default now(),
   alert_type text, value numeric, threshold numeric, status text default '발생', action text);
 
-/* --- 금형 수명관리 (TJP-EU0702-01) --- */
+/* --- 금형 수명관리 (등급 · 타발수 · 점검) --- */
 create table if not exists public.ki_shot_ledger (
   mold_code text not null, year integer not null,
   m1 numeric,m2 numeric,m3 numeric,m4 numeric,m5 numeric,m6 numeric,
@@ -716,7 +716,7 @@ on conflict do nothing;
 
 -- 점검주기 기준 (정기 · 세척)
 insert into public.ki_cycle_rule(rule_id,kind,target,cycle_days,limit_shot,plan_months,label,sort_order,remark) values
- ('GRADE_A','정기','A',365,null,array[6],        '1회/년',    1,'TJP-EU0702-01 · 총점 20점 이하'),
+ ('GRADE_A','정기','A',365,null,array[6],        '1회/년',    1,'총점 20점 이하'),
  ('GRADE_B','정기','B',180,null,array[3,9],      '1회/6개월', 2,'총점 21~38점'),
  ('GRADE_C','정기','C', 90,null,array[3,6,9,12], '1회/3개월', 3,'총점 39점 이상'),
  ('GRADE_F','정기','F',null,null,array[]::int[], '사용시',    4,'A/S · 단종 — 자동산정 제외'),

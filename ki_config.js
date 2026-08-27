@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v9.2',
+  VER      : 'v9.3',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -527,7 +527,7 @@ const VIEWS = {
 'grade-item':{
   table:OBJ.gradeItem, order:'item_no.asc',
   note:'등급 평가표 13항목입니다. <b>자동산출</b> : 1번(타발수 대장) · 8번(금형번호 앞자리). '+
-       '기본점수는 평가 이력이 없는 금형의 일괄산정에 쓰입니다. 항목명은 규정(TJP-EU0702-01)에 맞게 수정하세요.',
+       '기본점수는 평가 이력이 없는 금형의 일괄산정에 쓰입니다. 항목명·배점은 <b>사내 금형관리 규정</b>에 맞게 수정하세요.',
   search:[['항목명','text','item_name']],
   cols:[['NO',54,'center','item_no'],['평가항목',280,'','item_name'],
         ['자동산출',90,'center','auto_source'],['기본점수',80,'num','default_score'],['비고',0,'','remark']],
@@ -554,7 +554,8 @@ const VIEWS = {
 },
 'cycle-rule':{
   table:OBJ.cycleRule, order:'sort_order.asc',
-  note:'모든 점검주기의 <b>근거 기준표</b>입니다. 여기 값을 바꾸면 정기점검 도래현황 · 연간 계획 · 세척 도래현황이 함께 바뀝니다.<br>'+
+  note:'점검주기의 <b>근거 기준표</b>입니다 — SQ 금형관리에서 요구하는 <b>주기 산정 근거</b>에 해당합니다. '+
+       '여기 값을 바꾸면 정기점검 도래현황 · 연간 계획 · 세척 도래현황이 함께 바뀝니다.<br>'+
        '<b>정기</b> — 등급별 주기(일)와 연간 계획 기본 배정월 · <b>세척</b> — 타발수 한도와 기간(일). 둘 중 하나라도 넘으면 도래 판정됩니다.',
   search:[['구분','sel-kind','kind'],['대상','text','target']],
   cols:[['구분',66,'center','kind','st'],['대상',80,'center','target'],
