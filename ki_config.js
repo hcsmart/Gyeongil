@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v11.1',
+  VER      : 'v11.2',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -130,10 +130,6 @@ const MENU = [
       { name:'추적', items:[
         {id:'lot-trace', f:'lot_trace.html', n:'LOT 이동이력', d:'외주업체 경유 이력'},
         {id:'lot-route', f:'lot_route.html', n:'LOT 진행현황', d:'공정 진척 · 현재 위치'}
-      ]},
-      { name:'기준', items:[
-        {id:'std-route', f:'std_route.html', n:'표준 공정경로', d:'표준공정 가공순서'},
-        {id:'vendor',    f:'vendor.html',    n:'외주업체',      d:'외주 가공 거래처'}
       ]}
     ]}
   ]},
@@ -171,12 +167,20 @@ const MENU = [
 
   { key:'base', name:'기준정보', second:[
     { key:'b-prod', name:'생산기준', icon:'▦', groups:[
-      { name:'설비 / 금형', items:[
-        {id:'mold-spec', f:'mold_spec.html', n:'금형정보', d:'금형 등록·수정·삭제 / 타입·비중 참조'},
-        {id:'machine',   f:'machine.html',   n:'호기설정', d:'호기번호 · 호기명'},
-        {id:'mold-loc',  f:'mold_location.html', n:'금형 보관위치', d:'보관위치 코드 · 명칭'},
+      { name:'금형', items:[
+        {id:'mold-spec', f:'mold_spec.html',     n:'금형정보',     d:'금형 등록·수정·삭제'},
         {id:'mold-type', f:'mold_type.html',     n:'금형타입',     d:'타입 코드 · 명칭'},
-        {id:'material',  f:'material.html',      n:'소재 비중정보', d:'소재코드 · 비중'}
+        {id:'material',  f:'material.html',      n:'소재 비중정보', d:'소재코드 · 비중'},
+        {id:'mold-loc',  f:'mold_location.html', n:'금형 보관위치', d:'보관위치 코드 · 명칭'}
+      ]},
+      { name:'설비', items:[
+        {id:'machine',   f:'machine.html',   n:'호기설정', d:'호기번호 · 호기명'}
+      ]}
+    ]},
+    { key:'b-osp', name:'외주기준', icon:'↔', groups:[
+      { name:'외주 기준정보', items:[
+        {id:'vendor',    f:'vendor.html',    n:'외주업체',      d:'외주 가공 거래처'},
+        {id:'std-route', f:'std_route.html', n:'표준 공정경로', d:'표준공정 가공순서'}
       ]}
     ]},
     { key:'b-chk', name:'점검기준', icon:'🔧', groups:[
