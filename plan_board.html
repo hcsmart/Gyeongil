@@ -41,7 +41,7 @@
   const $=KI.$, el=KI.el, esc=KI.esc;
   const cur=KI.chrome(MODE);
   const YEAR=new Date().getFullYear(), TODAY=new Date();
-  let ROWS=[], LEDGER={};
+  let ROWS=[], LEDGER={}, CYCR={};
 
   const ui=KI.page(cur, MODE==='plan-cal' ? [
     ['조회','primary',()=>loadPlan()],
@@ -130,6 +130,11 @@
   const d2s=d=>d?d.toISOString().slice(0,10):'';
   const dayDiff=(a,b)=>Math.round((new Date(a)-new Date(b))/864e5);
 
+  /* 금형별 주기가 등급 기준과 다른지 */
+  function mismatch(grade,cyc){
+    const g=CYCR[grade]; if(!g||g.cycle_days==null||cyc==null)return false;
+    return Number(g.cycle_days)!==Number(cyc);
+  }
   function badge(st){
     const c={'지연':'#fbe4e4;color:#b23030','도래(타발수)':'#fbe4e4;color:#b23030','도래(기간)':'#fbe4e4;color:#b23030',
              '임박':'#fdeeda;color:#b05c12','예정':'#e9f2fc;color:#1d568c','여유':'#e2f0e6;color:#15803d',
@@ -155,7 +160,8 @@
     const out=[];
     due.forEach(r=>{
       out.push({kind:'정기', code:r.mold_code, name:r.mold_name, cust:r.customer_name,
-        rule:(r.grade||'-')+'등급 · '+(r.cycle_days?r.cycle_days+'일':'주기 미지정'),
+        rule:(r.grade||'-')+'등급 · '+(r.cycle_days?r.cycle_days+'일':'주기 미지정')+
+             (mismatch(r.grade,r.cycle_days)?' <b style="color:#b05c12" title="등급 기준과 다릅니다">⚠</b>':''),
         last:r.last_inspection, next:r.next_inspection,
         dday:r.d_day, pct:null, status:r.due_status, go:'mold_inspection.html'});
     });
@@ -204,7 +210,7 @@
           ?'<span class="badge" style="background:#e9f2fc;color:#1d568c">정기</span>'
           :'<span class="badge" style="background:#eef3ea;color:#3f7d3f">세척</span>')+'</td>'+
         '<td style="font-weight:700">'+esc(r.code)+'</td><td>'+esc(r.name||'')+'</td>'+
-        '<td>'+esc(r.cust||'')+'</td><td style="font-size:11px;color:#5d6b78">'+esc(r.rule)+'</td>'+
+        '<td>'+esc(r.cust||'')+'</td><td style="font-size:11px;color:#5d6b78">'+r.rule+'</td>'+
         '<td class="center">'+esc(r.last||'-')+'</td>'+
         '<td class="center" style="font-weight:700;color:#22537f">'+esc(r.next||'-')+'</td>'+
         '<td class="center">'+dd+'</td>'+
@@ -229,15 +235,15 @@
     const years=[]; for(let y=YEAR;y<=toY;y++)years.push(y);
     const [plans,molds,res,rules,washStat,washes,led]=await Promise.all([
       KI.get(OBJ.inspPlan+'?select=*&year=in.('+years.join(',')+')'),
-      KI.get(OBJ.moldMst+'?select=mold_code,mold_name,customer_name,grade,prod_type&order=mold_code.asc'),
+      KI.get(OBJ.moldMst+'?select=mold_code,mold_name,customer_name,grade,prod_type,cycle_days&order=mold_code.asc'),
       KI.get(OBJ.inspHist+'?select=mold_code,inspection_date'),
       KI.get(OBJ.cycleRule+'?select=*&kind=eq.'+encodeURIComponent('정기')),
       KI.get(OBJ.washStat+'?select=*'),
       KI.get(OBJ.wash+'?select=mold_code,wash_date,wash_type'),
       KI.get(OBJ.shotLedger+'?select=*&year=eq.'+YEAR)
     ]);
-    CYC={}; LBL={};
-    rules.forEach(r=>{ CYC[r.target]=r.plan_months||[]; LBL[r.target]=r.label||''; });
+    CYC={}; LBL={}; CYCR={};
+    rules.forEach(r=>{ CYC[r.target]=r.plan_months||[]; LBL[r.target]=r.label||''; CYCR[r.target]=r; });
     LEDGER={}; led.forEach(r=>LEDGER[r.mold_code]=r);
     const WS={}; washStat.forEach(r=>WS[r.mold_code]=r);
 
@@ -281,8 +287,11 @@
     years.forEach(y=>{
       molds.forEach(m=>{
         const planned = (pm[y]&&pm[y][m.mold_code]) || CYC[m.grade] || [];
+        const bad=mismatch(m.grade,m.cycle_days);
         PLAN.push({year:y, kind:'정기', mold_code:m.mold_code, mold_name:m.mold_name,
-          grade:m.grade, rule:LBL[m.grade]||'-',
+          grade:m.grade,
+          rule:(LBL[m.grade]||'-')+(bad?' <b style="color:#b05c12" title="금형에는 '+
+               m.cycle_days+'일이 적용되어 있습니다">⚠ '+m.cycle_days+'일</b>':''),
           months:planned, auto:!(pm[y]&&pm[y][m.mold_code]),
           done:(doneInsp[y]&&doneInsp[y][m.mold_code])||[]});
       });
@@ -340,7 +349,7 @@
       const t=el('tr');
       t.innerHTML='<td style="font-weight:700">'+esc(r.mold_code)+'</td><td>'+esc(r.mold_name||'')+'</td>'+
         '<td class="center" style="font-weight:800">'+esc(r.grade||'-')+'</td>'+
-        '<td class="center" style="font-size:11px;color:#5d6b78">'+esc(r.rule)+'</td>'+
+        '<td class="center" style="font-size:11px;color:#5d6b78">'+r.rule+'</td>'+
         '<td>'+cells+'</td>'+
         '<td class="num">'+ms.length+'</td><td class="num">'+dCnt+'</td>'+
         '<td class="center" style="font-weight:800;color:'+(rate==null?'#96a2ad':rate>=100?'#15803d':rate>=50?'#b05c12':'#b23030')+'">'+
@@ -362,16 +371,29 @@
     const desc=Object.keys(map).map(g=>g+'='+(map[g].length?map[g].join(',')+'월':'미배정')).join(' · ');
     if(!confirm(years.join(', ')+'년 정기점검 계획표를 자동 생성합니다.\n\n'+desc+
                 '\n\n[점검기준 › 점검주기 기준]의 배정월을 따르며 기존 계획은 덮어씁니다.\n'+
+                '금형별 점검주기(일)도 등급 기준값으로 함께 맞춥니다.\n'+
                 '(세척은 타발수 예측으로 자동 표시되어 별도 생성이 없습니다)\n\n계속할까요?'))return;
     try{
-      const molds=await KI.get(OBJ.moldMst+'?select=mold_code,grade');
+      const molds=await KI.get(OBJ.moldMst+'?select=mold_code,grade,cycle_days,last_inspection');
+      /* 금형별 주기를 등급 기준으로 동기화 (다음 점검예정일도 재계산) */
+      const cyc={}; rules.forEach(r=>cyc[r.target]=r.cycle_days);
+      const fix=molds.filter(m=>cyc[m.grade]!=null && Number(m.cycle_days)!==Number(cyc[m.grade]));
+      for(const m of fix){
+        const body={cycle_days:cyc[m.grade]};
+        if(m.last_inspection){
+          const d=new Date(m.last_inspection); d.setDate(d.getDate()+Number(cyc[m.grade]));
+          body.next_inspection=d.toISOString().slice(0,10);
+        }
+        await KI.upd(TBL.mold,'mold_code=eq.'+encodeURIComponent(m.mold_code), body);
+      }
       const body=[];
       years.forEach(y=>molds.forEach(m=>body.push(
         {mold_code:m.mold_code, year:y, months:(map[m.grade]||[]), updated_at:new Date().toISOString()})));
       await KI.upsert(TBL.inspPlan+'?on_conflict=mold_code,year', body);
       await loadPlan();
       KI.msg('✓ 계획표 자동 생성 ('+years.length+'개년 × '+molds.length+'건)');
-      alert('✓ '+years.join(', ')+'년 계획표가 생성되었습니다 — 금형 '+molds.length+'건');
+      alert('✓ '+years.join(', ')+'년 계획표가 생성되었습니다 — 금형 '+molds.length+'건'+
+            (fix.length?'\n주기 재배정: '+fix.map(m=>m.mold_code).join(', '):''));
     }catch(e){ alert('❌ '+e.message); }
   }
 
@@ -384,7 +406,7 @@
           sl[m]=dn.some(a=>a>=m&&a<=end); });
         const dc=ms.filter(m=>sl[m]).length;
         const rate=ms.length?Math.round(dc/ms.length*100):'';
-        return [r.year,r.kind,r.mold_code,r.mold_name,r.grade,r.rule,
+        return [r.year,r.kind,r.mold_code,r.mold_name,r.grade,String(r.rule).replace(/<[^>]+>/g,''),
           ...[...Array(12)].map((_,i)=>{const m=i+1;
             return ms.includes(m)?(sl[m]?'실시':'미실시'):(dn.includes(m)?'실시':'');}),
           ms.length,dc,rate===''?'':rate+'%']
@@ -394,19 +416,22 @@
       return;
     }
     const head=['종류','품번','금형명','고객사','기준','최근실시','예정·예측','D-day','소진율','상태'];
-    const body=ROWS.map(r=>[r.kind,r.code,r.name,r.cust,r.rule,r.last,r.next,r.dday,r.pct,r.status]
+    const body=ROWS.map(r=>[r.kind,r.code,r.name,r.cust,String(r.rule).replace(/<[^>]+>/g,''),
+      r.last,r.next,r.dday,r.pct,r.status]
       .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
     const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
     a.download='점검계획_통합_'+d2s(TODAY)+'.csv'; a.click(); URL.revokeObjectURL(a.href);
   }
 
   async function load(){
-    const [due,wash,led]=await Promise.all([
+    const [due,wash,led,rules]=await Promise.all([
       KI.get(OBJ.moldDue+'?select=*'),
       KI.get(OBJ.washStat+'?select=*'),
-      KI.get(OBJ.shotLedger+'?select=*&year=eq.'+YEAR)
+      KI.get(OBJ.shotLedger+'?select=*&year=eq.'+YEAR),
+      KI.get(OBJ.cycleRule+'?select=*&kind=eq.'+encodeURIComponent('정기'))
     ]);
     LEDGER={}; led.forEach(r=>LEDGER[r.mold_code]=r);
+    CYCR={}; rules.forEach(r=>CYCR[r.target]=r);
     ROWS=build(due,wash);
     draw();
     KI.msg('정기 '+due.length+'건 · 세척 '+wash.length+'건');
