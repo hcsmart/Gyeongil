@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v10.4',
+  VER      : 'v10.5',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -90,8 +90,10 @@ const MENU = [
 
     { key:'m-plan', name:'점검계획', icon:'📅', groups:[
       { name:'점검계획', items:[
-        {id:'plan-board', f:'plan_board.html', n:'점검 도래 · 예측',
-         d:'정기 · 세척 통합 · 연간 계획표 자동생성'}
+        {id:'plan-board', f:'plan_board.html', n:'점검 도래현황',
+         d:'정기 · 세척 통합 → 클릭 시 등록'},
+        {id:'plan-cal', f:'plan_board.html?view=plan', n:'점검 예측 · 계획표',
+         d:'현재~선택연도 · 자동생성'}
       ]}
     ]},
 
