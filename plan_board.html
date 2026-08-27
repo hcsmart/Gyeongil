@@ -103,14 +103,14 @@
   const ptb=el('div','ck-tb');
   ptb.innerHTML='<span style="font-weight:700;color:#526171">연도</span> <select id="pyy"></select>'+
     '<span class="pl-lg" style="display:flex;gap:10px;align-items:center;padding:0 10px;color:#4d5a68">'+
-      '<span><i class="pl-m on"></i> 계획</span><span><i class="pl-m done">✓</i> 실시</span>'+
-      '<span><i class="pl-m miss">!</i> 미실시(경과)</span></span>'+
+      '<span><i class="pl-m on"></i> 계획</span><span><i class="pl-m done">✓</i> 완료</span>'+
+      '<span><i class="pl-m miss">!</i> 미결(경과)</span></span>'+
     '<span class="sp" id="prate"></span>';
   const ptbl=el('table','grid');
   ptbl.innerHTML='<thead><tr><th style="width:92px">품번</th><th style="width:150px">금형명</th>'+
     '<th style="width:96px">고객사</th><th style="width:52px">등급</th><th style="width:76px">주기</th>'+
-    '<th>연간 계획 (월)</th><th style="width:60px">계획</th><th style="width:60px">실시</th>'+
-    '<th style="width:76px">실시율</th></tr></thead><tbody></tbody>';
+    '<th>연간 계획 (월)</th><th style="width:60px">계획</th><th style="width:60px">완료</th>'+
+    '<th style="width:76px">상태</th></tr></thead><tbody></tbody>';
   ui.pg.appendChild(ptb); ui.pg.appendChild(pw); pw.appendChild(ptbl);
   ptb.style.display='none';
   const ptbody=ptbl.querySelector('tbody');
@@ -243,32 +243,52 @@
       (DONE[r.mold_code]=DONE[r.mold_code]||[]).push(d.getMonth()+1); });
     drawPlan(year);
   }
+  /* 계획월 이후에 실시했더라도 가장 오래된 미완료 계획 1건을 완료로 연결한다.
+     한 번의 점검 실적으로 여러 계획을 동시에 완료 처리하지 않는다. */
+  function matchPlanDone(ms, dn){
+    const plans=[...(ms||[])].sort((a,b)=>a-b);
+    const actual=[...(dn||[])].sort((a,b)=>a-b);
+    const matched={};
+    let ai=0;
+    plans.forEach(pm=>{
+      while(ai<actual.length && actual[ai]<pm) ai++;
+      if(ai<actual.length){ matched[pm]=actual[ai]; ai++; }
+    });
+    return matched;
+  }
+
   function drawPlan(year){
     const MON=new Date().getMonth()+1;
-    ptbody.innerHTML=''; let plan=0, done=0;
+    ptbody.innerHTML=''; let plan=0, done=0, due=0, pending=0;
     PLAN.forEach(r=>{
       const ms=r.months||[], dn=DONE[r.mold_code]||[];
-      plan+=ms.length; done+=ms.filter(m=>dn.includes(m)).length;
+      const matched=matchPlanDone(ms,dn);
+      const doneMonths=Object.keys(matched).map(Number);
+      const dueMonths=ms.filter(m=>year<YEAR || (year===YEAR&&m<MON));
+      const pendingMonths=dueMonths.filter(m=>!doneMonths.includes(m));
+
+      plan+=ms.length; done+=doneMonths.length; due+=dueMonths.length; pending+=pendingMonths.length;
       let cells='';
       for(let m=1;m<=12;m++){
-        const on=ms.includes(m), ok=dn.includes(m);
+        const on=ms.includes(m), ok=doneMonths.includes(m);
         const cls = on ? (ok?'done' : (year<YEAR||(year===YEAR&&m<MON)?'miss':'on')) : '';
-        cells+='<span class="pl-m '+cls+'">'+(ok?'✓':(on&&cls==='miss'?'!':m))+'</span>';
+        const title = ok ? '계획 '+m+'월 · 실제 실시 '+matched[m]+'월' : '';
+        cells+='<span class="pl-m '+cls+'"'+(title?' title="'+title+'"':'')+'>'+
+          (ok?'✓':(on&&cls==='miss'?'!':m))+'</span>';
       }
-      const rate=ms.length?Math.round(ms.filter(m=>dn.includes(m)).length/ms.length*100):null;
+
+      const status=pendingMonths.length?'미결':'완료';
       const t=el('tr');
       t.innerHTML='<td style="font-weight:700">'+esc(r.mold_code)+'</td><td>'+esc(r.mold_name||'')+'</td>'+
         '<td>'+esc(r.customer_name||'')+'</td><td class="center" style="font-weight:800">'+esc(r.grade||'-')+'</td>'+
         '<td class="center">'+esc(LBL[r.grade]||'-')+'</td><td>'+cells+'</td>'+
-        '<td class="num">'+ms.length+'</td><td class="num">'+ms.filter(m=>dn.includes(m)).length+'</td>'+
-        '<td class="center" style="font-weight:800;color:'+(rate==null?'#96a2ad':rate>=100?'#15803d':rate>=50?'#b05c12':'#b23030')+'">'+
-        (rate==null?'-':rate+'%')+'</td>';
+        '<td class="num">'+ms.length+'</td><td class="num">'+doneMonths.length+'</td>'+
+        '<td class="center" style="font-weight:800;color:'+(status==='완료'?'#15803d':'#b23030')+'">'+status+'</td>';
       ptbody.appendChild(t);
     });
     if(!PLAN.length) ptbody.innerHTML='<tr><td colspan="9" class="center" style="height:52px;color:#8894a0">대상이 없습니다.</td></tr>';
-    const pct=plan?Math.round(done/plan*100):0;
-    ptb.querySelector('#prate').innerHTML='계획 '+plan+'회 · 실시 '+done+'회 · '+
-      '<b style="color:#1d568c;font-size:13px">실시율 '+pct+'%</b>';
+    ptb.querySelector('#prate').innerHTML='계획 '+plan+'회 · 완료 '+done+'회 · '+
+      '<b style="color:'+(pending?'#b23030':'#15803d')+';font-size:13px">'+(pending?'미결 '+pending+'건':'미결 없음')+'</b>';
   }
   async function autoPlan(){
     if(!KI.can('plan-board','save')) return alert('계획 생성 권한이 없습니다.');
@@ -294,12 +314,20 @@
 
   function csv(){
     if(VIEW==='plan'){
-      const head=['품번','금형명','고객사','등급','주기',...[...Array(12)].map((_,i)=>(i+1)+'월'),'계획','실시','실시율'];
-      const body=PLAN.map(r=>{ const ms=r.months||[], dn=DONE[r.mold_code]||[];
-        const rate=ms.length?Math.round(ms.filter(m=>dn.includes(m)).length/ms.length*100):'';
+      const head=['품번','금형명','고객사','등급','주기',...[...Array(12)].map((_,i)=>(i+1)+'월'),'계획','완료','상태'];
+      const body=PLAN.map(r=>{
+        const ms=r.months||[], dn=DONE[r.mold_code]||[];
+        const matched=matchPlanDone(ms,dn);
+        const doneMonths=Object.keys(matched).map(Number);
+        const dueMonths=ms.filter(m=>Number(ptb.querySelector('#pyy').value)<YEAR ||
+          (Number(ptb.querySelector('#pyy').value)===YEAR&&m<new Date().getMonth()+1));
+        const status=dueMonths.some(m=>!doneMonths.includes(m))?'미결':'완료';
         return [r.mold_code,r.mold_name,r.customer_name,r.grade,LBL[r.grade],
-          ...[...Array(12)].map((_,i)=>{const m=i+1; return ms.includes(m)?(dn.includes(m)?'실시':'계획'):'';}),
-          ms.length,ms.filter(m=>dn.includes(m)).length,rate===''?'':rate+'%']
+          ...[...Array(12)].map((_,i)=>{
+            const m=i+1;
+            return ms.includes(m)?(doneMonths.includes(m)?'완료('+matched[m]+'월 실시)':'계획'):'';
+          }),
+          ms.length,doneMonths.length,status]
           .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','); });
       const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
       a.download='연간점검계획_'+(ptb.querySelector('#pyy').value)+'.csv'; a.click(); URL.revokeObjectURL(a.href);
