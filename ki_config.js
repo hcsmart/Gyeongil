@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v11.4',
+  VER      : 'v11.5',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -122,8 +122,13 @@ const MENU = [
 
   { key:'osp', name:'외주LOT관리', second:[
     { key:'o-io', name:'외주 입출고', icon:'↔', groups:[
+      { name:'발주', items:[
+        {id:'osp-order', f:'osp_lot.html?view=order', n:'외주발주',
+         d:'발주서 작성 · 수정 (구매)'}
+      ]},
       { name:'외주 진행', items:[
-        {id:'osp-lot', f:'osp_lot.html', n:'외주 LOT 관리', d:'발주 · 반출 · 입고 · 미입고 통합'}
+        {id:'osp-lot', f:'osp_lot.html', n:'외주 출고 · 입고',
+         d:'실물 반출 · 회수 처리 (품질)'}
       ]}
     ]},
     { key:'o-lot', name:'LOT 추적', icon:'🔎', groups:[

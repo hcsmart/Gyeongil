@@ -23,23 +23,32 @@
 <body>
 <script>
 (async function(){
-  if(!await KI.guard('osp-lot'))return;
+  const ORDER = new URLSearchParams(location.search).get('view')==='order';
+  const MODE  = ORDER ? 'osp-order' : 'osp-lot';
+  if(!await KI.guard(MODE))return;
   const $=KI.$, el=KI.el, esc=KI.esc;
-  const cur=KI.chrome('osp-lot');
-  const CAN_S=KI.can('osp-lot','save'), CAN_E=KI.can('osp-lot','edit'), CAN_D=KI.can('osp-lot','delete');
+  const cur=KI.chrome(MODE);
+  const CAN_S=KI.can(MODE,'save'), CAN_E=KI.can(MODE,'edit'), CAN_D=KI.can(MODE,'delete');
   const TODAY=new Date().toISOString().slice(0,10);
   let ROWS=[], VEN=[], PROC=[], MOLDS=[], sel=null;
 
-  const ui=KI.page(cur,[
+  const ui=KI.page(cur, ORDER ? [
     ['＋ 신규 발주 작성','primary',()=>clearSel()],
     ['새로고침','',()=>load()],
     ['엑셀(CSV)','',()=>csv()],
     ['인쇄','',()=>window.print()]
+  ] : [
+    ['새로고침','primary',()=>load()],
+    ['엑셀(CSV)','',()=>csv()],
+    ['인쇄','',()=>window.print()]
   ]);
   const nt=el('div','note');
-  nt.innerHTML='<b>발주(반출) → 가공 → 입고</b>를 LOT 단위로 한 화면에서 관리합니다. '+
-    '좌측에서 LOT을 고르면 <b>출고 · 입고</b>를 처리하고, 신규 발주는 [＋ 신규 발주 작성]으로 등록합니다. '+
-    '발주만 하고 아직 안 보낸 건은 <b>출고대기</b>, 보낸 뒤 미입고는 <b>반출중</b>입니다.';
+  nt.innerHTML = ORDER
+    ? '외주 <b>발주서를 작성·수정</b>하는 화면입니다. LOT번호 · 금형제번 · 매핑품번 · 외주처 · 납기 · 단가를 등록합니다.<br>'+
+      '실물 <b>출고 · 입고 처리</b>는 [외주 출고 · 입고] 화면에서 합니다.'
+    : '외주처로 <b>실물을 내보내고 받는</b> 화면입니다. 좌측에서 LOT을 고르고 <b>[출고 처리] · [입고 처리]</b>를 누르세요.<br>'+
+      '발주만 하고 아직 안 보낸 건은 <b>출고대기</b>, 보낸 뒤 미입고는 <b>반출중</b>입니다. '+
+      '발주 내용 변경은 [외주발주] 화면에서 합니다.';
   ui.pg.appendChild(nt);
 
   const sum=el('div','gv-sum'); sum.style.margin='0 7px';
@@ -84,6 +93,14 @@
       '<button class="btn primary" id="bSave">💾 저장</button></div></div>';
   ui.pg.appendChild(w);
 
+  /* 품질(출고·입고) 모드에서는 발주 항목을 읽기 전용으로 */
+  const ORDER_FIELDS=['fItem','fPart','fMp','fVen','fOdate','fEdate','fQuote','fMold','fMap','fJob','fPname'];
+  function applyMode(){
+    if(ORDER) return;
+    ORDER_FIELDS.forEach(id=>{ const e=$('#'+id); if(!e)return;
+      e.readOnly=true; e.disabled=(e.tagName==='SELECT');
+      e.style.background='#f2f5f8'; e.style.color='#5d6b78'; });
+  }
   const fmt=v=>(v==null||v==='')?'':Number(v).toLocaleString();
   const addD=(d,n)=>{const t=new Date(d);t.setDate(t.getDate()+n);return t.toISOString().slice(0,10)};
 
@@ -153,6 +170,7 @@
       : (($('#fMold').value||$('#fMap').value)
           ? '<span style="color:#b05c12">⚠ 금형정보에 없는 값입니다 — 기준정보 › 금형정보에서 먼저 등록하세요.</span>' : '');
   }
+  applyMode();
   $('#fMold').addEventListener('change',()=>syncMold('mold'));
   $('#fMap').addEventListener('change',()=>syncMold('map'));
   $('#fMold').addEventListener('input',()=>syncMold('mold'));
@@ -173,6 +191,18 @@
   }
 
   function clearSel(){
+    if(!ORDER){
+      sel=null;
+      document.querySelectorAll('#list .ui-row.sel').forEach(x=>x.classList.remove('sel'));
+      $('#ttl').textContent='LOT 선택';
+      ORDER_FIELDS.concat(['fSdate','fIdate']).forEach(id=>{const e=$('#'+id); if(e)e.value='';});
+      $('#warn').innerHTML='<div class="note" style="margin:0">좌측 목록에서 LOT을 선택하세요. '+
+        '발주 등록은 [외주발주] 화면에서 합니다.</div>';
+      drawSteps(null); $('#hist').innerHTML=''; $('#mapInfo').innerHTML='';
+      $('#bDel').style.display='none'; $('#bIn').style.display='none';
+      $('#bOut').style.display='none'; $('#bSave').style.display='none';
+      $('#oMsg').textContent=''; return;
+    }
     sel=null;
     document.querySelectorAll('#list .ui-row.sel').forEach(x=>x.classList.remove('sel'));
     $('#ttl').textContent='신규 발주 등록';
@@ -183,10 +213,11 @@
     $('#fQuote').value='';
     $('#warn').innerHTML=''; drawSteps(null); $('#hist').innerHTML='';
     $('#bDel').style.display='none'; $('#bIn').style.display='none'; $('#bOut').style.display='none';
+    $('#bSave').style.display=(ORDER&&CAN_S)?'':'none';
     $('#oMsg').textContent='';
   }
   function pick(){
-    $('#ttl').textContent='LOT — '+(sel.part||'')+' · '+(sel.item||'');
+    $('#ttl').textContent=(ORDER?'발주 — ':'출고 · 입고 — ')+(sel.part||'')+' · '+(sel.item||'');
     $('#fItem').value=sel.item||''; $('#fPart').value=sel.part||'';
     $('#fJob').value=sel.job||''; $('#fPname').value=sel.partName||'';
     $('#fMold').value=sel.mold_no||''; $('#fMap').value=sel.map_part||''; syncMold('mold');
@@ -202,9 +233,10 @@
       wn.innerHTML='<div class="note" style="margin:0;border-left-color:#b05c12;background:#fdf8f1;color:#8a5a2b">납기 임박 — '+esc(sel.edate)+'</div>';
     else wn.innerHTML='';
     drawSteps(sel); drawHist();
-    $('#bDel').style.display=CAN_D?'':'none';
-    $('#bOut').style.display=(CAN_E&&!sel.sdate&&!sel.idate)?'':'none';
-    $('#bIn').style.display=(CAN_E&&sel.sdate&&!sel.idate)?'':'none';
+    $('#bDel').style.display=(ORDER&&CAN_D)?'':'none';
+    $('#bOut').style.display=(!ORDER&&CAN_E&&!sel.sdate&&!sel.idate)?'':'none';
+    $('#bIn').style.display=(!ORDER&&CAN_E&&sel.sdate&&!sel.idate)?'':'none';
+    $('#bSave').style.display=(ORDER?CAN_S:CAN_E)?'':'none';
     $('#oMsg').textContent='';
   }
 
@@ -222,6 +254,19 @@
   }
   async function save(){
     const m=$('#oMsg');
+    if(!ORDER){
+      if(!sel){ m.className='msg err'; m.textContent='좌측에서 LOT을 선택하세요.'; return; }
+      const sd=$('#fSdate').value||null, idt=$('#fIdate').value||null;
+      if(idt && !sd){ m.className='msg err'; m.textContent='출고 처리 후 입고할 수 있습니다.'; return; }
+      m.className='msg'; m.textContent='저장중...';
+      try{
+        await KI.upd(TBL.ospOrder,'no=eq.'+sel.no,
+          {sdate:sd, idate:idt, st: idt?'완료':(sd?'진행':'발주')});
+        m.className='msg ok'; m.textContent='✓ 저장되었습니다.';
+        const keep=sel.no; await load(); sel=ROWS.find(r=>r.no===keep)||null; if(sel)pick();
+      }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
+      return;
+    }
     const b=body();
     if(!b.part){ m.className='msg err'; m.textContent='LOT번호를 입력하세요.'; return; }
     if(!b.mp||!b.vendor){ m.className='msg err'; m.textContent='가공공정과 외주처를 선택하세요.'; return; }

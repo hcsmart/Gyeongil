@@ -512,6 +512,33 @@ left join public.ki_mold m on m.mold_code = w.mold_code
 cross join lateral unnest(coalesce(w.steps, array['(세척항목 미기록)']))
            with ordinality s(step, ord);
 
+/* 잔여 개방 정책 정리 — anon 허용 · 무조건 허용(auth_all) 제거
+   (구버전에서 넘어온 정책이 남아 있으면 ki_can 권한 판정이 우회된다) */
+do $$
+declare r record;
+begin
+  for r in
+    select c.relname t, p.polname n
+    from pg_policy p join pg_class c on c.oid=p.polrelid
+    join pg_namespace ns on ns.oid=c.relnamespace
+    where ns.nspname='public'
+      and exists (select 1 from unnest(p.polroles) ro where ro::regrole::text = 'anon')
+  loop execute format('drop policy if exists %I on public.%I', r.n, r.t); end loop;
+
+  for r in
+    select c.relname t, p.polname n
+    from pg_policy p join pg_class c on c.oid=p.polrelid
+    join pg_namespace ns on ns.oid=c.relnamespace
+    where ns.nspname='public'
+      and c.relname in (select table_name from public.ki_table_menu)
+      and coalesce(pg_get_expr(p.polqual,p.polrelid),'true')='true'
+      and coalesce(pg_get_expr(p.polwithcheck,p.polrelid),'true')='true'
+      and p.polname not like '%\_sel' and p.polname not like '%\_ins'
+      and p.polname not like '%\_upd' and p.polname not like '%\_del'
+      and p.polname not like 'ki\_%'
+  loop execute format('drop policy if exists %I on public.%I', r.n, r.t); end loop;
+end $$;
+
 /* 시스템 */
 
 create view public.ki_v_permission with (security_invoker=true) as
