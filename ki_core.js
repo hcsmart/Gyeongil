@@ -433,6 +433,7 @@ const POST={
     rows.forEach(r=>{
       const st=Array.isArray(r.steps)?r.steps:[], chain=st.map(s=>s.mp).join(' → ');
       st.forEach((s,i)=>out.push({job:r.job,part:r.part,proc:r.proc,seq:i+1,mp:s.mp,mpName:pName(s.mp),
+        map_part:s.map_part||r.map_part||'', mold_no:s.mold_no||r.mold_no||'',
         vendor:s.vendor,date:s.date,prevMp:i>0?st[i-1].mp:'-',nextMp:i<st.length-1?st[i+1].mp:'-',chain:chain}));
     });
     /* 최신순 : 날짜 내림차순, 같은 날짜면 공정 순번 뒤인 것이 먼저 */

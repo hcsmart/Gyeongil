@@ -187,7 +187,7 @@
     const hit=sd.filter(x=>seen.has(x)), total=sd.length||st.length||1;
     const done=m?hit.length:st.length;
     const rest=sd.filter(x=>!seen.has(x));
-    return {no:r.no, job:r.job, part:r.part, proc:r.proc, steps:st, last:last, std:m?m.rt:null,
+    return {no:r.no, job:r.job, part:r.part, proc:r.proc, map_part:r.map_part||'', steps:st, last:last, std:m?m.rt:null,
       sd:sd, seen:seen, done:done, total:total, rest:rest,
       rate: total?Math.round(done/total*100):0};
   }
@@ -296,7 +296,7 @@
     const e=new Date(); e.setDate(e.getDate()+7); $('#fEdate').value=e.toISOString().slice(0,10);
     $('#fQuote').value='';
     const prev=OSP.filter(o=>String(o.part||'')===String(c.part)&&(o.map_part||o.mold_no))[0];
-    $('#fMap').value=prev?(prev.map_part||(MOLDS.find(x=>x.mold_no===prev.mold_no)||{}).part_no||''):'';
+    $('#fMap').value=c.map_part||(prev?(prev.map_part||(MOLDS.find(x=>x.mold_no===prev.mold_no)||{}).part_no||''):'');
     syncMap();
     lotBody.innerHTML=''; lotRow(c.part||'','');
     $('#mMsg').textContent=''; $('#mMsg').className='msg';
