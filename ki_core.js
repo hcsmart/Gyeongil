@@ -637,9 +637,10 @@ function loadXLSX(){
   return XLSXP;
 }
 function upFields(E){
-  return E.fields.filter(f=>f[4]!=='ro' && !(E.auto && f[0]===E.pk));
+  return E.fields.filter(f=>f[4]!=='ro');
 }
 const upLabel = f => f[1]+(f[4]==='req'?'*':'');
+const upHint  = (E,f) => (E.auto&&f[0]===E.pk)?' (신규는 비움)':'';
 const normKey = s => String(s==null?'':s).replace(/[*＊\s()（）·]/g,'').toLowerCase();
 const typeName = t => ({text:'문자',num:'숫자',date:'날짜(YYYY-MM-DD)',datetime:'일시',
                         bool:'사용 / 미사용',area:'문자(장문)',sel:'목록선택',ref:'코드',
@@ -788,7 +789,7 @@ function makeUpload(def, title, getRows, onSaved){
       '<div class="up-step">'+
         '<div class="up-num">2</div><div class="up-txt"><b>엑셀에서 작성</b> — 첫 행(머리글)은 <u>지우지 말고</u> 둘째 행부터 입력하세요. '+
         '＊ 표시는 필수 항목입니다. 열 순서를 바꿔도 머리글 이름으로 자동 인식합니다.'+
-        '<div class="up-order">'+FS.map(f=>'<span>'+esc(f[1])+(f[4]==='req'?'<b>＊</b>':'')+'</span>').join('')+'</div></div>'+
+        '<div class="up-order">'+FS.map(f=>'<span>'+esc(f[1]+upHint(E,f))+(f[4]==='req'?'<b>＊</b>':'')+'</span>').join('')+'</div></div>'+
       '</div>'+
       '<div class="up-step">'+
         '<div class="up-num">3</div><div class="up-txt"><b>업로드</b> — xlsx · xls · csv 파일을 올리면 자동 검증됩니다.'+
@@ -903,13 +904,21 @@ function makeUpload(def, title, getRows, onSaved){
     const ng=parsed.filter(o=>o.err.length);
     if(ng.length) return setMsg('❌ 오류 '+ng.length+'건이 있어 저장할 수 없습니다.','err');
     if(!confirm(parsed.length+'건을 저장하시겠습니까?')) return;
-    const rows=parsed.map(o=>o.body), N=200; let done=0;
+    const rows=parsed.map(o=>Object.assign({},E.fixed||{},o.body)), N=200; let done=0;
+    const upok=$('#uUp',mask).checked;
     setMsg('저장중...');
     try{
       for(let i=0;i<rows.length;i+=N){
         const part=rows.slice(i,i+N);
-        if($('#uUp',mask).checked && !E.auto) await upsert(E.table,part);
-        else                                   await ins(E.table,part);
+        if(E.auto){
+          /* 번호가 비어있으면 신규(자동채번), 번호가 있으면 갱신 */
+          const nw=part.filter(r=>r[E.pk]==null).map(r=>{ const c=Object.assign({},r); delete c[E.pk]; return c; });
+          const ex=part.filter(r=>r[E.pk]!=null);
+          if(nw.length) await ins(E.table,nw);
+          if(ex.length) await (upok?upsert(E.table,ex):ins(E.table,ex));
+        }
+        else if(upok) await upsert(E.table,part);
+        else          await ins(E.table,part);
         done+=part.length; setMsg('저장중... '+done+'/'+rows.length);
       }
       reset(); $('#uDropTxt',mask).innerHTML='파일을 이곳에 끌어놓거나 <b>클릭</b>하여 선택';
