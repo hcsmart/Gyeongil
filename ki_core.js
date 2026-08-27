@@ -255,7 +255,7 @@ function chrome(curId){
       const its=g.items.filter(okItem); if(!its.length) return '';
       return '<div class="group"><div class="group-title">'+esc(g.name)+'</div>'+
         its.map(x=>'<a class="item'+(x.id===curId?' on':'')+'" href="'+x.f+'" title="'+esc(x.d||'')+'">'+
-          esc(x.n)+'<small>'+esc(x.d||'')+'</small></a>').join('')+'</div>';
+          esc(x.n)+'</a>').join('')+'</div>';
     }).join('') || '<div style="padding:16px;color:#7a8793">권한이 있는 메뉴가 없습니다.</div>';
   }
   drawMod(); drawSec(); drawTree(); drawPath();
