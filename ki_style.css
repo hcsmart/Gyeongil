@@ -46,9 +46,9 @@ button{cursor:pointer}
 /* ===== 좌측 트리 ===== */
 .left{position:fixed;top:calc(var(--top1) + var(--top2));left:0;bottom:var(--status);width:var(--left);
   background:#f5f7f8;border-right:1px solid #8f9ca8;z-index:18;display:flex;flex-direction:column}
-.tree-top{height:29px;border-bottom:1px solid #aab5bf;display:flex;align-items:center;padding:0 7px;gap:5px;
-  background:#eef2f5}
-.tree-top input{flex:1;height:21px;border:1px solid #aab6c1;background:#f9fbfc;padding:0 6px}
+.tree-top{height:30px;display:flex;align-items:center;padding:0 10px;flex:0 0 auto;
+  background:linear-gradient(#eef2f6,#e5ebf1);border-bottom:1px solid #b3bfca;
+  color:#2f4559;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tree{overflow:auto;padding:5px 0 10px;flex:1}
 .group{margin-bottom:1px}
 .group-title{padding:4px 8px;font-weight:800;color:#2f4559;display:flex;align-items:center;gap:5px}

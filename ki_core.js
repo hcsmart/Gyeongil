@@ -192,7 +192,7 @@ function chrome(curId){
 
   /* 좌측 트리 */
   const lf=el('div','left');
-  lf.innerHTML='<div class="tree-top"><input id="kiFind" placeholder="🔍 메뉴 검색 (Ctrl+K)"></div>'+
+  lf.innerHTML='<div class="tree-top" id="kiPath">'+esc(cur.modName)+' › '+esc(cur.secName||'')+'</div>'+
                '<div class="tree" id="kiTree"></div>'+
                '<div class="left-foot" id="kiFoot">⚙ '+esc(cur.modName)+'</div>';
   document.body.appendChild(lf);
@@ -221,7 +221,7 @@ function chrome(curId){
     $('#kiMod').innerHTML = MENU.filter(okMod).map(m=>
       '<button class="module'+(m.key===curMod?' on':'')+'" data-k="'+m.key+'">'+esc(m.name)+'</button>').join('');
     $('#kiMod').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
-      curMod=b.dataset.k; curSec=mod().second[0].key; drawMod(); drawSec(); drawTree();
+      curMod=b.dataset.k; curSec=mod().second[0].key; drawMod(); drawSec(); drawTree(); drawPath();
       $('#kiFoot').textContent='⚙ '+mod().name;
     }));
   }
@@ -230,21 +230,16 @@ function chrome(curId){
       '<button class="tool'+(x.key===curSec?' on':'')+'" data-k="'+x.key+'">'+
       '<span class="ico">'+x.icon+'</span><span>'+esc(x.name)+'</span></button>').join('');
     $('#kiSec').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
-      curSec=b.dataset.k; drawSec(); drawTree();
+      curSec=b.dataset.k; drawSec(); drawTree(); drawPath();
     }));
   }
-  function drawTree(q){
+  function drawPath(){
+    const p=$('#kiPath'); if(!p)return;
+    const m=mod(), s2=sec();
+    p.textContent=(m?m.name:'')+(s2?' › '+s2.name:'');
+  }
+  function drawTree(){
     const box=$('#kiTree');
-    if(q){                                   /* 검색 : 전 모듈 평면 결과 */
-      const hit=Object.keys(FLAT).map(k=>FLAT[k])
-        .filter(f=>okItem(f.it) && (f.it.n+' '+(f.it.d||'')+' '+f.path).toLowerCase().includes(q));
-      box.innerHTML = hit.length
-        ? '<div class="group"><div class="group-title">검색결과 '+hit.length+'건</div>'+
-          hit.map(f=>'<a class="item'+(f.it.id===curId?' on':'')+'" href="'+f.it.f+'">'+esc(f.it.n)+
-                     '<small>'+esc(f.path)+'</small></a>').join('')+'</div>'
-        : '<div style="padding:16px;color:#7a8793">검색 결과가 없습니다.</div>';
-      return;
-    }
     const PF=new Set();
     const prefetch=u=>{ if(!u||PF.has(u))return; PF.add(u);
       try{ const l=document.createElement('link'); l.rel='prefetch'; l.as='document'; l.href=u;
@@ -263,14 +258,7 @@ function chrome(curId){
           esc(x.n)+'<small>'+esc(x.d||'')+'</small></a>').join('')+'</div>';
     }).join('') || '<div style="padding:16px;color:#7a8793">권한이 있는 메뉴가 없습니다.</div>';
   }
-  drawMod(); drawSec(); drawTree();
-
-  const find=$('#kiFind');
-  find.addEventListener('input',e=>drawTree(e.target.value.trim().toLowerCase()));
-  document.addEventListener('keydown',e=>{
-    if(e.ctrlKey&&e.key.toLowerCase()==='k'){ e.preventDefault(); find.focus(); find.select(); }
-    if(e.key==='Escape'&&document.activeElement===find){ find.value=''; drawTree(); find.blur(); }
-  });
+  drawMod(); drawSec(); drawTree(); drawPath();
 
   /* --- 스플리터 --- */
   (function(){
