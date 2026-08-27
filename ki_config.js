@@ -30,6 +30,7 @@ const TBL = {                      /* 편집 대상 원천 테이블 */
   wash:'ki_wash', washStep:'ki_wash_step', inspPlan:'ki_insp_plan',
   cycleRule:'ki_cycle_rule', moldLoc:'ki_mold_location',
   moldType:'ki_mold_type', material:'ki_material',
+  vendorT:'vendors', stdRouteT:'machining_standard_routes',
   /* 외주 LOT (원천 테이블) */
   ospOrder:'outsourcing_order_status_rows',
   ospRecv :'outsourcing_receipt_confirm_candidates',
@@ -288,6 +289,11 @@ const VIEWS = {
 },
 'std-route':{
   table:OBJ.stdRoute, order:'standard_process_no.asc', post:'std',
+  edit:{ table:TBL.stdRouteT, pk:'standard_process_no', fields:[
+    ['standard_process_no','표준공정번호','num',null,'req'],
+    ['standard_process_name','표준공정명','text',null,'req'],
+    ['steps','가공공정 순서','list',null,'req']
+  ]},
   search:[['표준공정명','text','standard_process_name']],
   cols:[['No',46,'center','row_no'],['표준공정번호',100,'center','standard_process_no'],
         ['표준공정명',160,'','standard_process_name'],['단계수',60,'num','_cnt'],
@@ -295,10 +301,25 @@ const VIEWS = {
 },
 'vendor':{
   table:OBJ.vendor, order:'vendor_name.asc',
+  note:'외주가공 · 밀링 플래그가 모두 꺼진 업체는 이 화면(외주업체)에 표시되지 않습니다.',
+  edit:{ table:TBL.vendorT, pk:'vendor_code', fields:[
+    ['vendor_code','업체코드','text',null,'req'],
+    ['vendor_name','업체명','text',null,'req'],
+    ['vendor_type','구분','text'],
+    ['partner_type','협력형태','text'],
+    ['location_type','지역','text'],
+    ['ceo_name','대표자','text'],
+    ['phone','전화','text'],
+    ['outsourcing_flag','외주가공','bool',{def:true}],
+    ['milling_flag','밀링','bool',{def:false}],
+    ['remark','비고','area']
+  ]},
   search:[['업체명','text','vendor_name'],['업체코드','text','vendor_code'],['구분','text','vendor_type']],
   cols:[['No',46,'center','_i'],['업체코드',90,'','vendor_code'],['업체명',170,'','vendor_name'],
         ['구분',90,'center','vendor_type'],['협력형태',90,'center','partner_type'],
-        ['지역',80,'center','location_type'],['대표자',90,'','ceo_name'],['전화',110,'','phone'],['비고',0,'','remark']]
+        ['지역',80,'center','location_type'],['대표자',90,'','ceo_name'],['전화',110,'','phone'],
+        ['외주',50,'center','outsourcing_flag','bool'],['밀링',50,'center','milling_flag','bool'],
+        ['비고',0,'','remark']]
 },
 
 'env-hist':{

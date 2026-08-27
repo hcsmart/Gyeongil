@@ -538,6 +538,7 @@ function makeModal(def, onSaved){
     else if(ty==='area') ctl='<textarea id="e_'+k+'" maxlength="300"></textarea>';
     else if(ty==='sel'||ty==='ref') ctl='<select id="e_'+k+'"></select>';
     else if(ty==='num')  ctl='<input id="e_'+k+'" type="number" step="any">';
+    else if(ty==='list') ctl='<input id="e_'+k+'" type="text" maxlength="300" placeholder="예: P10 → P20 → P30">';
     else if(ty==='date') ctl='<input id="e_'+k+'" type="date">';
     else if(ty==='datetime') ctl='<input id="e_'+k+'" type="datetime-local">';
     else                 ctl='<input id="e_'+k+'" type="text" maxlength="120">';
@@ -580,6 +581,7 @@ function makeModal(def, onSaved){
       if(ty==='bool') c.value = String(v!==false);
       else if(ty==='datetime') c.value = v?String(v).replace(' ','T').substring(0,16):'';
       else if(ty==='date') c.value = v?String(v).substring(0,10):'';
+      else if(ty==='list') c.value = Array.isArray(v)?v.join(' → '):(v==null?'':v);
       else c.value = (v==null?'':v);
     });
     if(E.auto && !row){ const c=$('#e_'+E.pk,mask); if(c){ c.value=''; } }
@@ -595,6 +597,7 @@ function makeModal(def, onSaved){
       if(f[4]==='ro') continue;                 /* 기준정보 항목 : 저장 대상 제외 */
       let v=c.value;
       if(ty==='bool') v = (v==='true');
+      else if(ty==='list') v = toList(v).length?toList(v):null;
       else if(ty==='num') v = (v===''?null:Number(v));
       else if(ty==='datetime') v = (v===''?null:new Date(v).toISOString());
       else { v=String(v).trim(); if(v==='') v=null; }
@@ -639,11 +642,16 @@ function upFields(E){
 const upLabel = f => f[1]+(f[4]==='req'?'*':'');
 const normKey = s => String(s==null?'':s).replace(/[*＊\s()（）·]/g,'').toLowerCase();
 const typeName = t => ({text:'문자',num:'숫자',date:'날짜(YYYY-MM-DD)',datetime:'일시',
-                        bool:'사용 / 미사용',area:'문자(장문)',sel:'목록선택',ref:'코드'}[t]||'문자');
+                        bool:'사용 / 미사용',area:'문자(장문)',sel:'목록선택',ref:'코드',
+                        lookup:'코드 또는 명칭',list:'순서목록( → 또는 , 구분)'}[t]||'문자');
+const lkList = f => (typeof f[3]==='function'?f[3]():f[3])||[];
+const toList = s => String(s||'').split(/→|>|,|\//).map(x=>x.trim()).filter(Boolean);
 function allowText(f){
   if(f[2]==='sel') return (f[3]||[]).join(' / ');
   if(f[2]==='bool') return '사용 / 미사용';
   if(f[2]==='ref')  return '기준정보 코드';
+  if(f[2]==='lookup') return lkList(f).map(x=>x.v+'('+x.t+')').join(' / ');
+  if(f[2]==='list') return '예: P10 → P20 → P30';
   return '';
 }
 /* ---------- 파일 읽기 ---------- */
@@ -720,6 +728,16 @@ function ucell(f,raw){
     if(list&&list.indexOf(s)<0) return {v:s,e:null,w:lb+' 목록 외("'+s+'")'};
     return {v:s,e:null};
   }
+  if(ty==='lookup'){
+    const L=lkList(f);
+    if(!L.length) return {v:s,e:null};
+    const hit=L.find(x=>String(x.v)===s||String(x.t)===s);
+    return hit?{v:hit.v,e:null}:{v:null,e:lb+' 미등록("'+s+'")'};
+  }
+  if(ty==='list'){
+    const a=toList(s);
+    return a.length?{v:a,e:null}:(req?{v:null,e:lb+' 필수'}:{v:null,e:null});
+  }
   return {v:s,e:null};
 }
 function outVal(f,v){
@@ -727,6 +745,8 @@ function outVal(f,v){
   if(f[2]==='bool') return v===false?'미사용':'사용';
   if(f[2]==='date') return String(v).substring(0,10);
   if(f[2]==='datetime') return String(v).replace('T',' ').substring(0,16);
+  if(f[2]==='lookup'){ const h=lkList(f).find(x=>String(x.v)===String(v)); return h?h.t:v; }
+  if(f[2]==='list') return Array.isArray(v)?v.join(' → '):v;
   return v;
 }
 /* ---------- 템플릿 파일 생성 ---------- */
@@ -1001,5 +1021,5 @@ return {CFG:C, $:$, el:el, esc:esc,
         changePassword:changePassword, loadSess:loadSess, loadMe:loadMe,
         me:()=>ME, loginError:loginError, isAdmin:isAdmin, clearCache:cacheClear, can:can, session:session, guard:guard,
         header:chrome, chrome:chrome, page:page, masters:masters, M:M, msg:msg,
-        grid:grid, csv:csv, POST:POST, cell:cell, LK:LK, emailOf:emailOf};
+        grid:grid, csv:csv, makeUpload:makeUpload, POST:POST, cell:cell, LK:LK, emailOf:emailOf};
 })();

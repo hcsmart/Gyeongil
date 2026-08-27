@@ -23,8 +23,25 @@
   if(CAN_S||CAN_E) acts.push(['저장','primary',()=>save()]);
   if(CAN_S)        acts.push(['새로입력','',()=>clearForm()]);
   if(CAN_D)        acts.push(['삭제','danger',()=>remove()]);
+  if(CAN_S)        acts.push(['📊 엑셀 업로드','',()=>uploader.open()]);
   acts.push(['새로고침','',()=>loadAll()],['엑셀(CSV)','',()=>exportCsv()]);
   const ui=KI.page(cur,acts);
+
+  /* ---------- 엑셀 템플릿 업로드 ---------- */
+  const upDef={edit:{table:T_MOLD, pk:'mold_no', fields:[
+    ['mold_no','금형제번','text',null,'req'],
+    ['mold_type_code','금형타입','lookup',()=>TYPES.map(t=>({v:t.mold_type_code,t:t.mold_type_name}))],
+    ['material_code','소재재질','lookup',()=>MATS.map(m=>({v:m.material_code,t:m.material_name}))],
+    ['thickness_mm','소재두께(mm)','num'],
+    ['width_mm','소재폭(mm)','num'],
+    ['pitch_mm','피치(mm)','num'],
+    ['density','비중','num'],
+    ['part_no','매칭품번','text'],
+    ['asset_owner','자산처','text'],
+    ['remark','비고','area']
+  ]}};
+  const uploader=KI.makeUpload(upDef,'금형정보',()=>ROWS,
+    async n=>{ await loadMolds(); msg('✓ 엑셀 업로드 '+n+'건이 저장되었습니다.',true); });
 
   /* ---------- 입력 폼 ---------- */
   const F=el('div','form');
