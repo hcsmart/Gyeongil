@@ -541,6 +541,8 @@ function makeModal(def, onSaved){
     else if(ty==='date') ctl='<input id="e_'+k+'" type="date">';
     else if(ty==='datetime') ctl='<input id="e_'+k+'" type="datetime-local">';
     else                 ctl='<input id="e_'+k+'" type="text" maxlength="120">';
+    if(f[4]==='ro') ctl=ctl.replace(/^<(input|select|textarea)/,'<$1 disabled')
+      +'<div style="grid-column:2;color:#8b98a5;font-size:11px;margin-top:2px">기준정보에서 관리하는 항목입니다</div>';
     return '<div class="mrow"><label>'+esc(lb)+(f[4]==='req'?' *':'')+'</label>'+ctl+'</div>';
   }).join('');
   mask.innerHTML='<div class="modal"><h3 id="eTitle">등록<button class="x" id="eX">✕</button></h3>'+
@@ -590,6 +592,7 @@ function makeModal(def, onSaved){
     const m=$('#eMsg',mask), body={};
     for(const f of E.fields){
       const [k,lb,ty]=f, c=$('#e_'+k,mask); if(!c)continue;
+      if(f[4]==='ro') continue;                 /* 기준정보 항목 : 저장 대상 제외 */
       let v=c.value;
       if(ty==='bool') v = (v==='true');
       else if(ty==='num') v = (v===''?null:Number(v));

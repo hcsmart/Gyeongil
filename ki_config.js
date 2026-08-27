@@ -225,16 +225,18 @@ const VIEWS = {
 },
 'mold-master':{
   table:OBJ.moldMst, order:'mold_code.asc',
+  note:'금형번호 · 금형종류는 <b>기준정보 › 생산기준 › 금형정보</b>에서 관리하며 여기서는 수정할 수 없습니다. '+
+       '등급 · 타발수 · 보관위치 · 점검주기 등 운영 항목만 수정됩니다.',
   edit:{ table:TBL.mold, pk:'mold_code', fields:[
     ['mold_code','금형코드(품번)','text',null,'req'],
-    ['mold_no','금형번호','text'],
+    ['mold_no','금형번호','text',null,'ro'],
+    ['mold_type','금형종류','sel',['프로그레시브','트랜스퍼','단발','SEMI+단발','TPL','TR'],'ro'],
     ['grade','등급','sel',['A','B','C','F']],
     ['prod_type','생산구분','sel',['양산','A/S'],{def:'양산'}],
     ['machine_no','사용기계','ref',{table:OBJ.machine,v:'machine_no',t:'machine_name'}],
     ['mold_name','금형명','text',null,'req'],
     ['customer_name','고객사','text'],
     ['model','모델','text'],
-    ['mold_type','금형종류','sel',['프로그레시브','트랜스퍼','단발','SEMI+단발','TPL','TR']],
     ['factory_code','공장','ref',{table:OBJ.factory,v:'factory_code',t:'factory_name'}],
     ['location','보관위치','ref',{table:OBJ.moldLoc,v:'location_code',t:'location_name'}],
     ['shot_count','타발수','num'],
