@@ -15,23 +15,7 @@
 .pb-bar{height:9px;background:#eef1f4;border:1px solid #dbe1e7;position:relative;min-width:56px}
 .pb-bar i{position:absolute;left:0;top:0;bottom:0;background:#5b9bd5}
 .pb-bar i.warn{background:#e0a34a}.pb-bar i.ng{background:#c9524f}
-.pb-tab{display:flex;gap:2px;padding:6px 7px 0}
-.pb-tab button{height:27px;min-width:132px;border:1px solid #9ba8b4;border-bottom:0;
-  background:linear-gradient(#f4f6f8,#dde4e9);color:#5d6b78;font-weight:700}
-.pb-tab button.on{background:#fff;color:#244c73}
-.pl-m{width:26px;height:22px;border:1px solid #d6dde4;background:#fff;color:#8b98a5;font-size:10px;
-  display:inline-flex;align-items:center;justify-content:center;margin-right:2px}
-.pl-m.on{background:#2e77bd;border-color:#2e77bd;color:#fff;font-weight:800}
-.pl-m.done{background:#2f7d4d;border-color:#2f7d4d;color:#fff;font-weight:800}
-.pl-m.miss{background:#fbe4e4;border-color:#e0a5a5;color:#b23030;font-weight:800}
-
-/* grid header: keep the column title row at the top of each scroll area.
-   A global sticky-header offset can otherwise leave one body row above the header. */
-.grid-wrap .grid thead th{
-  position:sticky;
-  top:0 !important;
-  z-index:4;
-}
+.grid-wrap .grid thead th{position:sticky;top:0 !important;z-index:4}
 </style>
 <script src="ki_config.js"></script>
 <script src="ki_core.js"></script>
@@ -45,17 +29,42 @@
   const YEAR=new Date().getFullYear(), TODAY=new Date();
   let ROWS=[], LEDGER={};
 
+  /* 기존 '점검 도래 · 예측' 항목 바로 아래에 연간 계획표 메뉴를 추가한다.
+     좌측메뉴가 ki_config.js에서 중앙 관리되는 경우에도 이 페이지 단독으로 동작하도록 보강한 코드다. */
+  function ensureAnnualPlanMenu(){
+    if(document.querySelector('[data-annual-plan-link="1"]'))return;
+    const norm=s=>String(s||'').replace(/\s+/g,' ').trim();
+    const cand=[...document.querySelectorAll('a,button,li,div,span')]
+      .filter(n=>{ const t=norm(n.textContent); return (t.includes('점검 도래 · 예측')||t.includes('점검 도래·예측')) && t.length<90; })
+      .sort((a,b)=>norm(a.textContent).length-norm(b.textContent).length)[0];
+    if(!cand)return;
+    const item=cand.closest('li,a,button')||cand;
+    if(!item.parentElement)return;
+    const clone=item.cloneNode(true);
+    clone.setAttribute('data-annual-plan-link','1');
+    clone.removeAttribute('id');
+    clone.querySelectorAll('[id]').forEach(x=>x.removeAttribute('id'));
+    ['on','active','sel','selected','current'].forEach(c=>clone.classList.remove(c));
+    const target=clone.matches('a,button')?clone:(clone.querySelector('a,button')||clone);
+    if(target.tagName==='A') target.setAttribute('href','annual_plan.html');
+    else target.addEventListener('click',()=>{ location.href='annual_plan.html'; });
+    target.innerHTML='<span style="font-weight:700">▣ 연간 계획표</span><br><span style="font-size:11px;opacity:.82">정기점검 연간 계획 · 완료/미결</span>';
+    target.style.cursor='pointer';
+    clone.style.background='#f7f9fb';
+    clone.style.color='#24517a';
+    item.insertAdjacentElement('afterend',clone);
+  }
+  setTimeout(ensureAnnualPlanMenu,0);
+
   const ui=KI.page(cur,[
     ['조회','primary',()=>load()],
-    ['📅 연간 계획표 자동생성','green',()=>autoPlan()],
     ['엑셀(CSV)','',()=>csv()],
     ['인쇄','',()=>window.print()]
   ]);
   const nt=el('div','note');
   nt.innerHTML='정기점검과 세척점검의 <b>도래현황 · 예측일</b>을 한 화면에서 봅니다. '+
     '행을 클릭하면 해당 <b>점검 등록 화면</b>으로 이동해 바로 등록할 수 있습니다.<br>'+
-    '<b>예측일</b> — 정기는 최근 점검일 + 주기, 세척은 최근 3개월 평균 타발수로 잔여 한도 소진 시점을 자동 산출합니다.<br>'+
-    '<b>연간 계획표</b>는 [점검주기 기준]의 등급별 배정월로 자동 생성되며, 실시 여부는 점검 등록 실적으로 자동 판정됩니다.';
+    '<b>예측일</b> — 정기는 최근 점검일 + 주기, 세척은 최근 3개월 평균 타발수로 잔여 한도 소진 시점을 자동 산출합니다.';
   ui.pg.appendChild(nt);
 
   const sum=el('div','gv-sum'); sum.style.margin='0 7px';
@@ -63,18 +72,6 @@
                  ['w_due','세척 도래'],['w_soon','세척 임박'],['ok','정상']]
     .map(x=>'<div class="b"><div class="v" id="s_'+x[0]+'">0</div><div class="k">'+x[1]+'</div></div>').join('');
   ui.pg.appendChild(sum);
-
-  const tabs=el('div','pb-tab');
-  tabs.innerHTML='<button data-v="due" class="on">도래 · 예측</button>'+
-                 '<button data-v="plan">연간 계획표</button>';
-  ui.pg.appendChild(tabs);
-  let VIEW='due';
-  tabs.addEventListener('click',e=>{
-    const b=e.target.closest('button'); if(!b)return;
-    VIEW=b.dataset.v;
-    tabs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
-    swap();
-  });
 
   const tb=el('div','ck-tb');
   tb.innerHTML='<span style="font-weight:700;color:#526171">종류</span>'+
@@ -98,35 +95,6 @@
   gw.appendChild(tbl); ui.pg.appendChild(gw);
   const tbody=tbl.querySelector('tbody');
 
-  /* ── 연간 계획표 ── */
-  const pw=el('div','grid-wrap'); pw.style.display='none';
-  const ptb=el('div','ck-tb');
-  ptb.innerHTML='<span style="font-weight:700;color:#526171">연도</span> <select id="pyy"></select>'+
-    '<span class="pl-lg" style="display:flex;gap:10px;align-items:center;padding:0 10px;color:#4d5a68">'+
-      '<span><i class="pl-m on"></i> 계획</span><span><i class="pl-m done">✓</i> 완료</span>'+
-      '<span><i class="pl-m miss">!</i> 미결(경과)</span></span>'+
-    '<span class="sp" id="prate"></span>';
-  const ptbl=el('table','grid');
-  ptbl.innerHTML='<thead><tr><th style="width:92px">품번</th><th style="width:150px">금형명</th>'+
-    '<th style="width:96px">고객사</th><th style="width:52px">등급</th><th style="width:76px">주기</th>'+
-    '<th>연간 계획 (월)</th><th style="width:60px">계획</th><th style="width:60px">완료</th>'+
-    '<th style="width:76px">상태</th></tr></thead><tbody></tbody>';
-  ui.pg.appendChild(ptb); ui.pg.appendChild(pw); pw.appendChild(ptbl);
-  ptb.style.display='none';
-  const ptbody=ptbl.querySelector('tbody');
-  for(let y=YEAR-2;y<=YEAR+1;y++){ const o=el('option',null,y+'년'); o.value=y; if(y===YEAR)o.selected=true;
-    ptb.querySelector('#pyy').appendChild(o); }
-  ptb.querySelector('#pyy').addEventListener('change',()=>loadPlan());
-
-  let PLAN=[], DONE={}, CYC={}, LBL={};
-  function swap(){
-    const due = VIEW==='due';
-    tb.style.display = due?'':'none';   gw.style.display = due?'':'none';
-    ptb.style.display= due?'none':'';   pw.style.display = due?'none':'';
-    if(!due && !PLAN.length) loadPlan();
-  }
-
-  const fmt=v=>v==null?'':Number(v).toLocaleString();
   const d2s=d=>d?d.toISOString().slice(0,10):'';
   const dayDiff=(a,b)=>Math.round((new Date(a)-new Date(b))/864e5);
 
@@ -139,12 +107,10 @@
   const grp = st => /지연|도래/.test(st)?'지연 · 도래' : st==='임박'?'임박'
                   : /미실시|미지정/.test(st)?'미실시 · 미지정' : '정상';
 
-  /* 최근 3개월 평균 월 타발수 */
   function avgMonthly(code){
     const l=LEDGER[code]; if(!l)return null;
     const ms=[...Array(12)].map((_,i)=>l['m'+(i+1)]);
-    const inc=[];
-    let prev=null;
+    const inc=[]; let prev=null;
     ms.forEach(v=>{ if(v==null)return; if(prev!=null && v-prev>0) inc.push(v-prev); prev=v; });
     if(!inc.length)return null;
     const last=inc.slice(-3);
@@ -224,115 +190,7 @@
     Object.keys(g).forEach(k=>$('#s_'+k).textContent=g[k]);
   }
 
-  async function loadPlan(){
-    const year=Number(ptb.querySelector('#pyy').value)||YEAR;
-    const [plans,molds,res,rules]=await Promise.all([
-      KI.get(OBJ.inspPlan+'?select=*&year=eq.'+year),
-      KI.get(OBJ.moldMst+'?select=mold_code,mold_name,customer_name,grade&order=mold_code.asc'),
-      KI.get(OBJ.inspHist+'?select=mold_code,inspection_date'),
-      KI.get(OBJ.cycleRule+'?select=*&kind=eq.'+encodeURIComponent('정기'))
-    ]);
-    CYC={}; LBL={};
-    rules.forEach(r=>{ CYC[r.target]=r.plan_months||[]; LBL[r.target]=r.label||''; });
-    const pm={}; plans.forEach(p=>pm[p.mold_code]=p);
-    PLAN=molds.map(m=>({mold_code:m.mold_code, mold_name:m.mold_name, customer_name:m.customer_name,
-      grade:m.grade, months:(pm[m.mold_code]||{}).months||[]}));
-    DONE={};
-    res.forEach(r=>{ if(!r.inspection_date)return;
-      const d=new Date(r.inspection_date); if(d.getFullYear()!==year)return;
-      (DONE[r.mold_code]=DONE[r.mold_code]||[]).push(d.getMonth()+1); });
-    drawPlan(year);
-  }
-  /* 계획월 이후에 실시했더라도 가장 오래된 미완료 계획 1건을 완료로 연결한다.
-     한 번의 점검 실적으로 여러 계획을 동시에 완료 처리하지 않는다. */
-  function matchPlanDone(ms, dn){
-    const plans=[...(ms||[])].sort((a,b)=>a-b);
-    const actual=[...(dn||[])].sort((a,b)=>a-b);
-    const matched={};
-    let ai=0;
-    plans.forEach(pm=>{
-      while(ai<actual.length && actual[ai]<pm) ai++;
-      if(ai<actual.length){ matched[pm]=actual[ai]; ai++; }
-    });
-    return matched;
-  }
-
-  function drawPlan(year){
-    const MON=new Date().getMonth()+1;
-    ptbody.innerHTML=''; let plan=0, done=0, due=0, pending=0;
-    PLAN.forEach(r=>{
-      const ms=r.months||[], dn=DONE[r.mold_code]||[];
-      const matched=matchPlanDone(ms,dn);
-      const doneMonths=Object.keys(matched).map(Number);
-      const dueMonths=ms.filter(m=>year<YEAR || (year===YEAR&&m<MON));
-      const pendingMonths=dueMonths.filter(m=>!doneMonths.includes(m));
-
-      plan+=ms.length; done+=doneMonths.length; due+=dueMonths.length; pending+=pendingMonths.length;
-      let cells='';
-      for(let m=1;m<=12;m++){
-        const on=ms.includes(m), ok=doneMonths.includes(m);
-        const cls = on ? (ok?'done' : (year<YEAR||(year===YEAR&&m<MON)?'miss':'on')) : '';
-        const title = ok ? '계획 '+m+'월 · 실제 실시 '+matched[m]+'월' : '';
-        cells+='<span class="pl-m '+cls+'"'+(title?' title="'+title+'"':'')+'>'+
-          (ok?'✓':(on&&cls==='miss'?'!':m))+'</span>';
-      }
-
-      const status=pendingMonths.length?'미결':'완료';
-      const t=el('tr');
-      t.innerHTML='<td style="font-weight:700">'+esc(r.mold_code)+'</td><td>'+esc(r.mold_name||'')+'</td>'+
-        '<td>'+esc(r.customer_name||'')+'</td><td class="center" style="font-weight:800">'+esc(r.grade||'-')+'</td>'+
-        '<td class="center">'+esc(LBL[r.grade]||'-')+'</td><td>'+cells+'</td>'+
-        '<td class="num">'+ms.length+'</td><td class="num">'+doneMonths.length+'</td>'+
-        '<td class="center" style="font-weight:800;color:'+(status==='완료'?'#15803d':'#b23030')+'">'+status+'</td>';
-      ptbody.appendChild(t);
-    });
-    if(!PLAN.length) ptbody.innerHTML='<tr><td colspan="9" class="center" style="height:52px;color:#8894a0">대상이 없습니다.</td></tr>';
-    ptb.querySelector('#prate').innerHTML='계획 '+plan+'회 · 완료 '+done+'회 · '+
-      '<b style="color:'+(pending?'#b23030':'#15803d')+';font-size:13px">'+(pending?'미결 '+pending+'건':'미결 없음')+'</b>';
-  }
-  async function autoPlan(){
-    if(!KI.can('plan-board','save')) return alert('계획 생성 권한이 없습니다.');
-    const year=Number(ptb.querySelector('#pyy').value)||YEAR;
-    if(!PLAN.length) await loadPlan();
-    const rules=await KI.get(OBJ.cycleRule+'?select=*&kind=eq.'+encodeURIComponent('정기'));
-    const map={}; rules.forEach(r=>map[r.target]=r.plan_months||[]);
-    const desc=Object.keys(map).map(g=>g+'='+(map[g].length?map[g].join(',')+'월':'미배정')).join(' · ');
-    if(!confirm(year+'년 연간 점검 계획표를 자동 생성합니다.\n\n'+desc+
-                '\n\n[점검기준 › 점검주기 기준]의 배정월을 따르며 기존 계획은 덮어씁니다. 계속할까요?'))return;
-    try{
-      const molds=await KI.get(OBJ.moldMst+'?select=mold_code,grade');
-      await KI.upsert(TBL.inspPlan+'?on_conflict=mold_code,year',
-        molds.map(m=>({mold_code:m.mold_code, year:year, months:(map[m.grade]||[]),
-                       updated_at:new Date().toISOString()})));
-      VIEW='plan';
-      tabs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.v==='plan'));
-      swap(); await loadPlan();
-      KI.msg('✓ '+year+'년 계획표 자동 생성 ('+molds.length+'건)');
-      alert('✓ '+year+'년 계획표가 생성되었습니다 — '+molds.length+'건');
-    }catch(e){ alert('❌ '+e.message); }
-  }
-
   function csv(){
-    if(VIEW==='plan'){
-      const head=['품번','금형명','고객사','등급','주기',...[...Array(12)].map((_,i)=>(i+1)+'월'),'계획','완료','상태'];
-      const body=PLAN.map(r=>{
-        const ms=r.months||[], dn=DONE[r.mold_code]||[];
-        const matched=matchPlanDone(ms,dn);
-        const doneMonths=Object.keys(matched).map(Number);
-        const dueMonths=ms.filter(m=>Number(ptb.querySelector('#pyy').value)<YEAR ||
-          (Number(ptb.querySelector('#pyy').value)===YEAR&&m<new Date().getMonth()+1));
-        const status=dueMonths.some(m=>!doneMonths.includes(m))?'미결':'완료';
-        return [r.mold_code,r.mold_name,r.customer_name,r.grade,LBL[r.grade],
-          ...[...Array(12)].map((_,i)=>{
-            const m=i+1;
-            return ms.includes(m)?(doneMonths.includes(m)?'완료('+matched[m]+'월 실시)':'계획'):'';
-          }),
-          ms.length,doneMonths.length,status]
-          .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','); });
-      const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
-      a.download='연간점검계획_'+(ptb.querySelector('#pyy').value)+'.csv'; a.click(); URL.revokeObjectURL(a.href);
-      return;
-    }
     const head=['종류','품번','금형명','고객사','기준','최근실시','예정·예측','D-day','소진율','상태'];
     const body=ROWS.map(r=>[r.kind,r.code,r.name,r.cust,r.rule,r.last,r.next,r.dday,r.pct,r.status]
       .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));

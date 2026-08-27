@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KI MES - 연간 계획표</title>
+<link rel="stylesheet" href="ki_style.css">
+<style>
+.pl-m{width:26px;height:22px;border:1px solid #d6dde4;background:#fff;color:#8b98a5;font-size:10px;
+  display:inline-flex;align-items:center;justify-content:center;margin-right:2px}
+.pl-m.on{background:#2e77bd;border-color:#2e77bd;color:#fff;font-weight:800}
+.pl-m.done{background:#2f7d4d;border-color:#2f7d4d;color:#fff;font-weight:800}
+.pl-m.miss{background:#fbe4e4;border-color:#e0a5a5;color:#b23030;font-weight:800}
+.grid-wrap .grid thead th{position:sticky;top:0 !important;z-index:4}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  if(!await KI.guard('plan-board'))return;
+  const el=KI.el, esc=KI.esc;
+  const cur=KI.chrome('plan-board');
+  const YEAR=new Date().getFullYear();
+  let PLAN=[], DONE={}, LBL={};
+
+  function ensureAnnualPlanMenu(){
+    if(document.querySelector('[data-annual-plan-link="1"]'))return;
+    const norm=s=>String(s||'').replace(/\s+/g,' ').trim();
+    const cand=[...document.querySelectorAll('a,button,li,div,span')]
+      .filter(n=>{ const t=norm(n.textContent); return (t.includes('점검 도래 · 예측')||t.includes('점검 도래·예측')) && t.length<90; })
+      .sort((a,b)=>norm(a.textContent).length-norm(b.textContent).length)[0];
+    if(!cand)return;
+    const item=cand.closest('li,a,button')||cand;
+    if(!item.parentElement)return;
+    const clone=item.cloneNode(true);
+    clone.setAttribute('data-annual-plan-link','1');
+    clone.removeAttribute('id');
+    clone.querySelectorAll('[id]').forEach(x=>x.removeAttribute('id'));
+    const target=clone.matches('a,button')?clone:(clone.querySelector('a,button')||clone);
+    if(target.tagName==='A') target.setAttribute('href','annual_plan.html');
+    else target.addEventListener('click',()=>{});
+    target.innerHTML='<span style="font-weight:700">▣ 연간 계획표</span><br><span style="font-size:11px;opacity:.9">정기점검 연간 계획 · 완료/미결</span>';
+    target.style.cursor='default';
+    item.insertAdjacentElement('afterend',clone);
+
+    /* chrome('plan-board') 때문에 원래 항목이 선택 상태로 잡히므로, 연간계획표 페이지에서는 시각적으로 선택을 옮긴다. */
+    item.style.background='#f7f9fb';
+    item.style.color='#24517a';
+    clone.style.background='#2f7fbd';
+    clone.style.color='#fff';
+  }
+  setTimeout(ensureAnnualPlanMenu,0);
+
+  /* 본문 제목만 연간 계획표로 교체한다. 좌측 메뉴 텍스트는 건드리지 않는다. */
+  function renameHeading(){
+    const norm=s=>String(s||'').replace(/\s+/g,' ').trim();
+    [...document.querySelectorAll('h1,h2,h3,.page-title,.pg-title,.title')].forEach(n=>{
+      const t=norm(n.textContent);
+      if(t==='점검 도래 · 예측'||t==='점검 도래·예측') n.textContent='연간 계획표';
+    });
+  }
+  setTimeout(renameHeading,0);
+
+  const ui=KI.page(cur,[
+    ['📅 연간 계획표 자동생성','green',()=>autoPlan()],
+    ['엑셀(CSV)','',()=>csv()],
+    ['인쇄','',()=>window.print()]
+  ]);
+
+  const nt=el('div','note');
+  nt.innerHTML='<b>연간 계획표</b>는 [점검주기 기준]의 등급별 배정월로 자동 생성됩니다. '+
+    '계획월이 지난 뒤 실시한 점검도 해당 계획의 <b>완료(✓)</b>로 연결하며, 경과 후 미실시 건은 <b>미결(!)</b>로 표시합니다.';
+  ui.pg.appendChild(nt);
+
+  const ptb=el('div','ck-tb');
+  ptb.innerHTML='<span style="font-weight:700;color:#526171">연도</span> <select id="pyy"></select>'+
+    '<span class="pl-lg" style="display:flex;gap:10px;align-items:center;padding:0 10px;color:#4d5a68">'+
+      '<span><i class="pl-m on"></i> 계획</span><span><i class="pl-m done">✓</i> 완료</span>'+
+      '<span><i class="pl-m miss">!</i> 미결(경과)</span></span>'+
+    '<span class="sp" id="prate"></span>';
+  ui.pg.appendChild(ptb);
+
+  const pw=el('div','grid-wrap');
+  const ptbl=el('table','grid');
+  ptbl.innerHTML='<thead><tr><th style="width:92px">품번</th><th style="width:150px">금형명</th>'+
+    '<th style="width:96px">고객사</th><th style="width:52px">등급</th><th style="width:76px">주기</th>'+
+    '<th>연간 계획 (월)</th><th style="width:60px">계획</th><th style="width:60px">완료</th>'+
+    '<th style="width:76px">상태</th></tr></thead><tbody></tbody>';
+  pw.appendChild(ptbl); ui.pg.appendChild(pw);
+  const ptbody=ptbl.querySelector('tbody');
+
+  for(let y=YEAR-2;y<=YEAR+1;y++){
+    const o=el('option',null,y+'년'); o.value=y; if(y===YEAR)o.selected=true;
+    ptb.querySelector('#pyy').appendChild(o);
+  }
+  ptb.querySelector('#pyy').addEventListener('change',()=>loadPlan());
+
+  async function loadPlan(){
+    const year=Number(ptb.querySelector('#pyy').value)||YEAR;
+    const [plans,molds,res,rules]=await Promise.all([
+      KI.get(OBJ.inspPlan+'?select=*&year=eq.'+year),
+      KI.get(OBJ.moldMst+'?select=mold_code,mold_name,customer_name,grade&order=mold_code.asc'),
+      KI.get(OBJ.inspHist+'?select=mold_code,inspection_date'),
+      KI.get(OBJ.cycleRule+'?select=*&kind=eq.'+encodeURIComponent('정기'))
+    ]);
+    LBL={}; rules.forEach(r=>{ LBL[r.target]=r.label||''; });
+    const pm={}; plans.forEach(p=>pm[p.mold_code]=p);
+    PLAN=molds.map(m=>({mold_code:m.mold_code, mold_name:m.mold_name, customer_name:m.customer_name,
+      grade:m.grade, months:(pm[m.mold_code]||{}).months||[]}));
+    DONE={};
+    res.forEach(r=>{ if(!r.inspection_date)return;
+      const d=new Date(r.inspection_date); if(d.getFullYear()!==year)return;
+      (DONE[r.mold_code]=DONE[r.mold_code]||[]).push(d.getMonth()+1); });
+    drawPlan(year);
+  }
+
+  /* 계획월 이후의 실제 점검을 가장 오래된 미완료 계획 1건에 순서대로 연결한다. */
+  function matchPlanDone(ms, dn){
+    const plans=[...(ms||[])].sort((a,b)=>a-b);
+    const actual=[...(dn||[])].sort((a,b)=>a-b);
+    const matched={};
+    let ai=0;
+    plans.forEach(pm=>{
+      while(ai<actual.length && actual[ai]<pm) ai++;
+      if(ai<actual.length){ matched[pm]=actual[ai]; ai++; }
+    });
+    return matched;
+  }
+
+  function drawPlan(year){
+    const MON=new Date().getMonth()+1;
+    ptbody.innerHTML=''; let plan=0, done=0, pending=0;
+    PLAN.forEach(r=>{
+      const ms=r.months||[], dn=DONE[r.mold_code]||[];
+      const matched=matchPlanDone(ms,dn);
+      const doneMonths=Object.keys(matched).map(Number);
+      const dueMonths=ms.filter(m=>year<YEAR || (year===YEAR&&m<MON));
+      const pendingMonths=dueMonths.filter(m=>!doneMonths.includes(m));
+
+      plan+=ms.length; done+=doneMonths.length; pending+=pendingMonths.length;
+      let cells='';
+      for(let m=1;m<=12;m++){
+        const on=ms.includes(m), ok=doneMonths.includes(m);
+        const cls = on ? (ok?'done' : (year<YEAR||(year===YEAR&&m<MON)?'miss':'on')) : '';
+        const title = ok ? '계획 '+m+'월 · 실제 실시 '+matched[m]+'월' : '';
+        cells+='<span class="pl-m '+cls+'"'+(title?' title="'+title+'"':'')+'>'+
+          (ok?'✓':(on&&cls==='miss'?'!':m))+'</span>';
+      }
+
+      const status=pendingMonths.length?'미결':'완료';
+      const t=el('tr');
+      t.innerHTML='<td style="font-weight:700">'+esc(r.mold_code)+'</td><td>'+esc(r.mold_name||'')+'</td>'+
+        '<td>'+esc(r.customer_name||'')+'</td><td class="center" style="font-weight:800">'+esc(r.grade||'-')+'</td>'+
+        '<td class="center">'+esc(LBL[r.grade]||'-')+'</td><td>'+cells+'</td>'+
+        '<td class="num">'+ms.length+'</td><td class="num">'+doneMonths.length+'</td>'+
+        '<td class="center" style="font-weight:800;color:'+(status==='완료'?'#15803d':'#b23030')+'">'+status+'</td>';
+      ptbody.appendChild(t);
+    });
+    if(!PLAN.length) ptbody.innerHTML='<tr><td colspan="9" class="center" style="height:52px;color:#8894a0">대상이 없습니다.</td></tr>';
+    ptb.querySelector('#prate').innerHTML='계획 '+plan+'회 · 완료 '+done+'회 · '+
+      '<b style="color:'+(pending?'#b23030':'#15803d')+';font-size:13px">'+(pending?'미결 '+pending+'건':'미결 없음')+'</b>';
+  }
+
+  async function autoPlan(){
+    if(!KI.can('plan-board','save')) return alert('계획 생성 권한이 없습니다.');
+    const year=Number(ptb.querySelector('#pyy').value)||YEAR;
+    if(!PLAN.length) await loadPlan();
+    const rules=await KI.get(OBJ.cycleRule+'?select=*&kind=eq.'+encodeURIComponent('정기'));
+    const map={}; rules.forEach(r=>map[r.target]=r.plan_months||[]);
+    const desc=Object.keys(map).map(g=>g+'='+(map[g].length?map[g].join(',')+'월':'미배정')).join(' · ');
+    if(!confirm(year+'년 연간 점검 계획표를 자동 생성합니다.\n\n'+desc+
+                '\n\n[점검기준 › 점검주기 기준]의 배정월을 따르며 기존 계획은 덮어씁니다. 계속할까요?'))return;
+    try{
+      const molds=await KI.get(OBJ.moldMst+'?select=mold_code,grade');
+      await KI.upsert(TBL.inspPlan+'?on_conflict=mold_code,year',
+        molds.map(m=>({mold_code:m.mold_code, year:year, months:(map[m.grade]||[]),
+                       updated_at:new Date().toISOString()})));
+      await loadPlan();
+      KI.msg('✓ '+year+'년 계획표 자동 생성 ('+molds.length+'건)');
+      alert('✓ '+year+'년 계획표가 생성되었습니다 — '+molds.length+'건');
+    }catch(e){ alert('❌ '+e.message); }
+  }
+
+  function csv(){
+    const year=Number(ptb.querySelector('#pyy').value)||YEAR;
+    const head=['품번','금형명','고객사','등급','주기',...[...Array(12)].map((_,i)=>(i+1)+'월'),'계획','완료','상태'];
+    const body=PLAN.map(r=>{
+      const ms=r.months||[], dn=DONE[r.mold_code]||[];
+      const matched=matchPlanDone(ms,dn);
+      const doneMonths=Object.keys(matched).map(Number);
+      const dueMonths=ms.filter(m=>year<YEAR || (year===YEAR&&m<new Date().getMonth()+1));
+      const status=dueMonths.some(m=>!doneMonths.includes(m))?'미결':'완료';
+      return [r.mold_code,r.mold_name,r.customer_name,r.grade,LBL[r.grade],
+        ...[...Array(12)].map((_,i)=>{
+          const m=i+1;
+          return ms.includes(m)?(doneMonths.includes(m)?'완료('+matched[m]+'월 실시)':'계획'):'';
+        }),
+        ms.length,doneMonths.length,status]
+        .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');
+    });
+    const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
+    a.download='연간점검계획_'+year+'.csv'; a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  try{ await loadPlan(); }
+  catch(e){ ptbody.innerHTML='<tr><td colspan="9" class="center" style="height:60px;color:#b0442f">❌ '+
+    KI.esc(e.message)+'</td></tr>'; KI.msg('❌ '+e.message); }
+})();
+</script>
+</body>
+</html>
