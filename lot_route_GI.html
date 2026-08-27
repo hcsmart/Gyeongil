@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<style>
+.lr-list{margin:7px;flex:1;min-height:300px;display:flex;flex-direction:column;
+  border:1px solid #8494a4;background:#fff}
+.lr-list .grid-wrap{margin:0;border:0;flex:1}
+.lr-list .grid th{top:0}
+.grid tr.clk{cursor:pointer}
+.grid tr.clk:hover td{background:#eef5fc}
+.lr-bar{height:9px;background:#eef1f4;border:1px solid #dbe1e7;position:relative;min-width:52px}
+.lr-bar i{position:absolute;left:0;top:0;bottom:0;background:#5b9bd5}
+.lr-bar i.full{background:#2f7d4d}
+.lr-go{height:21px;padding:0 8px;border:1px solid #2e77bd;background:#2e77bd;color:#fff;
+  border-radius:2px;font-size:11px;font-weight:700;cursor:pointer}
+.lr-go:hover{background:#1d568c}
+.lr-dim{position:fixed;inset:0;background:rgba(30,40,50,.42);z-index:60;display:none}
+.lr-dim.on{display:block}
+.lr-mo{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:760px;max-width:94vw;
+  max-height:92vh;overflow:auto;background:#fff;border:1px solid #6d7d8c;box-shadow:0 8px 28px rgba(0,0,0,.28);z-index:61}
+.lr-mh{height:32px;display:flex;align-items:center;gap:8px;padding:0 11px;
+  background:linear-gradient(#3d7ab5,#2e6497);color:#fff;font-weight:800}
+.lr-mh .x{margin-left:auto;width:24px;height:24px;border:0;background:transparent;color:#fff;
+  font-size:16px;cursor:pointer}
+.lr-mb{padding:10px 12px}
+.lr-info{display:grid;grid-template-columns:88px 1fr 88px 1fr;gap:4px 6px;
+  background:#f4f7fa;border:1px solid #dde4ea;padding:8px 10px;margin-bottom:9px}
+.lr-info b{color:#526171;font-weight:700;font-size:11px}
+.lr-info span{color:#2b3844;font-weight:700}
+.lr-chain{margin-bottom:9px;padding:7px 10px;border:1px solid #dde4ea;background:#fbfcfd;
+  font-size:11px;color:#4d5a68;line-height:1.9}
+.lr-chain .cur{background:#2f7d4d;color:#fff;padding:1px 7px;border-radius:2px;font-weight:700}
+.lr-chain .nx{background:#2e77bd;color:#fff;padding:1px 7px;border-radius:2px;font-weight:700}
+.lr-chain .rest{background:#eef1f4;color:#7b8794;padding:1px 7px;border-radius:2px}
+.lr-f{display:grid;grid-template-columns:92px 1fr 92px 1fr;gap:6px;align-items:center}
+.lr-f label{color:#526171;font-weight:700;font-size:11px}
+.lr-f input,.lr-f select{height:26px;border:1px solid #aeb9c4;padding:0 6px;font:inherit;width:100%}
+.lr-mf{display:flex;gap:6px;align-items:center;padding:9px 12px;border-top:1px solid #e0e6eb;background:#fafbfc}
+.lr-open{margin:9px 0 0;border:1px solid #dde4ea}
+.lr-open h5{margin:0;padding:5px 9px;background:#eef2f6;border-bottom:1px solid #dde4ea;
+  font-size:11px;color:#41556a}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  if(!await KI.guard('lot-route'))return;
+  const $=KI.$, el=KI.el, esc=KI.esc;
+  const cur=KI.chrome('lot-route');
+
+  /* 화면 좌측 상단 브랜드명만 GI MES로 표시 (KI 내부 네임스페이스는 유지) */
+  function renameMesBrand(){
+    document.title=document.title.replace(/^KI\s+MES/i,'GI MES');
+    const candidates=[...document.querySelectorAll('body *')].filter(el=>{
+      const t=(el.textContent||'').trim();
+      if(!/^KI\s*MES(?:\s*\(Mold\))?/i.test(t) || t.length>80) return false;
+      const r=el.getBoundingClientRect();
+      return r.top<90 && r.left<280;
+    });
+    if(!candidates.length) return false;
+    const brand=candidates.sort((a,b)=>a.children.length-b.children.length)[0];
+    const w=document.createTreeWalker(brand,NodeFilter.SHOW_TEXT);
+    let n;
+    while((n=w.nextNode())){
+      if(/\bKI\b/.test(n.nodeValue)){
+        n.nodeValue=n.nodeValue.replace(/\bKI\b/,'GI');
+        return true;
+      }
+    }
+    return false;
+  }
+  renameMesBrand();
+  const brandObserver=new MutationObserver(()=>renameMesBrand());
+  brandObserver.observe(document.body,{childList:true,subtree:true});
+  setTimeout(()=>brandObserver.disconnect(),2000);
+  const CAN_S=KI.can('lot-route','save'), CAN_E=KI.can('lot-route','edit');
+  const TODAY=new Date().toISOString().slice(0,10);
+  let ROWS=[], OSP=[], VEN=[], PROC=[], RT=[], MOLDS=[], sel=null;
+
+  const ui=KI.page(cur,[
+    ['조회','primary',()=>load()],
+    ['엑셀(CSV)','',()=>csv()],
+    ['인쇄','',()=>window.print()]
+  ]);
+  const nt=el('div','note');
+  nt.innerHTML='LOT의 <b>표준공정 대비 진척</b>과 현재 위치입니다. 행의 <b>[진행등록 ▸]</b>을 누르면 '+
+    '해당 LOT 정보가 채워진 채로 <b>다음 공정 반출 · 입고</b>를 바로 등록할 수 있습니다.';
+  ui.pg.appendChild(nt);
+
+  const L=el('div','lr-list');
+  const tb=el('div','ck-tb');
+  tb.innerHTML='<span style="font-weight:700;color:#526171">검색</span>'+
+    '<input type="text" id="q" placeholder="LOT · JOB · 외주처" style="height:24px;border:1px solid #aeb9c4;padding:0 6px;width:220px">'+
+    '<span style="font-weight:700;color:#526171;margin-left:8px">상태</span>'+
+    '<select id="fs"><option value="">전체</option><option>진행중</option><option>외주 반출중</option>'+
+      '<option>표준완료</option><option>미매칭</option></select>'+
+    '<span class="sp" id="cnt"></span>';
+  const gw=el('div','grid-wrap'); const tbl=el('table','grid');
+  tbl.innerHTML='<thead><tr>'+
+    '<th style="width:110px">JOB</th><th style="width:104px">부품번호(LOT)</th>'+
+    '<th style="width:130px">표준공정</th><th style="width:150px">현재 공정</th>'+
+    '<th style="width:110px">현재 외주처</th><th style="width:88px">최근 이동</th>'+
+    '<th style="width:150px">다음 공정</th><th style="width:120px">진척</th>'+
+    '<th style="width:84px">외주상태</th><th style="width:88px">진행등록</th></tr></thead><tbody></tbody>';
+  gw.appendChild(tbl); L.appendChild(tb); L.appendChild(gw); ui.pg.appendChild(L);
+  const tbody=tbl.querySelector('tbody');
+  ['q','fs'].forEach(id=>$('#'+id).addEventListener('input',draw));
+
+  /* ── 진행등록 모달 ── */
+  const dim=el('div','lr-dim'); const mo=el('div','lr-mo');
+  mo.innerHTML='<div class="lr-mh"><span id="mTtl">진행등록</span><button class="x" id="mX">✕</button></div>'+
+    '<div class="lr-mb">'+
+      '<div class="lr-info">'+
+        '<b>JOB</b><span id="iJob"></span><b>부품번호(LOT)</b><span id="iPart"></span>'+
+        '<b>표준공정</b><span id="iStd"></span><b>진척</b><span id="iRate"></span>'+
+        '<b>현재 공정</b><span id="iCur"></span><b>현재 외주처</b><span id="iVen"></span>'+
+      '</div>'+
+      '<div class="lr-chain" id="iChain"></div>'+
+      '<div id="openBox"></div>'+
+      '<div class="lr-open" style="margin-top:10px"><h5>다음 공정 진행등록 (반출)</h5>'+
+      '<div style="padding:9px 10px"><div class="lr-f">'+
+        '<label>가공공정 *</label><select id="fMp"></select>'+
+        '<label>외주처 *</label><select id="fVen"></select>'+
+        '<label>출고(반출)일</label><input type="date" id="fSdate">'+
+        '<label>납기일</label><input type="date" id="fEdate">'+
+        '<label>단가</label><input type="text" id="fQuote" placeholder="숫자만">'+
+        '<label>금형제번</label><input type="text" id="fMold" list="dlMold" autocomplete="off" placeholder="입력 후 선택">'+
+      '</div><div id="mapInfo" style="margin-top:5px;color:#5b7fa5;font-size:11px"></div></div></div>'+
+    '</div>'+
+    '<div class="lr-mf"><span class="msg" id="mMsg" style="font-weight:700"></span>'+
+      '<button class="btn" id="mC" style="margin-left:auto">닫기</button>'+
+      '<button class="btn primary" id="mS">📤 반출 등록</button></div>';
+  document.body.appendChild(dim); document.body.appendChild(mo);
+  mo.style.display='none';
+  const dl=el('datalist'); dl.id='dlMold'; document.body.appendChild(dl);
+  function close(){ dim.classList.remove('on'); mo.style.display='none'; sel=null; }
+  $('#mX').addEventListener('click',close); $('#mC').addEventListener('click',close);
+  dim.addEventListener('click',close);
+
+  const pName=c=>{const p=PROC.find(x=>x.process_code===c);return p?p.process_name:''};
+  function matchRoute(seq){
+    let best=null;
+    RT.forEach(rt=>{ const sd=rt.steps||[]; const hit=sd.filter(x=>seq.includes(x)).length;
+      if(hit&&(!best||hit>best.hit)) best={rt:rt,hit:hit}; });
+    return best;
+  }
+  function calc(r){
+    const st=Array.isArray(r.steps)?r.steps:[], last=st[st.length-1]||{};
+    const m=matchRoute(st.map(s=>s.mp)), sd=m?m.rt.steps:[];
+    const seen=new Set(st.map(s=>s.mp));
+    const hit=sd.filter(x=>seen.has(x)), total=sd.length||st.length||1;
+    const done=m?hit.length:st.length;
+    const rest=sd.filter(x=>!seen.has(x));
+    return {job:r.job, part:r.part, proc:r.proc, steps:st, last:last, std:m?m.rt:null,
+      sd:sd, seen:seen, done:done, total:total, rest:rest,
+      rate: total?Math.round(done/total*100):0};
+  }
+  const ospOf = part => OSP.filter(o=>String(o.part||'')===String(part));
+  function ospState(part){
+    const o=ospOf(part).filter(x=>x.sdate&&!x.idate);
+    if(o.length) return {t:'반출중', n:o.length, rows:o};
+    return {t:'-', n:0, rows:[]};
+  }
+
+  function draw(){
+    const q=$('#q').value.trim().toLowerCase(), f=$('#fs').value;
+    tbody.innerHTML='';
+    const list=ROWS.map(calc).filter(c=>{
+      if(q && ![c.part,c.job,c.last.vendor].some(v=>String(v||'').toLowerCase().includes(q))) return false;
+      const os=ospState(c.part).t;
+      if(f==='외주 반출중') return os==='반출중';
+      if(f==='표준완료')  return c.std && !c.rest.length;
+      if(f==='미매칭')    return !c.std;
+      if(f==='진행중')    return c.std && c.rest.length;
+      return true;
+    });
+    list.forEach(c=>{
+      const os=ospState(c.part);
+      const nx=c.rest[0];
+      const t=el('tr','clk');
+      t.innerHTML='<td>'+esc(c.job||'')+'</td>'+
+        '<td style="font-weight:800;color:#22537f">'+esc(c.part||'')+'</td>'+
+        '<td>'+(c.std?esc(c.std.standard_process_name):'<span style="color:#96a2ad">(미매칭)</span>')+'</td>'+
+        '<td>'+esc(c.last.mp||'-')+(pName(c.last.mp)?' · '+esc(pName(c.last.mp)):'')+'</td>'+
+        '<td>'+esc(c.last.vendor||'-')+'</td>'+
+        '<td class="center">'+esc(c.last.date||'')+'</td>'+
+        '<td>'+(nx?'<b style="color:#1d568c">'+esc(nx)+'</b>'+(pName(nx)?' · '+esc(pName(nx)):'')+
+                 (c.rest.length>1?' <small style="color:#96a2ad">외 '+(c.rest.length-1)+'</small>':'')
+               :(c.std?'<span style="color:#15803d;font-weight:700">완료</span>':'-'))+'</td>'+
+        '<td style="display:flex;align-items:center;gap:5px">'+
+          '<div class="lr-bar"><i class="'+(c.rate>=100?'full':'')+'" style="width:'+Math.min(c.rate,100)+'%"></i></div>'+
+          '<span style="font-size:10px;color:#7b8794">'+c.done+'/'+c.total+'</span></td>'+
+        '<td class="center">'+(os.t==='반출중'
+            ?'<span class="badge" style="background:#e9f2fc;color:#1d568c">반출중 '+os.n+'</span>':'')+'</td>'+
+        '<td class="center"><button class="lr-go">진행등록 ▸</button></td>';
+      t.querySelector('.lr-go').addEventListener('click',ev=>{ ev.stopPropagation(); open(c); });
+      t.addEventListener('click',()=>open(c));
+      tbody.appendChild(t);
+    });
+    if(!list.length) tbody.innerHTML='<tr><td colspan="10" class="center" style="height:52px;color:#8894a0">조건에 맞는 LOT이 없습니다.</td></tr>';
+    $('#cnt').textContent=list.length+'건';
+  }
+
+  function open(c){
+    sel=c;
+    $('#mTtl').textContent='진행등록 — '+(c.part||'');
+    $('#iJob').textContent=c.job||'-';   $('#iPart').textContent=c.part||'-';
+    $('#iStd').textContent=c.std?c.std.standard_process_name:'(미매칭)';
+    $('#iRate').innerHTML=c.done+'/'+c.total+' <b style="color:#1d568c">'+c.rate+'%</b>';
+    $('#iCur').textContent=(c.last.mp||'-')+(pName(c.last.mp)?' · '+pName(c.last.mp):'');
+    $('#iVen').textContent=c.last.vendor||'-';
+    /* 공정 경로 */
+    $('#iChain').innerHTML = c.sd.length
+      ? c.sd.map(x=>{
+          const done=c.seen.has(x), nx=(!done && x===c.rest[0]);
+          return '<span class="'+(done?'cur':nx?'nx':'rest')+'">'+esc(x)+
+                 (pName(x)?' '+esc(pName(x)):'')+'</span>';
+        }).join(' <span style="color:#b6c2cd">→</span> ')
+      : '<span style="color:#96a2ad">표준공정에 매칭되지 않았습니다. 실제 경유: </span>'+
+        c.steps.map(s=>esc(s.mp)+'('+esc(s.vendor||'')+')').join(' → ');
+    /* 미입고 건 */
+    const op=ospOf(c.part).filter(o=>o.sdate&&!o.idate);
+    $('#openBox').innerHTML = op.length
+      ? '<div class="lr-open"><h5>외주 반출중 (입고 대기) '+op.length+'건</h5>'+
+        '<table class="grid"><thead><tr><th style="width:80px">가공공정</th><th style="width:120px">외주처</th>'+
+        '<th style="width:88px">출고일</th><th style="width:88px">납기</th><th style="width:60px">경과</th>'+
+        '<th style="width:96px">입고</th></tr></thead><tbody>'+
+        op.map(o=>{const d=Math.round((new Date(TODAY)-new Date(o.sdate))/864e5);
+          const late=o.edate&&o.edate<TODAY;
+          return '<tr><td class="center">'+esc(o.mp||'')+'</td><td>'+esc(o.vendor||'')+'</td>'+
+          '<td class="center">'+esc(o.sdate||'')+'</td>'+
+          '<td class="center"'+(late?' style="color:#b23030;font-weight:700"':'')+'>'+esc(o.edate||'-')+'</td>'+
+          '<td class="num">'+d+'일</td>'+
+          '<td class="center"><button class="lr-go" data-in="'+o.no+'" style="background:#2f7d4d;border-color:#2f7d4d">📦 입고</button></td></tr>';
+        }).join('')+'</tbody></table></div>'
+      : '';
+    $('#openBox').querySelectorAll('[data-in]').forEach(b=>
+      b.addEventListener('click',()=>receive(b.dataset.in)));
+    /* 다음 공정 기본값 */
+    const nx=c.rest[0]||'';
+    $('#fMp').value=nx;
+    $('#fVen').value=c.last.vendor||'';
+    $('#fSdate').value=TODAY;
+    const e=new Date(); e.setDate(e.getDate()+7); $('#fEdate').value=e.toISOString().slice(0,10);
+    $('#fQuote').value='';
+    const prev=OSP.filter(o=>String(o.part||'')===String(c.part)&&o.mold_no)[0];
+    $('#fMold').value=prev?prev.mold_no:''; syncMold();
+    $('#mMsg').textContent=''; $('#mMsg').className='msg';
+    $('#mS').style.display=(CAN_S||CAN_E)?'':'none';
+    dim.classList.add('on'); mo.style.display='';
+  }
+
+  function syncMold(){
+    const v=$('#fMold').value.trim();
+    const m=MOLDS.find(x=>x.mold_no===v);
+    $('#mapInfo').innerHTML = m ? '🧩 '+esc(m.mold_no)+' · '+esc(m.part_no||'')+
+        (m.asset_owner?' · '+esc(m.asset_owner):'')
+      : (v?'<span style="color:#b05c12">⚠ 금형정보에 없는 값</span>':'');
+  }
+  $('#fMold').addEventListener('input',syncMold);
+
+  async function save(){
+    const m=$('#mMsg');
+    if(!sel) return;
+    const mp=$('#fMp').value, ven=$('#fVen').value;
+    if(!mp){ m.className='msg err'; m.textContent='가공공정을 선택하세요.'; return; }
+    if(!ven){ m.className='msg err'; m.textContent='외주처를 선택하세요.'; return; }
+    const q=$('#fQuote').value.replace(/[^0-9.]/g,'');
+    const mo2=MOLDS.find(x=>x.mold_no===$('#fMold').value.trim());
+    m.className='msg'; m.textContent='등록중...';
+    try{
+      await KI.ins(TBL.ospOrder,[{part:sel.part, job:sel.job||null, mp:mp, vendor:ven,
+        mold_no:$('#fMold').value||null, map_part:mo2?mo2.part_no:null,
+        odate:null, sdate:$('#fSdate').value||null, edate:$('#fEdate').value||null,
+        quote:q===''?null:Number(q), st:'진행'}]);
+      m.className='msg ok'; m.textContent='✓ '+mp+' 공정으로 반출 등록되었습니다.';
+      KI.msg('✓ '+sel.part+' → '+mp+' 반출');
+      const keep=sel.part; await load();
+      const c=ROWS.map(calc).find(x=>x.part===keep); if(c) open(c);
+    }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
+  }
+  async function receive(no){
+    if(!confirm('오늘('+TODAY+') 입고 처리할까요?\n입고하면 다음 공정으로 진행할 수 있습니다.'))return;
+    const m=$('#mMsg');
+    try{
+      await KI.upd(TBL.ospOrder,'no=eq.'+no,{idate:TODAY, st:'완료'});
+      m.className='msg ok'; m.textContent='✓ 입고 처리되었습니다.';
+      KI.msg('✓ 입고 처리');
+      const keep=sel.part; await load();
+      const c=ROWS.map(calc).find(x=>x.part===keep); if(c) open(c);
+    }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
+  }
+  $('#mS').addEventListener('click',save);
+
+  function csv(){
+    const head=['JOB','부품번호(LOT)','표준공정','현재공정','현재외주처','최근이동','다음공정','완료','전체','진척률'];
+    const body=ROWS.map(calc).map(c=>[c.job,c.part,c.std?c.std.standard_process_name:'(미매칭)',
+      c.last.mp,c.last.vendor,c.last.date,c.rest[0]||'',c.done,c.total,c.rate+'%']
+      .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
+    const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
+    a.download='LOT진행현황_'+TODAY+'.csv'; a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  async function load(){
+    const [rows,osp,ven,proc,rt,molds]=await Promise.all([
+      KI.get(OBJ.lotProg+'?select=*&order=no.asc'),
+      KI.get(OBJ.ospOrder+'?select=*&order=no.desc'),
+      KI.get(OBJ.vendor+'?select=vendor_name&order=vendor_name.asc'),
+      KI.get(OBJ.process+'?select=process_code,process_name&order=sort_order.asc'),
+      KI.get(OBJ.stdRoute+'?select=*'),
+      KI.get(OBJ.moldSpec+'?select=mold_no,part_no,asset_owner&order=mold_no.asc')
+    ]);
+    ROWS=rows; OSP=osp; VEN=ven; PROC=proc; RT=rt; MOLDS=molds;
+    const mp=$('#fMp'), vn=$('#fVen'), mv=mp.value, vv=vn.value;
+    mp.innerHTML='<option value="">선택</option>'+PROC.map(p=>'<option value="'+esc(p.process_code)+'">'+
+      esc(p.process_code)+' · '+esc(p.process_name)+'</option>').join('');
+    vn.innerHTML='<option value="">선택</option>'+VEN.map(v=>'<option>'+esc(v.vendor_name)+'</option>').join('');
+    mp.value=mv; vn.value=vv;
+    dl.innerHTML=MOLDS.filter(m=>m.mold_no).map(m=>'<option value="'+esc(m.mold_no)+'">'+
+      esc(m.part_no||'')+(m.asset_owner?' · '+esc(m.asset_owner):'')+'</option>').join('');
+    draw();
+    KI.msg('LOT '+ROWS.length+'건 · 외주 반출중 '+OSP.filter(o=>o.sdate&&!o.idate).length+'건');
+  }
+  try{ await load(); }
+  catch(e){ tbody.innerHTML='<tr><td colspan="10" class="center" style="height:60px;color:#b0442f">❌ '+
+    KI.esc(e.message)+'</td></tr>'; KI.msg('❌ '+e.message); }
+})();
+</script>
+</body>
+</html>
