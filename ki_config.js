@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'KI MES',
-  VER      : 'v12.0',
+  VER      : 'v12.1',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -121,16 +121,11 @@ const MENU = [
   ]},
 
   { key:'osp', name:'외주LOT관리', second:[
-    { key:'o-io', name:'외주 입출고', icon:'↔', groups:[
-      { name:'물류이동', items:[
-        {id:'osp-lot', f:'osp_lot.html', n:'외주 출고 · 입고',
-         d:'LOT 반출 · 회수 · 미입고'}
-      ]}
-    ]},
     { key:'o-lot', name:'LOT 추적', icon:'🔎', groups:[
       { name:'추적', items:[
-        {id:'lot-trace', f:'lot_trace.html', n:'LOT 이동이력', d:'외주업체 경유 이력'},
-        {id:'lot-route', f:'lot_route.html', n:'LOT 진행현황', d:'공정 진척 · 현재 위치'}
+        {id:'lot-route', f:'lot_route.html', n:'LOT 진행현황',
+         d:'진척 · 다음공정 반출 · 입고 등록'},
+        {id:'lot-trace', f:'lot_trace.html', n:'LOT 이동이력', d:'외주업체 경유 이력'}
       ]}
     ]}
   ]},
@@ -282,7 +277,6 @@ const VIEWS = {
 
 'lot-trace':{
   manual:true,
-  jump:['입출고 ▸', r=>'osp_lot.html?lot='+encodeURIComponent(r.part||'')],
   table:OBJ.lotProg, order:'no.asc', post:'trace',
   search:[['부품번호(LOT)','text','part'],['JOB(관리번호)','text','job'],['외주처','sel-vendor','vendor'],
           ['가공공정','sel-mp','mp'],['이동일','date2','date'],['공정','text','proc']],
@@ -291,20 +285,6 @@ const VIEWS = {
         ['가공공정',72,'center','mp'],['가공공정명',130,'','mpName'],
         ['외주업체',130,'','vendor'],['이동일',90,'center','date'],
         ['전공정',80,'center','prevMp'],['다음공정',80,'center','nextMp'],['경유단계',0,'','chain','chain']]
-},
-'lot-route':{
-  table:OBJ.lotProg, order:'no.asc',
-  jump:['입출고 ▸', r=>'osp_lot.html?lot='+encodeURIComponent(r.part||'')], post:'route',
-  note:'외주발주 화면에서 <b>입고일</b>을 입력하면 경유 이력이 자동으로 쌓입니다. 진척률은 표준공정 대비 실제 거친 단계 수입니다.',
-  search:[['부품번호(LOT)','text','part'],['JOB(관리번호)','text','job'],['현재 외주처','sel-vendor','vendor'],
-          ['현재 공정','sel-mp','mp'],['최근 이동일','date2','date'],['진척(%이상)','num','_rate']],
-  cols:[['No',46,'center','_i'],['JOB(관리번호)',118,'','job'],['부품번호(LOT)',110,'','part'],
-        ['공정',50,'center','proc'],['표준공정',110,'','stdName'],
-        ['현재 가공공정',96,'center','mp'],['현재 가공공정명',126,'','mpName'],
-        ['현재 외주업체',126,'','vendor'],['최근 이동일',96,'center','date'],
-        ['다음 공정',130,'','nextMp'],['표준완료',60,'num','done'],['표준단계',60,'num','total'],
-        ['실제단계',60,'num','steps'],
-        ['진척률',100,'','_rate','bar'],['경유 이력',0,'','chain','chain']]
 },
 'std-route':{
   table:OBJ.stdRoute, order:'standard_process_no.asc', post:'std',
