@@ -496,9 +496,15 @@
             ' (LOT '+lots.length+'건 · '+qty.toLocaleString()+')';
           KI.msg('✓ '+part+' 외주 이관 → '+mp+' · '+ven+(full?'':' (부분)'));
         }else{
+          const first=!ospOf(part).length;   /* 이 LOT의 최초 반출 여부 */
           await KI.ins(TBL.ospOrder,[body]);
+          await KI.ins(TBL.lotMove,[{part:part, io:'출고', mp:mp, vendor:ven,
+            move_date:body.sdate||TODAY, out_qty:qty||null,
+            worker:(KI.me()||{}).emp_name||'', source:'수동'}]).catch(()=>{});
           m.className='msg ok'; m.textContent='✓ '+mp+' 공정으로 반출 등록되었습니다. (LOT '+lots.length+'건 · '+qty.toLocaleString()+')';
           KI.msg('✓ '+part+' → '+mp+' 반출');
+          if(first && confirm('최초 반출입니다.\n공정이동표(QR)를 지금 발행할까요?\n(이동표는 LOT과 함께 외주업체로 보냅니다)'))
+            window.open('lot_tag.html?lot='+encodeURIComponent(part),'_blank');
         }
       }
       editNo=null; mode('ins');

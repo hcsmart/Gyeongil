@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>공정이동표 — GI MES</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;background:#eef1f4;padding:18px}
+.sheet{width:210mm;min-height:140mm;margin:0 auto;background:#fff;border:1px solid #c6d0da;padding:11mm 12mm}
+.hd{display:flex;align-items:center;border-bottom:3px solid #1d2833;padding-bottom:6px}
+.hd h1{font-size:21px;letter-spacing:6px}
+.hd .co{margin-left:auto;text-align:right;font-size:11px;color:#526171}
+.top{display:flex;gap:12px;margin-top:10px}
+.inf{flex:1;border:1px solid #8494a4;border-collapse:collapse;width:100%}
+.inf th{background:#f0f4f8;border:1px solid #b6c3cf;width:86px;font-size:11px;padding:4px 6px;text-align:left;color:#41556a}
+.inf td{border:1px solid #b6c3cf;padding:4px 8px;font-weight:700}
+.qrbox{width:132px;text-align:center}
+.qrbox img{width:120px;height:120px;image-rendering:pixelated}
+.qrbox .cap{font-size:10px;color:#526171;margin-top:2px;line-height:1.35}
+.rt{margin-top:10px}
+.rt h3{font-size:12px;color:#1d2833;border-left:4px solid #2e6497;padding-left:7px;margin-bottom:5px}
+.mv{width:100%;border-collapse:collapse}
+.mv th{background:#f0f4f8;border:1px solid #8494a4;font-size:11px;padding:4px 3px;color:#41556a}
+.mv td{border:1px solid #8494a4;height:30px;padding:3px 5px;font-size:11px}
+.mv td.c{text-align:center}
+.mv td.done{background:#f2f8f3;color:#15803d;font-weight:700}
+.foot{margin-top:9px;font-size:10.5px;color:#526171;line-height:1.7;border-top:1px dashed #b6c3cf;padding-top:6px}
+.bar{margin:14px auto 0;width:210mm;display:flex;gap:8px;justify-content:flex-end}
+.bar button{height:30px;padding:0 16px;border:1px solid #2e6497;background:#2e77bd;color:#fff;font-weight:700;cursor:pointer}
+.bar button.gray{background:#fff;color:#41556a;border-color:#9fadba}
+@media print{ body{background:#fff;padding:0} .bar{display:none} .sheet{border:0;width:auto;margin:0} }
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+<script src="ki_qr.js"></script>
+</head>
+<body>
+<div class="sheet" id="sheet">불러오는 중...</div>
+<div class="bar">
+  <button class="gray" onclick="history.length>1?history.back():window.close()">닫기</button>
+  <button onclick="window.print()">🖨 인쇄</button>
+</div>
+<script>
+(async function(){
+  if(!await KI.guard(null))return;   /* 로그인만 확인 */
+  if(!(KI.can('lot-route','view')||KI.can('lot-scan','view'))){
+    document.getElementById('sheet').textContent='이동표 발행 권한이 없습니다.'; return; }
+  const esc=KI.esc;
+  const part=new URLSearchParams(location.search).get('lot')||'';
+  const box=document.getElementById('sheet');
+  if(!part){ box.textContent='LOT 번호가 없습니다. (lot_tag.html?lot=LOT번호)'; return; }
+
+  const [prog,osp,rts,rcpt,moves]=await Promise.all([
+    KI.get(OBJ.lotProg+'?select=*&part=eq.'+encodeURIComponent(part)+'&order=no.asc&limit=1'),
+    KI.get(OBJ.ospOrder+'?select=*&part=eq.'+encodeURIComponent(part)+'&order=no.asc'),
+    KI.get(OBJ.stdRoute+'?select=*'),
+    KI.get(OBJ.lotReceipt+'?select=*&part=eq.'+encodeURIComponent(part)+'&limit=1').catch(()=>[]),
+    KI.get(OBJ.lotMove+'?select=*&part=eq.'+encodeURIComponent(part)+'&order=created_at.asc&limit=100').catch(()=>[])
+  ]);
+  const r=prog[0]||{}, last=osp[osp.length-1]||{};
+  const rt = r.route_no ? rts.find(x=>String(x.standard_process_no)===String(r.route_no))
+           : rts.find(x=>String(x.standard_process_no)===String(last.route_no||''));
+  const steps = rt&&Array.isArray(rt.steps)?rt.steps:[];
+  const seen = new Set((Array.isArray(r.steps)?r.steps:[]).map(s=>s.mp));
+  const hist = mp => (Array.isArray(r.steps)?r.steps:[]).find(s=>s.mp===mp)||{};
+  const ordOf = mp => osp.filter(o=>o.mp===mp).sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0]||{};
+  const mvOf  = mp => moves.filter(m=>m.mp===mp&&(m.io==='입고'||m.io==='출고'));
+  const qtyOf = mp => { const o=ordOf(mp); return o.qty!=null?Number(o.qty):null; };
+
+  /* QR : 스캔 시 현장 입출고 화면으로 이동 */
+  const url=location.href.replace(/[^/]*(\?.*)?$/,'')+'lot_scan.html?lot='+encodeURIComponent(part);
+  const qr=qrcode(0,'M'); qr.addData(url,'Byte'); qr.make();
+
+  const rows = (steps.length?steps:[...seen]).map((mp,i)=>{
+    const h=hist(mp), o=ordOf(mp), mv=mvOf(mp);
+    const inn=mv.filter(m=>m.io==='입고').slice(-1)[0]||{};
+    const short=Number(inn.short_qty)||0;
+    return '<tr>'+
+      '<td class="c">'+(i+1)+'</td>'+
+      '<td class="c'+(seen.has(mp)?' done':'')+'">'+esc(mp)+(seen.has(mp)?' ✓':'')+'</td>'+
+      '<td>'+esc(o.vendor||h.vendor||'')+'</td>'+
+      '<td class="c">'+esc(o.sdate||'')+'</td>'+
+      '<td class="c">'+(o.qty!=null?Number(o.qty).toLocaleString():'')+'</td>'+
+      '<td class="c">'+esc(o.idate||h.date||'')+'</td>'+
+      '<td class="c">'+(inn.in_qty!=null?Number(inn.in_qty).toLocaleString():'')+'</td>'+
+      '<td class="c"'+(short?' style="color:#b23030;font-weight:800"':'')+'>'+(short?short.toLocaleString():'')+'</td>'+
+      '<td></td>'+
+      '<td>'+esc((inn.remark||''))+'</td>'+
+    '</tr>';
+  }).join('');
+  const blank='<tr>'+'<td class="c"></td>'.repeat(2)+'<td></td>'+'<td class="c"></td>'.repeat(5)+'<td></td><td></td></tr>';
+
+  box.innerHTML=
+    '<div class="hd"><h1>공 정 이 동 표</h1>'+
+    '<div class="co">GI MES · 발행 '+new Date().toISOString().slice(0,10)+'<br>발행자 '+esc((KI.me()||{}).emp_name||'')+'</div></div>'+
+    '<div class="top">'+
+      '<table class="inf"><tbody>'+
+        '<tr><th>LOT 번호</th><td style="font-size:15px">'+esc(part)+'</td><th>JOB</th><td>'+esc(r.job||last.job||'')+'</td></tr>'+
+        '<tr><th>매칭품번</th><td>'+esc(last.map_part||'')+'</td><th>금형제번</th><td>'+esc(last.mold_no||'')+'</td></tr>'+
+        '<tr><th>표준공정</th><td colspan="3">'+(rt?esc(rt.standard_process_name)+' ('+steps.length+'단계) — '+steps.map(esc).join(' → '):'(미매칭)')+'</td></tr>'+
+        '<tr><th>총수량</th><td>'+(last.qty!=null?Number(last.qty).toLocaleString():'')+'</td>'+
+            '<th>사내입고</th><td>'+(rcpt[0]?esc(rcpt[0].in_date)+' · '+Number(rcpt[0].qty||0).toLocaleString():'미입고')+'</td></tr>'+
+      '</tbody></table>'+
+      '<div class="qrbox">'+qr.createImgTag(4,8)+
+        '<div class="cap">휴대폰 카메라로 스캔 →<br><b>출고 · 입고 · 특기사항</b> 기록</div></div>'+
+    '</div>'+
+    '<div class="rt"><h3>공정별 입출고 기록</h3>'+
+    '<table class="mv"><thead><tr>'+
+      '<th style="width:30px">순번</th><th style="width:78px">공정</th><th>외주처</th>'+
+      '<th style="width:66px">출고일</th><th style="width:58px">출고수량</th>'+
+      '<th style="width:66px">입고일</th><th style="width:58px">입고수량</th>'+
+      '<th style="width:48px">부족</th><th style="width:56px">확인(인)</th><th style="width:26%">특기사항</th>'+
+    '</tr></thead><tbody>'+(rows||'')+blank.repeat(Math.max(0,2-(steps.length?0:1)))+'</tbody></table></div>'+
+    '<div class="foot">'+
+      '· 각 공정 <b>입출고 시 QR을 스캔</b>하여 수량과 특기사항을 기록해 주십시오. 시스템에 즉시 반영됩니다.<br>'+
+      '· 불량 등으로 <b>수량이 부족하게 출고되는 경우</b> 반드시 부족수량과 사유를 기록해 주십시오.<br>'+
+      '· QR 사용이 불가한 경우 본 이동표에 수기 기재 후 LOT과 함께 반송해 주십시오.'+
+    '</div>';
+})().catch(e=>{ document.getElementById('sheet').textContent='❌ '+e.message; });
+</script>
+</body>
+</html>
