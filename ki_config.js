@@ -259,7 +259,10 @@ const VIEWS = {
 'mold-master':{
   table:OBJ.moldMst, order:'mold_code.asc',
   note:'금형번호 · 금형종류는 <b>기준정보 › 생산기준 › 금형정보</b>에서 관리하며 여기서는 수정할 수 없습니다. '+
-       '등급 · 타발수 · 보관장소 · 점검주기 등 운영 항목만 수정됩니다.',
+       '등급 · 보관장소 · 점검주기 등 운영 항목만 수정됩니다.<br>'+
+       '<b>누적 타발수 = 기초 타발수 + 일별 합계</b>로 자동 계산되며 직접 수정할 수 없습니다. '+
+       '과거 누적분을 보정하려면 <b>기초 타발수</b>를 수정하고, 이후 실적은 '+
+       '[금형평가 › 일별 타발수 등록]에서 입력하세요.',
   edit:{ table:TBL.mold, pk:'mold_code', fields:[
     ['mold_code','금형코드(품번)','text',null,'req'],
     ['mold_no','금형번호','text',null,'ro'],
@@ -272,7 +275,8 @@ const VIEWS = {
     ['model','모델','text'],
     ['factory_code','공장','ref',{table:OBJ.factory,v:'factory_code',t:'factory_name'}],
     ['location','보관장소','ref',{table:OBJ.moldLoc,v:'location_code',t:'location_name'}],
-    ['shot_count','타발수','num'],
+    ['shot_base','기초 타발수','num',{def:0}],
+    ['shot_count','누적 타발수','num',null,'ro'],
     ['shot_limit','수명(SHOT)','num'],
     ['cycle_days','점검주기(일)','num',{def:90}],
     ['last_inspection','최근점검','date'],
@@ -285,7 +289,9 @@ const VIEWS = {
   cols:[['금형코드',92,'','mold_code'],['금형번호',86,'center','mold_no'],['등급',52,'center','grade','grade'],
         ['금형명',150,'','mold_name'],['고객사',100,'','customer_name'],
         ['모델',90,'','model'],['금형종류',100,'center','mold_type'],['공장',60,'center','factory_code'],
-        ['보관장소',110,'','location'],['타발수',96,'num','shot_count','n0'],['수명',96,'num','shot_limit','n0'],
+        ['보관장소',110,'','location'],['기초 타발수',108,'num','shot_base','n0'],['일별 합계',96,'num','shot_daily_sum','n0'],
+        ['누적 타발수',110,'num','shot_count','n0'],['수명',96,'num','shot_limit','n0'],
+        ['최근 실적일',92,'center','last_shot_date'],
         ['주기(일)',64,'num','cycle_days'],['최근점검',92,'center','last_inspection'],
         ['점검예정',92,'center','next_inspection'],['상태',70,'center','status','st'],['비고',0,'','remark']]
 },
