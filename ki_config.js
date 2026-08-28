@@ -427,9 +427,7 @@ const VIEWS = {
         ['구분',80,'center','vendor_type'],['담당공정',90,'center','proc_codes'],
         ['대표자',80,'','ceo_name'],['대표전화',110,'','phone'],
         ['담당자',80,'','contact_name'],['담당자 연락처',110,'','contact_phone'],
-        ['지역',80,'center','location_type'],
-        ['외주',46,'center','outsourcing_flag','bool'],['밀링',46,'center','milling_flag','bool'],
-        ['사용',46,'center','is_active','bool'],['비고',0,'','remark']]
+        ['지역',80,'center','location_type'],['비고',0,'','remark']]
 },
 
 'env-hist':{
