@@ -207,6 +207,20 @@ const MENU = [
         {id:'notify-cfg',f:'notify_config.html', n:'알림 설정(ntfy)', d:'안돈 · ntfy 서버 · 토픽'}
       ]}
     ]}
+  ]},
+{ key:'guide', name:'사용안내', second:[
+    { key:'g-main', name:'사용안내', icon:'📖', groups:[
+      { name:'업무 흐름', items:[
+        {id:'guide-start', f:'guide.html?sec=start', n:'처음 시작하기',      d:'초기 설정 순서'},
+        {id:'guide-mold',  f:'guide.html?sec=mold',  n:'금형 점검 업무',     d:'일상 · 정기 · 세척'},
+        {id:'guide-tool',  f:'guide.html?sec=tool',  n:'연마 · 교체 관리',   d:'주기 · 도래 · 안돈 알림'},
+        {id:'guide-lot',   f:'guide.html?sec=lot',   n:'LOT 외주 진행(QR)', d:'공정이동표 · 입출고'},
+        {id:'guide-shot',  f:'guide.html?sec=shot',  n:'타발수 · 등급평가',  d:'일별 등록 → 등급'}
+      ]},
+      { name:'메뉴 설명', items:[
+        {id:'guide-menu',  f:'guide.html?sec=menu',  n:'전체 메뉴 설명',     d:'화면별 용도 일람'}
+      ]}
+    ]}
   ]}
 ];
 

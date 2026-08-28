@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<style>
+.gd{max-width:980px;padding:6px 12px 40px;line-height:1.75;font-size:13px;color:#2a3742}
+.gd h2{font-size:17px;color:#1d3a57;border-bottom:2px solid #2e6497;padding:8px 2px;margin:14px 0 10px}
+.gd h3{font-size:14px;color:#2e4a63;border-left:4px solid #2e77bd;padding-left:9px;margin:20px 0 7px}
+.gd p{margin:5px 0}
+.gd ol,.gd ul{margin:5px 0 5px 22px}
+.gd li{margin:4px 0}
+.gd b{color:#1d3a57}
+.gd .path{display:inline-block;background:#eef3f8;border:1px solid #ccd9e4;color:#1d568c;
+  font-weight:700;padding:0 7px;border-radius:2px;font-size:12px;white-space:nowrap}
+.gd .tip{background:#fbf6e9;border:1px solid #e6d9ae;padding:8px 12px;margin:9px 0;color:#6b5416}
+.gd .warn{background:#fdf1f1;border:1px solid #e4b9b9;padding:8px 12px;margin:9px 0;color:#8c2f2f}
+.gd .flow{background:#f4f8fb;border:1px solid #d3e0ea;padding:10px 14px;margin:9px 0;
+  font-weight:700;color:#22537f;line-height:2}
+.gd .flow i{font-style:normal;color:#8b98a5;padding:0 4px}
+.gd table{border-collapse:collapse;width:100%;margin:7px 0}
+.gd th{background:#f0f4f8;border:1px solid #c6d3de;padding:5px 9px;font-size:12px;color:#41556a;text-align:left}
+.gd td{border:1px solid #d6e0e8;padding:5px 9px;font-size:12px;vertical-align:top}
+.gd .mn{font-weight:800;color:#22537f;white-space:nowrap}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  const sec=new URLSearchParams(location.search).get('sec')||'start';
+  const id='guide-'+sec;
+  if(!await KI.guard(null))return;          /* 로그인만 확인 — 안내는 전 사용자 열람 */
+  const cur=KI.chrome(FLAT[id]?id:'guide-start');
+  const el=KI.el, esc=KI.esc;
+  const ui=KI.page(cur,[['인쇄','',()=>window.print()]]);
+  const box=el('div','gd'); ui.pg.appendChild(box);
+  const P=t=>'<span class="path">'+t+'</span>';
+
+  const C={};
+
+  /* ── 처음 시작하기 ── */
+  C.start=
+  '<h2>🚀 처음 시작하기 — 초기 설정 순서</h2>'+
+  '<p>시스템을 처음 운영할 때 아래 순서로 기준정보를 채우면 이후 모든 화면이 자동으로 연결됩니다.</p>'+
+  '<h3>1. 사용자 · 권한</h3>'+
+  '<ol><li>'+P('시스템 › 사용자정보')+' — 직원 등록 후 화면별 권한(조회 · 저장 · 수정 · 삭제)을 체크합니다.</li>'+
+  '<li>관리자 계정은 모든 화면에 자동 접근되며, 일반 사용자는 부여된 화면만 보입니다.</li></ol>'+
+  '<h3>2. 생산 기준정보</h3>'+
+  '<ol><li>'+P('기준정보 › 생산기준 › 금형정보')+' — 금형제번 · 금형타입 · 소재 · 두께/폭/피치 (소재중량 자동계산)</li>'+
+  '<li>'+P('금형타입')+' · '+P('소재 비중정보')+' · '+P('금형 보관장소')+' · '+P('호기설정')+' — 선택 목록 기준</li>'+
+  '<li>'+P('연마/교체주기설정')+' — 공통 타발수 한도 · 기간, 금형별 예외는 '+P('금형별 연마/교체주기')+'</li></ol>'+
+  '<h3>3. 외주 기준정보</h3>'+
+  '<ol><li>'+P('기준정보 › 외주기준 › 협력사 정보')+' — 업체명 · 담당공정 · 담당자 연락처. '+
+  '여기 등록된 업체가 LOT 외주처 목록과 공정이동표 연락처로 쓰입니다.</li>'+
+  '<li>'+P('표준 공정경로')+' — 공정 순서(예: MS→HQ→GS). LOT 진척률의 기준입니다.</li></ol>'+
+  '<h3>4. 점검 기준정보</h3>'+
+  '<ol><li>'+P('기준정보 › 점검기준 › 점검주기 기준')+' — 등급별 정기점검 주기 · 세척 한도</li>'+
+  '<li>'+P('정기점검 항목')+' · '+P('일상점검 항목')+' · '+P('세척항목(순서)')+' · '+P('등급 평가항목')+'</li></ol>'+
+  '<h3>5. 금형대장 · 알림</h3>'+
+  '<ol><li>'+P('금형관리 › 금형평가 › 금형대장')+' — <b>기초 타발수</b>(일별 등록 이전 누적분) 확인 · 보정</li>'+
+  '<li>'+P('금형관리 › 점검계획 › 연마·교체 도래현황')+' — [기준 초기화]로 연마 · 교체 기준점 설정</li>'+
+  '<li>'+P('시스템 › 알림 설정(ntfy)')+' — 안돈 표시 · ntfy 서버/토픽. 휴대폰에 ntfy 앱 설치 후 토픽 구독</li></ol>'+
+  '<div class="tip">💡 신규 화면 권한은 사용자정보의 권한 매트릭스에 자동으로 나타납니다. '+
+  '사용안내 메뉴도 일반 사용자에게 보이려면 조회 권한을 부여하세요.</div>';
+
+  /* ── 금형 점검 업무 ── */
+  C.mold=
+  '<h2>🔧 금형 점검 업무 — 일상 · 정기 · 세척</h2>'+
+  '<div class="flow">점검주기 기준 <i>→</i> 도래현황 · 연간계획 <i>→</i> 점검 등록 <i>→</i> 실적 조회 · SQ 실시율</div>'+
+  '<h3>매일 하는 일</h3>'+
+  '<ul><li>'+P('점검등록 › 일상점검 등록')+' — 생산 전 상형 8 / 하형 8 항목 체크. 불량 항목은 조치 내용 기록</li>'+
+  '<li>'+P('금형평가 › 일별 타발수 등록')+' — 금형별 당일 생산 타발수 입력 (누적 · 월별 자동 반영)</li></ul>'+
+  '<h3>주기 점검 (정기 · 세척)</h3>'+
+  '<ol><li>'+P('점검계획 › 점검 도래현황')+' — 지연 · 임박 금형 확인. 행을 클릭하면 해당 금형이 선택된 채로 등록 화면으로 이동</li>'+
+  '<li>'+P('점검등록 › 정기점검 등록')+' — 항목별 측정값 입력, 판정 자동 산출, 다음 점검 예정일 자동 계산</li>'+
+  '<li>'+P('점검등록 › 세척등록')+' — 세척항목(순서) 체크. 타발수 한도(양산 100만 / A·S 50만) 또는 1년 경과 시 도래</li></ol>'+
+  '<h3>연간 계획 · 실시율</h3>'+
+  '<ul><li>'+P('점검계획 › 점검 예측 · 계획표')+' — 등급별 자동 배정(A 1회/년 · B 2회 · C 4회), 월 칸 클릭으로 조정</li>'+
+  '<li>실시 여부는 점검 실적으로 자동 판정 — <b>실시율은 SQ 심사 지표</b>입니다</li>'+
+  '<li>'+P('점검등록 › 등록실적 조회')+' — 일상/정기/세척 통합 이력, 항목별 측정값</li></ul>'+
+  '<div class="tip">💡 점검주기는 등급에 따릅니다. 등급이 바뀌면(등급평가) 주기와 연간 계획이 함께 갱신됩니다.</div>';
+
+  /* ── 연마 · 교체 ── */
+  C.tool=
+  '<h2>⚙ 연마 · 교체 관리</h2>'+
+  '<div class="flow">주기 기준 설정 <i>→</i> 일별 타발수 입력 <i>→</i> 도래 · 예상일 감시 <i>→</i> 안돈 · ntfy 알림 <i>→</i> 실시 등록</div>'+
+  '<h3>기준 설정</h3>'+
+  '<ul><li>'+P('기준정보 › 생산기준 › 연마/교체주기설정')+' — 공통 기준 (타발수 한도 · 기간 · 임박%)。'+
+  '대상 ALL은 전체, 금형종류 지정 시 그 종류가 우선</li>'+
+  '<li>'+P('금형별 연마/교체주기')+' — 특정 금형만 다르게. <b>공통기준 사용</b> 해제 시 개별값 적용</li></ul>'+
+  '<h3>판정 방식</h3>'+
+  '<ul><li><b>소진율</b> = (누적 타발수 − 최근 실시 타발수) ÷ 한도. 100% 이상 <b>도래</b>, 임박% 이상 <b>임박</b></li>'+
+  '<li>기간 기준: 최근 실시일 + 주기(일) 경과 시 도래</li>'+
+  '<li><b>예상 도래일</b>: 최근 30일 일평균 타발수로 잔여 소진일을 예측 — 7일 이내면 임박(타발수 예측)</li></ul>'+
+  '<h3>운영</h3>'+
+  '<ol><li>'+P('금형관리 › 점검계획 › 연마·교체 도래현황')+' — 도래 · 임박 발생 시 하단 <b>안돈 배너</b> + <b>ntfy 푸시</b></li>'+
+  '<li>연마 · 교체 완료 후 [실시등록] — 실시일과 그 시점 누적 타발수를 입력하면 기준점이 갱신되고 알람이 해제됩니다</li>'+
+  '<li>'+P('연마·교체 알람이력')+' — 발생 → 조치중 → 해제 관리</li></ol>'+
+  '<div class="warn">⚠ 실시등록을 빠뜨리면 소진율이 계속 누적되어 항상 도래로 표시됩니다. '+
+  '기준점이 없는 금형은 도래현황의 [기준 초기화]로 일괄 설정하세요.</div>';
+
+  /* ── LOT 외주 진행 ── */
+  C.lot=
+  '<h2>📦 LOT 외주 진행 (공정이동표 QR)</h2>'+
+  '<div class="flow">사내 반출 등록 <i>→</i> 이동표(QR) 1장 발행 <i>→</i> 협력사 도착확인 <i>→</i> 작업 후 출고(이관) <i>→</i> … <i>→</i> 사내입고 (종결)</div>'+
+  '<h3>1. 사내 — 최초 반출</h3>'+
+  '<ol><li>'+P('LOT관리 › LOT 진행등록')+' [신규등록] — JOB · 표준공정 · 첫 가공공정 · 외주처 · LOT/수량 입력 후 [반출 등록]</li>'+
+  '<li>저장 직후 <b>공정이동표(QR) 발행</b> 안내 → 인쇄해 <b>제품과 함께</b> 외주업체로 보냅니다 (LOT당 1장)</li></ol>'+
+  '<h3>2. 협력사 — QR 리딩 (로그인 불필요)</h3>'+
+  '<ol><li><b>도착확인</b> — 수령 시 QR 스캔 → 확인 업체 · 입고수량 입력. 부족하면 부족수량이 자동 계산되고 사유는 선택 입력</li>'+
+  '<li><b>출고</b> — 작업 완료 후 QR 스캔 → 다음 공정 · 받는 외주처 · 수량 입력. '+
+  '<b>일부만 출고하면 잔량이 미결로 유지</b>되고, 전량 출고 시 반출건이 자동 마감됩니다</li>'+
+  '<li><b>특기사항</b> — 불량 · 지연 등 자유 기록. 모든 기록은 즉시 시스템에 반영됩니다</li></ol>'+
+  '<h3>3. 이동표가 없을 때 (잔량 출고 등)</h3>'+
+  '<ul><li>다음 업체 계정: '+P('LOT관리 › QR 입출고(현장)')+'에서 <b>LOT · JOB 번호 검색</b> 또는 미결 목록에서 선택</li>'+
+  '<li>이동표는 제품과 함께 이동하므로, 잔량을 보관 중인 업체는 미결 목록에서 LOT을 불러 출고합니다</li>'+
+  '<li>분실 시 이동표 화면의 [♻ 재발행] — 기존 QR은 폐기됩니다</li></ul>'+
+  '<h3>4. 종결 · 조회</h3>'+
+  '<ul><li>마지막 공정 후 <b>사내입고</b> — QR 화면 사내입고 탭 또는 진행등록 목록의 [🏭 사내입고]. '+
+  '부족수량은 최초 반출수량 기준으로 산출되고, 종결 시 <b>QR 토큰이 자동 폐기</b>됩니다</li>'+
+  '<li>'+P('QR 입출고 이력')+' — 도착/출고/입고 · 부족 · 특기사항 · 기록자</li>'+
+  '<li>'+P('협력사 재고현황')+' — 업체별 현재 보유수량 · 체류일 · 납기. <b>도착대기로 체류일이 길면 QR 확인 누락</b></li>'+
+  '<li>'+P('공정이동표 발행이력')+' — 토큰 유효/폐기 · 사용횟수 · '+P('LOT 이동이력')+' — 경유 이력</li></ul>';
+
+  /* ── 타발수 · 등급 ── */
+  C.shot=
+  '<h2>📊 타발수 · 등급평가</h2>'+
+  '<div class="flow">일별 타발수 등록 <i>→</i> 누적 · 월별 자동 <i>→</i> 연간 타발수 <i>→</i> 등급평가 <i>→</i> 점검주기 재배정</div>'+
+  '<h3>타발수 입력 체계</h3>'+
+  '<ul><li>'+P('금형평가 › 일별 타발수 등록')+' — <b>유일한 입력 지점</b>. 저장하면 자동으로:</li>'+
+  '<li>금형대장 <b>누적 타발수 = 기초 타발수 + 일별 합계</b> (읽기 전용)</li>'+
+  '<li>'+P('월별 타발수')+' — 월말 누적 카운터 자동 기입, 연간 타발수 = 최근월 − 기준월</li>'+
+  '<li>연마 · 교체 도래현황의 <b>일평균 · 예상 도래일</b>도 이 데이터로 계산</li></ul>'+
+  '<div class="warn">⚠ 과거 누적분 보정은 금형대장의 <b>기초 타발수</b>로만 하세요. 누적 타발수를 직접 고쳐도 트리거가 덮어씁니다.</div>'+
+  '<h3>등급평가</h3>'+
+  '<ol><li>'+P('금형평가 › 금형 등급평가')+' — 13개 평가항목 점수 입력 (타발수 · 제작년도는 자동 산출)</li>'+
+  '<li>총점 20 이하 A · 21~38 B · 39 이상 C · A/S/단종은 F</li>'+
+  '<li>등급 반영 시 점검주기가 [점검주기 기준]에 따라 재배정되고 연간 계획에 반영됩니다</li>'+
+  '<li>'+P('월별 타발수')+' 화면의 [등급 자동 산정]으로 대장 전체 일괄 산정도 가능합니다</li></ol>';
+
+  /* ── 전체 메뉴 설명 (config 에서 자동 생성) ── */
+  C.menu=(function(){
+    let h='<h2>🗂 전체 메뉴 설명</h2><p>메뉴 구성은 시스템 설정에서 자동으로 생성됩니다.</p>';
+    MENU.filter(m=>m.key!=='guide').forEach(m1=>{
+      h+='<h3>'+esc(m1.name)+'</h3>';
+      m1.second.forEach(m2=>{
+        h+='<table><thead><tr><th style="width:190px">'+esc(m1.name)+' › '+esc(m2.name)+
+           '</th><th>용도</th></tr></thead><tbody>';
+        m2.groups.forEach(g=>g.items.forEach(it=>{
+          h+='<tr><td class="mn">'+esc(it.n)+'</td><td>'+esc(it.d||'')+'</td></tr>';
+        }));
+        h+='</tbody></table>';
+      });
+    });
+    return h;
+  })();
+
+  box.innerHTML=C[sec]||C.start;
+  KI.msg(cur.path);
+})();
+</script>
+</body>
+</html>
