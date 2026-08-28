@@ -260,7 +260,13 @@ function chrome(curId){
 
   /* --- 상단 드롭다운 메뉴 (엑셀형) --- */
   let dropKey=null, actTmr=null;
-  function hideAct(){ ['#kiAct','#kiActLink'].forEach(k=>{ const a=$(k); if(a) a.classList.remove('on'); }); }
+  const ACT_DELAY=150, ACT_LINGER=600;   /* 표시 지연 / 사라짐 유예(ms) */
+  function actHover(){ return ['#kiAct','#kiActLink'].some(k=>{ const a=$(k);
+    return a && a.classList.contains('on') && a.matches(':hover'); }); }
+  function hideAct(force){
+    if(!force && actHover()) return;     /* 마우스가 실행메뉴 위에 있으면 유지 */
+    ['#kiAct','#kiActLink'].forEach(k=>{ const a=$(k); if(a) a.classList.remove('on'); });
+  }
   function placeAct(a,anchor){
     const d=$('#kiDrop'); if(!d) return;
     const r=anchor.getBoundingClientRect(), dr=d.getBoundingClientRect();
@@ -270,7 +276,7 @@ function chrome(curId){
   }
   /* 화면별 실행버튼 목록(방문 시 저장) → 다른 화면 항목에도 우측 메뉴 표시 */
   function showAct(anchor,id){
-    hideAct();
+    hideAct(true);
     if(id===curId){ const a=$('#kiAct'); if(a&&a.children.length) placeAct(a,anchor); return; }
     const a2=$('#kiActLink'), acts=actList(id), f=(FLAT[id]&&FLAT[id].it.f)||'';
     if(!a2||!acts.length||!f) return;
@@ -279,7 +285,7 @@ function chrome(curId){
     placeAct(a2,anchor);
   }
   function closeDrop(){
-    dropKey=null; hideAct();
+    dropKey=null; hideAct(true);
     const d=$('#kiDrop'); if(d) d.classList.remove('on');
     $('#kiMod').querySelectorAll('button.open').forEach(b=>b.classList.remove('open'));
   }
@@ -298,9 +304,11 @@ function chrome(curId){
     if(ACTMENU){
       hideAct();
       d.querySelectorAll('a.dd-i').forEach(a=>{
-        a.addEventListener('mouseenter',()=>{ clearTimeout(actTmr); showAct(a,a.dataset.id); });
+        a.addEventListener('mouseenter',()=>{ clearTimeout(actTmr);
+          actTmr=setTimeout(()=>showAct(a,a.dataset.id),ACT_DELAY); });
       });
-      d.addEventListener('mouseleave',()=>{ actTmr=setTimeout(hideAct,220); });
+      d.addEventListener('mouseleave',()=>{ clearTimeout(actTmr);
+        actTmr=setTimeout(()=>hideAct(),ACT_LINGER); });
     }
     const r=btn.getBoundingClientRect();
     d.style.left=Math.max(2,Math.min(r.left,window.innerWidth-260))+'px';
@@ -312,7 +320,8 @@ function chrome(curId){
   if(ACTMENU){
     ['#kiAct','#kiActLink'].forEach(k=>{ const a=$(k); if(!a)return;
       a.addEventListener('mouseenter',()=>clearTimeout(actTmr));
-      a.addEventListener('mouseleave',()=>{ actTmr=setTimeout(hideAct,220); });
+      a.addEventListener('mouseleave',()=>{ clearTimeout(actTmr);
+        actTmr=setTimeout(()=>hideAct(),ACT_LINGER); });
       a.addEventListener('click',()=>setTimeout(closeDrop,0));
     });
   }
