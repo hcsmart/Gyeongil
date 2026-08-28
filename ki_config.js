@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'GI MES',
-  VER      : 'v12.3',
+  VER      : 'v12.4',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -141,10 +141,10 @@ const MENU = [
          d:'업체별 보유수량 · 체류일 · 납기'}
       ]},
       { name:'현장 (QR)', items:[
-        {id:'lot-scan',  f:'lot_scan.html',  n:'QR 입출고(현장)',
-         d:'공정이동표 QR 스캔 — 출고 · 입고 · 특기사항'},
-        {id:'lot-vendor',f:'lot_vendor.html',n:'협력사 QR 스캔(모바일)',
-         d:'협력사 전용 — 카메라로 이동표 QR 스캔 · 업체 저장'}
+        {id:'lot-scan',  f:'lot_scan.html',  n:'QR 입출고(현장)', pop:1,
+         d:'공정이동표 QR 스캔 — 출고 · 입고 · 특기사항 (별도 창)'},
+        {id:'lot-vendor',f:'lot_vendor.html',n:'협력사 QR 스캔(모바일)', pop:1,
+         d:'협력사 전용 — 카메라로 이동표 QR 스캔 (별도 창)'}
       ]}
     ]}
   ]},

@@ -170,10 +170,49 @@ const upsert = (t,b)=>send('POST',t,b,'resolution=merge-duplicates,return=repres
 
 /* ---------- 화면 크롬 (1차 모듈 / 2차 아이콘 / 좌측 트리 / 상태바) ---------- */
 const LK_LEFT='ki_left_w';
+
+/* 팝업 전용 화면 (메뉴 정의의 pop:1) — 보안상 본 화면과 분리된 별도 창으로 실행 */
+function isPop(id){ return !!(FLAT[id] && FLAT[id].it && FLAT[id].it.pop); }
+function openPop(file,name){
+  const w=Math.min(screen.availWidth||480,480), h=Math.min(screen.availHeight||900,900);
+  const x=Math.max(((screen.availWidth||w)-w)/2,0), y=Math.max(((screen.availHeight||h)-h)/2,0);
+  const win=window.open(file,'kiPop_'+(name||'qr'),
+    'width='+w+',height='+h+',left='+Math.round(x)+',top='+Math.round(y)+
+    ',menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');
+  if(win) { try{ win.opener=null; win.focus(); }catch(e){} }
+  else alert('팝업이 차단되었습니다.\n브라우저 주소창의 팝업 차단을 해제해 주세요.');
+  return win;
+}
+/* 메뉴 링크(a[data-id]) 중 팝업 화면은 현재 창을 이동시키지 않고 새 창으로 실행 */
+document.addEventListener('click',function(e){
+  const a=e.target.closest?e.target.closest('a[data-id],a.item,a.dd-i'):null;
+  if(!a) return;
+  const id=a.dataset&&a.dataset.id;
+  const f=a.getAttribute('href')||'';
+  const hit = id?isPop(id):Object.keys(FLAT).some(k=>isPop(k)&&FLAT[k].it.f===f);
+  if(!hit) return;
+  e.preventDefault(); e.stopPropagation();
+  openPop(f,id||'qr');
+},true);
 function chrome(curId){
   const cur = FLAT[curId] || FLAT[Object.keys(FLAT)[0]];
   const it  = cur.it;
   document.title = C.APP_NAME+' - '+it.n;
+
+  /* 팝업 창으로 열린 화면은 전체 메뉴를 렌더하지 않는다 (보안 · 오조작 방지) */
+  if(/^kiPop_/.test(window.name||'')){
+    document.body.classList.add('popmode');
+    if(!document.getElementById('kiPopBar')){
+      const h=el('div','pop-head');
+      h.id='kiPopBar';
+      h.innerHTML='<b>'+esc(it.n)+'</b><span>'+esc(it.d||'')+'</span>'+
+                  '<button type="button" id="kiPopX">✕ 닫기</button>';
+      document.body.insertBefore(h,document.body.firstChild);
+      const x=document.getElementById('kiPopX');
+      if(x) x.addEventListener('click',()=>window.close());
+    }
+    return cur;
+  }
 
   /* 메뉴 모드 : 'drop'(상단 드롭다운) / 'top'(상단 가로바) / 'left'(좌측 트리) */
   const NAVMODE = C.NAV_MODE || (C.NAV_TOP===false ? 'left' : 'top');

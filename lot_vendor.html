@@ -280,6 +280,14 @@ function stopScan(){
 $('#camX').addEventListener('click',stopScan);
 document.getElementById('meBtn').addEventListener('click',()=>gate());
 
+/* 팝업 창으로 열린 경우 닫기 버튼 표시 */
+if(/^kiPop_/.test(window.name||'')){
+  const b=document.createElement('span');
+  b.className='me'; b.style.marginLeft='6px'; b.textContent='✕ 닫기';
+  b.addEventListener('click',()=>window.close());
+  document.querySelector('.app').appendChild(b);
+}
+
 (async function init(){
   try{ VENS=await rpc('ki_vendor_list',{}); }catch(e){ VENS=[]; }
   if(!MYVEN) gate(); else home();
