@@ -399,12 +399,10 @@ body.navdrop .module.open{background:#e5edf5;color:var(--blue-dark);box-shadow:i
 .dropnav.on{display:block}
 .dropnav .dd-t{padding:6px 12px 4px;font-size:11px;font-weight:800;color:#7b8b9c;
   border-bottom:1px solid #e6ebef;margin-bottom:2px}
-.dropnav a.dd-i{display:block;padding:7px 14px;color:#2c3e50;text-decoration:none;
-  white-space:nowrap;font-weight:700}
+.dropnav a.dd-i{display:block;padding:9px 15px;color:#2c3e50;text-decoration:none;
+  white-space:nowrap;font-weight:700;font-size:13.5px}
 .dropnav a.dd-i:hover{background:#e5eef6}
 .dropnav a.dd-i.on{background:#2e77bd;color:#fff}
-.dropnav a.dd-i small{display:block;margin-top:1px;font-size:10px;font-weight:400;color:#8b98a5}
-.dropnav a.dd-i.on small{color:#d6e6f6}
 @media print{ .dropnav{display:none} }
 
 /* ============================================================

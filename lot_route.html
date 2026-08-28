@@ -78,6 +78,14 @@
 .lr-open .grid td,.lr-open .grid th{white-space:normal;overflow:visible;text-overflow:clip;
   word-break:break-all;font-size:11px;padding:3px 5px}
 .lr-open .grid td.nw{white-space:nowrap}
+/* 접기·펼치기 (기본 접힘) */
+.lr-fold>h5{cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px}
+.lr-fold>h5 .arw{transition:transform .18s;font-size:10px;color:#7b8b9c}
+.lr-fold>h5 .cnt{margin-left:auto;font-size:10px;color:#7b8b9c;font-weight:400}
+.lr-fold>h5:hover{background:#e4ebf2}
+.lr-fold .fold-bd{display:none}
+.lr-fold.open .fold-bd{display:block}
+.lr-fold.open>h5 .arw{transform:rotate(90deg)}
 .lr-lot{margin-top:9px;border:1px solid #dde4ea}
 .lr-lot .lh{display:flex;align-items:center;gap:7px;padding:4px 8px;background:#f4f7fa;
   border-bottom:1px solid #dde4ea;font-size:11px;color:#41556a;font-weight:700}
@@ -104,7 +112,7 @@
   const CAN_S=KI.can('lot-route','save'), CAN_E=KI.can('lot-route','edit'),
         CAN_D=KI.can('lot-route','delete');
   const TODAY=new Date().toISOString().slice(0,10);
-  let ROWS=[], OSP=[], VEN=[], PROC=[], RT=[], MOLDS=[], RCPT=[], MVIN=[], sel=null, NEW=false, editNo=null;
+  let ROWS=[], OSP=[], VEN=[], PROC=[], RT=[], MOLDS=[], RCPT=[], MVIN=[], MVST={}, sel=null, NEW=false, editNo=null;
 
   const ui=KI.page(cur,[
     ['신규등록','',()=>openNew()],
@@ -235,7 +243,11 @@
     return best;
   }
   function calc(r){
-    const st=Array.isArray(r.steps)?r.steps:[];
+    /* 레거시 경유이력(steps)에 없는 단계는 QR·수동 이동이력(도착·입고)으로 보완 */
+    const base=Array.isArray(r.steps)?r.steps:[];
+    const add=(MVST[String(r.part||'')]||[])
+      .filter(x=>x.mp && !base.some(s=>s.mp===x.mp));
+    const st=base.concat(add).sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
     let last=st[st.length-1]||{}, moving=false;
     /* 입고 전(반출중)이라도 현재 위치를 표시 : 미입고 외주건 중 최근 출고건 */
     const op=ospOf(r.part).filter(o=>o.sdate&&!o.idate)
@@ -725,7 +737,11 @@
       if(sel&&sel.part===part) drawFlow(sel,mv);   /* 실제 입출고 일자로 다이어그램 갱신 */
       if(!mv.length)return;
       const RM=flowMap(mv);
-      box.innerHTML='<div class="lr-open"><h5>📝 현장 기록 — 물류 흐름 · 특기사항 (최근 '+mv.length+'건)</h5>'+
+      const short=mv.filter(v=>Number(v.short_qty)>0).length;
+      box.innerHTML='<div class="lr-open lr-fold" id="mvFold">'+
+        '<h5><span class="arw">▶</span>📝 현장 기록 — 물류 흐름 · 특기사항'+
+        '<span class="cnt">'+mv.length+'건'+(short?' · 부족 '+short+'건':'')+' · 클릭하여 펼치기</span></h5>'+
+        '<div class="fold-bd">'+
         '<table class="grid"><thead><tr><th style="width:84px">일자</th><th style="width:62px">구분</th>'+
         '<th style="width:150px">출고처</th><th style="width:18px"></th><th style="width:150px">입고처</th>'+
         '<th style="width:64px">수량</th><th style="width:52px">부족</th>'+
@@ -740,7 +756,16 @@
           '<td class="num"'+(Number(v.short_qty)>0?' style="color:#b23030;font-weight:800"':'')+'>'+
             (v.short_qty?Number(v.short_qty).toLocaleString():'')+'</td>'+
           '<td>'+esc(v.reason||'')+'</td><td>'+esc(v.remark||'')+'</td></tr>'; }).join('')+
-        '</tbody></table></div>';
+        '</tbody></table></div></div>';
+      const fd=$('#mvFold'), h5=fd.querySelector('h5');
+      h5.addEventListener('click',()=>{
+        const on=fd.classList.toggle('open');
+        h5.querySelector('.cnt').textContent=
+          mv.length+'건'+(short?' · 부족 '+short+'건':'')+(on?'':' · 클릭하여 펼치기');
+        try{ localStorage.setItem('ki_mv_fold',on?'1':'0'); }catch(e){}
+      });
+      let keep=false; try{ keep=localStorage.getItem('ki_mv_fold')==='1'; }catch(e){}
+      if(keep) h5.click();
     }catch(e){}
   }
   $('#mS').addEventListener('click',save);
@@ -757,7 +782,7 @@
   }
 
   async function load(){
-    const [rows,osp,ven,proc,rt,molds,rcpt,mvin]=await Promise.all([
+    const [rows,osp,ven,proc,rt,molds,rcpt,mvin,mvst]=await Promise.all([
       KI.get(OBJ.lotProg+'?select=*&order=no.asc'),
       KI.get(OBJ.ospOrder+'?select=*&order=no.desc'),
       KI.get(OBJ.vendor+'?select=vendor_name&order=vendor_name.asc'),
@@ -765,10 +790,14 @@
       KI.get(OBJ.stdRoute+'?select=*'),
       KI.get(OBJ.moldSpec+'?select=mold_no,part_no,asset_owner&order=mold_no.asc'),
       KI.get(OBJ.lotReceipt+'?select=part,in_date,qty,short_qty').catch(()=>[]),
-      KI.get(OBJ.lotMove+'?select=part,move_date,in_qty,short_qty&io=eq.'+encodeURIComponent('사내입고')).catch(()=>[])
+      KI.get(OBJ.lotMove+'?select=part,move_date,in_qty,short_qty&io=eq.'+encodeURIComponent('사내입고')).catch(()=>[]),
+      KI.get(OBJ.lotMove+'?select=part,io,mp,vendor,move_date&io=in.('+
+        encodeURIComponent('"도착","입고"')+')&order=move_date.asc').catch(()=>[])
     ]);
     ROWS=rows; OSP=osp; VEN=ven; PROC=proc; RT=rt; MOLDS=molds; RCPT=rcpt;
     MVIN=(mvin||[]).map(v=>({part:v.part,in_date:v.move_date,qty:v.in_qty,short_qty:v.short_qty}));
+    MVST={}; (mvst||[]).forEach(v=>{ const k=String(v.part||''); if(!k||!v.mp) return;
+      (MVST[k]=MVST[k]||[]).push({mp:v.mp, vendor:v.vendor||'', date:v.move_date||''}); });
     /* 진행이력이 아직 없는 반출건(입고 전)도 목록에 노출 */
     const have=new Set(ROWS.map(r=>String(r.part||'')));
     OSP.forEach(o=>{ const k=String(o.part||'');
