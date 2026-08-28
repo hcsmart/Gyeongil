@@ -247,7 +247,11 @@ function chrome(curId){
       esc(m.name)+'</button>').join('');
     $('#kiMod').querySelectorAll('button').forEach(b=>{
       if(NAVDROP){
-        b.addEventListener('click',e=>{ e.stopPropagation(); toggleDrop(b); });
+        b.addEventListener('click',e=>{ e.stopPropagation();
+          const m1=NAV.find(m=>m.key===b.dataset.k);
+          const its=m1?m1.second.filter(okSec).flatMap(s2=>s2.groups.flatMap(g=>g.items.filter(okItem))):[];
+          if(its.length===1){ closeDrop(); location.href=its[0].f; return; }   /* 단일 화면 모듈은 바로 이동 */
+          toggleDrop(b); });
         b.addEventListener('mouseenter',()=>{ if(dropKey) openDrop(b); });
         return;
       }

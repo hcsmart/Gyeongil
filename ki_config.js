@@ -213,15 +213,8 @@ const MENU = [
   ]},
 { key:'guide', name:'사용안내', second:[
     { key:'g-main', name:'사용안내', icon:'📖', groups:[
-      { name:'업무 흐름', items:[
-        {id:'guide-start', f:'guide.html?sec=start', n:'처음 시작하기',      d:'초기 설정 순서'},
-        {id:'guide-mold',  f:'guide.html?sec=mold',  n:'금형 점검 업무',     d:'일상 · 정기 · 세척'},
-        {id:'guide-tool',  f:'guide.html?sec=tool',  n:'연마 · 교체 관리',   d:'주기 · 도래 · 안돈 알림'},
-        {id:'guide-lot',   f:'guide.html?sec=lot',   n:'LOT 외주 진행(QR)', d:'공정이동표 · 입출고'},
-        {id:'guide-shot',  f:'guide.html?sec=shot',  n:'타발수 · 등급평가',  d:'일별 등록 → 등급'}
-      ]},
-      { name:'메뉴 설명', items:[
-        {id:'guide-menu',  f:'guide.html?sec=menu',  n:'전체 메뉴 설명',     d:'화면별 용도 일람'}
+      { name:'사용안내', items:[
+        {id:'guide', f:'guide.html', n:'사용안내', d:'업무 흐름 · 전체 메뉴 설명'}
       ]}
     ]}
   ]}
@@ -236,7 +229,7 @@ const MENU = [
 const HIDE = {
   mod : ['mold','env'],                 // 1차 모듈 : 금형관리 · 온습도관리
   sec : ['b-prod','b-chk'],             // 2차 : 기준정보 › 생산기준 · 점검기준
-  item: ['guide-mold','guide-tool','guide-shot']   // 개별 화면 : 금형 관련 사용안내
+  item: []
 };
 
 /* 실제 화면에 표시되는 메뉴 (숨김 제외) */
@@ -262,9 +255,7 @@ const ACTS = {
   'notify-cfg' : [['저장','primary'],['ntfy 테스트','green'],['새로고침','']],
   'settings'   : [],
   'user-info'  : [],
-  'guide-start': [['인쇄','']],
-  'guide-lot'  : [['인쇄','']],
-  'guide-menu' : [['인쇄','']],
+  'guide'      : [],
   /* 금형 · 온습도 (현재 숨김) */
   'plan-board' : [['조회','primary'],['엑셀(CSV)',''],['인쇄','']],
   'plan-cal'   : [['조회','primary'],['📅 계획표 자동생성','green'],['엑셀(CSV)',''],['인쇄','']],

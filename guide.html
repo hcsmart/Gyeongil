@@ -31,10 +31,9 @@
 <body>
 <script>
 (async function(){
-  const sec=new URLSearchParams(location.search).get('sec')||'start';
-  const id='guide-'+sec;
+  const sec=new URLSearchParams(location.search).get('sec')||'';
   if(!await KI.guard(null))return;          /* 로그인만 확인 — 안내는 전 사용자 열람 */
-  const cur=KI.chrome(FLAT[id]?id:'guide-start');
+  const cur=KI.chrome(FLAT['guide']?'guide':('guide-'+(sec||'start')));
   const el=KI.el, esc=KI.esc;
   const ui=KI.page(cur,[['인쇄','',()=>window.print()]]);
   const box=el('div','gd'); ui.pg.appendChild(box);
@@ -160,7 +159,13 @@
     return h;
   })();
 
-  box.innerHTML=C[sec]||C.start;
+  /* 통합 표시 : ?sec= 지정 시 해당 섹션만, 없으면 전체(숨김 모듈 제외) */
+  if(sec && C[sec]) box.innerHTML=C[sec];
+  else{
+    const hideMold = (typeof HIDE!=='undefined' && HIDE.mod && HIDE.mod.indexOf('mold')>=0);
+    const order = hideMold ? ['start','lot','menu'] : ['start','mold','tool','lot','shot','menu'];
+    box.innerHTML = order.map(k=>C[k]||'').join('<hr style="margin:26px 0;border:0;border-top:2px solid #d5dde4">');
+  }
   KI.msg(cur.path);
 })();
 </script>
