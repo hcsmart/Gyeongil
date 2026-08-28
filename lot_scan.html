@@ -72,6 +72,7 @@ textarea{min-height:64px}
       '<div class="row"><label>LOT · JOB</label><input id="qLot" placeholder="LOT 번호 또는 JOB 번호"></div>'+
       '<button class="bt out" id="qGo">조회</button>'+
       '<div id="qHit" style="margin-top:8px"></div></div></div>'+
+      '<div class="card" id="mineCard" style="display:none"><h3 id="mineTtl">🏭 우리 업체 LOT</h3><div class="bd" id="mineList"></div></div>'+
       '<div class="card"><h3>📋 미결 LOT — 입고대기 · 부분출고 잔량</h3><div class="bd" id="openList">불러오는 중...</div></div>';
     const pick=v=>{ PART=v; history.replaceState(null,'','?lot='+encodeURIComponent(PART)); load(); };
     $('#qGo').addEventListener('click',async()=>{
@@ -94,10 +95,31 @@ textarea{min-height:64px}
     });
     $('#qLot').addEventListener('keydown',e=>{ if(e.key==='Enter')$('#qGo').click(); });
     try{
-      const [open,mv]=await Promise.all([
+      const [open,mv,ven]=await Promise.all([
         KI.get(OBJ.ospOrder+'?select=no,part,job,mp,vendor,sdate,edate,qty&idate=is.null&sdate=not.is.null&order=sdate.desc&limit=100'),
-        KI.get(OBJ.lotMove+'?select=osp_no,io,out_qty&osp_no=not.is.null&limit=1000').catch(()=>[])
+        KI.get(OBJ.lotMove+'?select=osp_no,io,out_qty&osp_no=not.is.null&limit=1000').catch(()=>[]),
+        KI.get(OBJ.vendor+'?select=vendor_name').catch(()=>[])
       ]);
+      /* 계정 소속(dept · user_group · factory)이 외주업체명과 일치하면 업체 모드 */
+      const names=ven.map(v=>v.vendor_name);
+      const MYVEN=[me.dept,me.user_group,me.factory].find(x=>x&&names.includes(x))||null;
+      if(MYVEN){
+        const mine=open.filter(o=>String(o.vendor||'')===MYVEN);
+        $('#mineCard').style.display='';
+        $('#mineTtl').textContent='🏭 '+MYVEN+' — 도착 예정 · 작업중 LOT ('+mine.length+'건)';
+        $('#mineList').innerHTML = mine.length ? mine.map(o=>{
+            const rem=remainOf(o,mv.filter(m=>m.io==='출고')), part=rem<num(o.qty);
+            const arr=arrivedOf(o,mv);
+            return '<div class="pk" data-lot="'+esc(o.part||'')+'" style="border-left-color:'+(arr?'#2f7d4d':'#b06a12')+'">'+
+              '<b>'+esc(o.part||'')+'</b>'+(o.job?' <small style="display:inline;color:#7b8794">JOB '+esc(o.job)+'</small>':'')+
+              '<small>'+esc(o.mp||'')+' · '+esc(o.sdate||'')+' 출고 '+num(o.qty).toLocaleString()+
+              ' — '+(arr?'<span style="color:#15803d;font-weight:700">작업중 (도착✓ · 출고 대기)</span>'
+                       :'<span style="color:#b06a12;font-weight:700">도착 예정 (도착확인 필요)</span>')+
+              (part?' · <span class="part">잔량 '+rem.toLocaleString()+'</span>':'')+'</small></div>';
+          }).join('')
+          : '<span style="color:#8894a0">우리 업체로 배정된 미결 LOT이 없습니다.</span>';
+        $('#mineList').querySelectorAll('.pk').forEach(d=>d.addEventListener('click',()=>pick(d.dataset.lot)));
+      }
       const box=$('#openList');
       if(!open.length){ box.innerHTML='<span style="color:#8894a0">미결 반출건이 없습니다.</span>'; return; }
       box.innerHTML=open.map(o=>{
@@ -148,7 +170,9 @@ textarea{min-height:64px}
     const last=OSP[OSP.length-1]||{};
 
     wrap.innerHTML=
-    '<div class="card"><h3>📦 LOT 정보 <a href="lot_scan.html" style="float:right;font-size:11px;color:#2e77bd">다른 LOT ›</a></h3><div class="bd">'+
+    '<div class="card"><h3>📦 LOT 정보 '+
+      '<a href="lot_scan.html" style="float:right;font-size:11px;color:#2e77bd">다른 LOT ›</a>'+
+      '<a href="lot_tag.html?lot='+encodeURIComponent(PART)+'" target="_blank" style="float:right;font-size:11px;color:#7b8794;margin-right:12px">🖨 이동표 재발행(분실 시)</a></h3><div class="bd">'+
       '<div class="kv"><b>LOT</b><span style="font-weight:800;font-size:16px;color:#22537f">'+esc(PART)+'</span>'+
       '<b>JOB</b><span>'+esc((PROG||{}).job||last.job||'-')+'</span>'+
       '<b>표준공정</b><span>'+(RT?esc(RT.standard_process_name):'(미매칭)')+'</span>'+
@@ -321,16 +345,13 @@ textarea{min-height:64px}
                 ($('#outRmk').value.trim()||''), worker:me.emp_name||'', source:'QR'}]);
             if(left<=0) await KI.upd(TBL.ospOrder,'no=eq.'+src.no,
               {idate:$('#outDate').value||TODAY, st:'완료'});
-            msg(left>0?'✓ 부분출고 등록 — 잔량 '+left.toLocaleString()+' 미결 유지':'✓ 전량 이관 등록 — 반출건 마감',1);
-            if(confirm('다음 업체로 보낼 공정이동표(QR)를 발행할까요?'))
-              window.open('lot_tag.html?lot='+encodeURIComponent(PART),'_blank');
+            msg(left>0?'✓ 부분출고 등록 — 잔량 '+left.toLocaleString()+' 미결 유지. 다음 업체 화면에 자동 표시됩니다.'
+                      :'✓ 전량 이관 등록 — 반출건 마감. 다음 업체 화면에 자동 표시됩니다.',1);
           }else{
             await KI.ins(TBL.lotMove,[{part:PART, io:'출고', mp:mp, vendor:ven,
               move_date:$('#outDate').value||TODAY, out_qty:q,
               remark:$('#outRmk').value.trim()||null, worker:me.emp_name||'', source:'QR'}]);
-            msg('✓ '+mp+' 공정으로 출고 등록되었습니다.',1);
-            if(confirm('공정이동표(QR)를 발행할까요?'))
-              window.open('lot_tag.html?lot='+encodeURIComponent(PART),'_blank');
+            msg('✓ '+mp+' 공정으로 출고 등록되었습니다. 다음 업체 화면에 자동 표시됩니다.',1);
           }
           setTimeout(load,700);
         }catch(e){ msg('❌ '+e.message); }
