@@ -122,7 +122,12 @@
       '<div id="moveBox"></div>'+
       '<div class="lr-open" style="margin-top:10px"><h5>다음 공정 진행등록 (반출)</h5>'+
       '<div style="padding:9px 10px"><div class="lr-f">'+
-        '<label>JOB</label><input type="text" id="fJob" placeholder="JOB 번호">'+
+        '<label>JOB</label><span style="display:flex;gap:4px;min-width:0">'+
+          '<input type="text" id="fJob" placeholder="JOB 번호" style="flex:1;min-width:0">'+
+          '<button type="button" id="fJobGen" title="JOB-YYMMDD## 형태로 자동생성" '+
+            'style="height:26px;padding:0 9px;border:1px solid #9aa8b6;'+
+            'background:linear-gradient(#fff,#e1e7ec);color:#405163;white-space:nowrap;font-weight:700">자동생성</button>'+
+        '</span>'+
         '<label>매칭품번</label><input type="text" id="fMap" list="dlMap" autocomplete="off" placeholder="제품번호 입력 후 선택">'+
         '<label>표준공정 *</label><select id="fRoute"></select>'+
         '<label>가공공정 *</label><select id="fMp"></select>'+
@@ -290,6 +295,7 @@
     sel=c; NEW=false; mode('ins');
     $('#infoBox').style.display=''; $('#iChain').style.display='';
     $('#fJob').value=c.job||''; $('#fJob').readOnly=true;
+    const g1=$('#fJobGen'); if(g1) g1.style.display='none';
     $('#mTtl').textContent='진행등록 — '+(c.part||'');
     $('#iJob').textContent=c.job||'-';   $('#iPart').textContent=c.part||'-';
     $('#iStd').textContent=c.std?c.std.standard_process_name:'(미매칭)';
@@ -362,6 +368,25 @@
   }
 
   /* ── 신규등록 (진행목록에 없는 LOT 직접 등록) ── */
+  /* ── JOB 번호 자동생성 : JOB-YYMMDD## (당일 일련번호, 중복 회피) ── */
+  function genJob(){
+    const d=new Date(), ymd=d.toISOString().slice(2,10).replace(/-/g,'');
+    const used=new Set();
+    ROWS.forEach(r=>{ if(r.job) used.add(String(r.job).toUpperCase()); });
+    OSP.forEach(o=>{ if(o.job) used.add(String(o.job).toUpperCase()); });
+    for(let i=1;i<=99;i++){
+      const j='JOB-'+ymd+String(i).padStart(2,'0');
+      if(!used.has(j)) return j;
+    }
+    return 'JOB-'+ymd+String(Date.now()%100).padStart(2,'0');
+  }
+  document.addEventListener('click',e=>{
+    if(e.target&&e.target.id==='fJobGen'){
+      const f=$('#fJob'); if(f.readOnly) return;
+      f.value=genJob(); f.focus();
+    }
+  });
+
   function openNew(){
     if(!(CAN_S||CAN_E)) return KI.msg('❌ 등록 권한이 없습니다.');
     sel=null; NEW=true; mode('ins');
@@ -369,6 +394,7 @@
     $('#infoBox').style.display='none'; $('#iChain').style.display='none';
     $('#openBox').innerHTML='';
     $('#fJob').value=''; $('#fJob').readOnly=false;
+    const g2=$('#fJobGen'); if(g2) g2.style.display='';
     $('#fRoute').value=''; fillMp('',''); $('#fVen').value='';
     $('#fSdate').value=TODAY;
     const e=new Date(); e.setDate(e.getDate()+7); $('#fEdate').value=e.toISOString().slice(0,10);
@@ -388,6 +414,7 @@
     if(!(CAN_S||CAN_E)) return KI.msg('❌ 수정 권한이 없습니다.');
     editNo=o.no; NEW=false; mode('edit');
     $('#fJob').value=o.job||'';
+    const g3=$('#fJobGen'); if(g3) g3.style.display='none';
     $('#fRoute').value=o.route_no||(sel&&sel.std?String(sel.std.standard_process_no):'');
     fillMp($('#fRoute').value,o.mp||'');
     $('#fVen').value=o.vendor||'';
