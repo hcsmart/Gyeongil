@@ -702,6 +702,21 @@
   }
 
   /* ── 현장 기록 (QR 입출고 · 특기사항) ── */
+  /* 이동일자 오름차순으로 보유처를 추적해 각 건의 출고처 → 입고처를 산출 */
+  function flowMap(mv){
+    const asc=mv.slice().sort((a,b)=>String(a.move_date||'').localeCompare(String(b.move_date||''))
+      ||(Number(a.move_id)||0)-(Number(b.move_id)||0));
+    const map={}; let loc='사내'; const prev={};
+    asc.forEach(v=>{
+      const here=node(v.mp,v.vendor);
+      if(v.io==='출고'){        map[v.move_id]={f:loc, t:here, q:v.out_qty}; prev[here]=loc; loc=here; }
+      else if(v.io==='도착'){   map[v.move_id]={f:prev[here]||'사내', t:here, q:v.in_qty}; loc=here; }
+      else if(v.io==='입고'){   map[v.move_id]={f:here, t:'사내 복귀', q:v.in_qty}; loc='사내'; }
+      else if(v.io==='사내입고'){map[v.move_id]={f:(v.mp||v.vendor)?here:loc, t:'사내입고 (종결)', q:v.in_qty}; loc='사내'; }
+      else                      map[v.move_id]={f:'', t:'', q:null};
+    });
+    return map;
+  }
   async function loadMoves(part){
     const box=$('#moveBox'); box.innerHTML='';
     try{
@@ -709,19 +724,22 @@
                             '&order=move_date.desc,move_id.desc&limit=8');
       if(sel&&sel.part===part) drawFlow(sel,mv);   /* 실제 입출고 일자로 다이어그램 갱신 */
       if(!mv.length)return;
-      box.innerHTML='<div class="lr-open"><h5>📝 현장 기록 — QR 입출고 · 특기사항 (최근 '+mv.length+'건)</h5>'+
+      const RM=flowMap(mv);
+      box.innerHTML='<div class="lr-open"><h5>📝 현장 기록 — 물류 흐름 · 특기사항 (최근 '+mv.length+'건)</h5>'+
         '<table class="grid"><thead><tr><th style="width:84px">일자</th><th style="width:62px">구분</th>'+
-        '<th style="width:56px">공정</th><th style="width:96px">외주처</th>'+
-        '<th style="width:64px">출고</th><th style="width:64px">입고</th><th style="width:52px">부족</th>'+
-        '<th style="width:120px">사유</th><th>특기사항</th></tr></thead><tbody>'+
-        mv.map(v=>'<tr><td class="center nw">'+esc(v.move_date||'')+'</td>'+
+        '<th style="width:150px">출고처</th><th style="width:18px"></th><th style="width:150px">입고처</th>'+
+        '<th style="width:64px">수량</th><th style="width:52px">부족</th>'+
+        '<th style="width:110px">사유</th><th>특기사항</th></tr></thead><tbody>'+
+        mv.map(v=>{ const r=RM[v.move_id]||{};
+          return '<tr><td class="center nw">'+esc(v.move_date||'')+'</td>'+
           '<td class="center"><span class="badge '+(v.io==='입고'||v.io==='사내입고'?'b-done':v.io==='출고'?'b-run':'b-wait')+'">'+esc(v.io)+'</span></td>'+
-          '<td class="center">'+esc(v.mp||'')+'</td><td>'+esc(v.vendor||'')+'</td>'+
-          '<td class="num">'+(v.out_qty==null?'':Number(v.out_qty).toLocaleString())+'</td>'+
-          '<td class="num">'+(v.in_qty==null?'':Number(v.in_qty).toLocaleString())+'</td>'+
+          '<td>'+esc(r.f||'')+'</td>'+
+          '<td class="center" style="color:#8894a0">'+(r.t?'▶':'')+'</td>'+
+          '<td'+(v.io==='사내입고'?' style="font-weight:700;color:#1d568c"':'')+'>'+esc(r.t||'')+'</td>'+
+          '<td class="num">'+(r.q==null?'':Number(r.q).toLocaleString())+'</td>'+
           '<td class="num"'+(Number(v.short_qty)>0?' style="color:#b23030;font-weight:800"':'')+'>'+
             (v.short_qty?Number(v.short_qty).toLocaleString():'')+'</td>'+
-          '<td>'+esc(v.reason||'')+'</td><td>'+esc(v.remark||'')+'</td></tr>').join('')+
+          '<td>'+esc(v.reason||'')+'</td><td>'+esc(v.remark||'')+'</td></tr>'; }).join('')+
         '</tbody></table></div>';
     }catch(e){}
   }
