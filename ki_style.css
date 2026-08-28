@@ -378,3 +378,10 @@ table.grid{width:100%;border-collapse:collapse;table-layout:fixed}
 .navtop .status .msg{margin-left:0}
 @media (max-width:1100px){ .top3 .t3-path{display:none} }
 @media print{ .top3{display:none} .navtop .workspace{position:static} }
+
+/* 메뉴 탭만 표시 : 경로 라벨 · 그룹명 · (2차 1개일 때) 아이콘바 숨김 */
+.navtop .top3 .t3-path{display:none}
+.navtop .top3 .group-title{display:none}
+.navtop .top3 .group{padding-right:8px;border-right:1px solid #d5dde4}
+body.nosec{--top2:0px}
+body.nosec .top2{display:none}

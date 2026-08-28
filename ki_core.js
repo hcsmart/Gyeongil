@@ -237,7 +237,10 @@ function chrome(curId){
     }));
   }
   function drawSec(){
-    $('#kiSec').innerHTML = mod().second.filter(okSec).map(x=>
+    const secs = mod().second.filter(okSec);
+    /* 2차 항목이 1개뿐이면 아이콘바 숨김 (상단 가로 메뉴 모드) */
+    document.body.classList.toggle('nosec', NAVTOP && secs.length<2);
+    $('#kiSec').innerHTML = secs.map(x=>
       '<button class="tool'+(x.key===curSec?' on':'')+'" data-k="'+x.key+'">'+
       '<span class="ico">'+x.icon+'</span><span>'+esc(x.name)+'</span></button>').join('');
     $('#kiSec').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
