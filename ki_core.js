@@ -429,11 +429,11 @@ function actList(id){
   if(def){
     const a=[{n:'조회',c:'primary'}];
     if(def.edit){
-      if(can(id,'save')){ a.push({n:'＋ 등록',c:''}); a.push({n:'📊 엑셀 업로드',c:''}); }
+      if(can(id,'save')){ a.push({n:'등록',c:''}); a.push({n:'엑셀업로드',c:''}); }
       if(can(id,'edit'))   a.push({n:'수정',c:''});
       if(can(id,'delete')) a.push({n:'삭제',c:'danger'});
     }
-    a.push({n:'초기화',c:''}); a.push({n:'엑셀(CSV)',c:''}); a.push({n:'인쇄',c:''});
+    a.push({n:'초기화',c:''}); a.push({n:'엑셀다운로드',c:''}); a.push({n:'인쇄',c:''});
     return a;
   }
   try{ return JSON.parse(localStorage.getItem(ACT_LS+id)||'[]'); }catch(e){ return []; }
@@ -1078,13 +1078,13 @@ async function grid(id, need){
   const cur=chrome(id), def=VIEWS[id];
   const acts=[['조회','primary',b=>run(b.target)]];
   if(def.edit){
-    if(can(id,'save'))   acts.push(['＋ 등록','',()=>modal.open(null)]);
-    if(can(id,'save'))   acts.push(['📊 엑셀 업로드','',()=>uploader.open()]);
+    if(can(id,'save'))   acts.push(['등록','',()=>modal.open(null)]);
+    if(can(id,'save'))   acts.push(['엑셀업로드','',()=>uploader.open()]);
     if(can(id,'edit'))   acts.push(['수정','',()=>{ if(!state.sel) return msg('수정할 행을 선택하세요.'); modal.open(state.sel); }]);
     if(can(id,'delete')) acts.push(['삭제','danger',()=>removeRow()]);
   }
   acts.push(['초기화','',()=>{ sp.querySelectorAll('input').forEach(i=>i.value=''); sp.querySelectorAll('select').forEach(s=>s.selectedIndex=0); }]);
-  acts.push(['엑셀(CSV)','',()=>csv(cur.it,def,state.rows)]);
+  acts.push(['엑셀다운로드','',()=>csv(cur.it,def,state.rows)]);
   acts.push(['인쇄','',()=>window.print()]);
   const ui=page(cur,acts);
   const state={rows:[],sel:null};
