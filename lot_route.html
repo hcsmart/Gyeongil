@@ -52,6 +52,16 @@
 .fx-node.st-next .t{color:#1d568c}.fx-node.st-next .s{color:#5a83ab}
 .fx-node.st-rest{background:#f2f4f6;border-color:#d5dce2}
 .fx-node.st-rest .t{color:#96a2ad}.fx-node.st-rest .s{color:#a8b3bd}
+/* 현재 위치 : 짙은 색 강조 */
+.fx-node.st-done.st-cur{background:#2f7d4d;border-color:#1d5a35;box-shadow:0 1px 4px rgba(31,90,53,.4)}
+.fx-node.st-done.st-cur .t{color:#fff}.fx-node.st-done.st-cur .n{color:#cfe8d8}
+.fx-node.st-done.st-cur .s{color:#eafff1}
+.fx-node.st-wip.st-cur{background:#2e77bd;border-color:#1d568c;box-shadow:0 1px 4px rgba(29,86,140,.4)}
+.fx-node.st-wip.st-cur .t{color:#fff}.fx-node.st-wip.st-cur .n{color:#cfe1f3}
+.fx-node.st-wip.st-cur .s{color:#eaf4ff}
+.fx-node.st-home:not(.st-cur){background:#eef1f4;border-color:#c4cfd9}
+.fx-node.st-home:not(.st-cur) .t{color:#526171}
+.fx-node.st-home:not(.st-cur) .n,.fx-node.st-home:not(.st-cur) .s{color:#8b98a5}
 .fx-arrow{align-self:center;padding:0 6px;color:#b6c2cd;font-weight:800;font-size:14px;white-space:nowrap}
 .fx-arrow.a-done{color:#2f7d4d}
 .fx-arrow.a-wip{color:#2e77bd;animation:fxPulse 1.6s ease-in-out infinite}
@@ -311,6 +321,58 @@
     $('#mS').textContent = kind==='edit' ? '💾 저장' : '📤 반출 등록';
     $('#mEC').style.display = kind==='edit' ? '' : 'none';
   }
+  /* ── 사내 → 외주 → 사내 흐름 다이어그램 ──
+     mv(현장 기록)가 있으면 도착·입고 실제 일자를 우선 사용하고, 현재 위치를 짙은 색으로 강조 */
+  function drawFlow(c,mv){
+    mv=mv||[];
+    const md=d=>d?String(d).slice(5).replace('-','/'):'';
+    const arr=(io2,x)=>mv.filter(v=>v.mp===x&&(v.io==='도착'||v.io==='입고'))
+                  .sort((a,b)=>String(b.move_date||'').localeCompare(String(a.move_date||'')))[0];
+    const outOf=x=>mv.filter(v=>v.mp===x&&v.io==='출고')
+                  .sort((a,b)=>String(b.move_date||'').localeCompare(String(a.move_date||'')))[0];
+    const inh=mv.find(v=>v.io==='사내입고');
+    const node=(cls,cur,t,n2,st2)=>'<div class="fx-node '+cls+(cur?' st-cur':'')+'">'+
+      '<div class="t">'+t+'</div>'+(n2?'<div class="n">'+n2+'</div>':'')+
+      (st2?'<div class="s">'+st2+'</div>':'')+'</div>';
+    const arrow=cls=>'<div class="fx-arrow'+(cls?' '+cls:'')+'">→</div>';
+    const seq = c.sd.length ? c.sd : c.steps.map(x=>x.mp);   /* 미매칭 시 실제 경유 순서 */
+    /* 현재 위치 : 종결 > 반출중 > 마지막 완료 공정 > 사내 */
+    const doneOf=x=>!!c.steps.find(s2=>s2.mp===x)||c.seen.has(x);
+    const lastDone=[...seq].reverse().find(doneOf)||'';
+    const closed=!!c.recv||!!inh;
+    const curPos= closed?'recv' : c.wipMp?('wip:'+c.wipMp) : lastDone?('mp:'+lastDone) : 'home';
+    let html=node('st-home', curPos==='home', '🏭 사내','출발',
+      c.steps.length||c.moving?'반출 완료':'현재 위치');
+    seq.forEach((x,i)=>{
+      const info=c.steps.find(s2=>s2.mp===x);
+      const done=doneOf(x);
+      const wip=(!done && x===c.wipMp), nx=(!done && !wip && x===c.rest[0]);
+      const a2=arr(null,x), o2=outOf(x);
+      const dDate=(a2&&a2.move_date)||(info&&info.date)||'';      /* 실제 도착·입고일 우선 */
+      const dVen =(a2&&a2.vendor)||(info&&info.vendor)||'';
+      const wDate=(o2&&o2.move_date)||c.last.date||'';
+      const prevDone = i===0 ? (c.steps.length>0||c.moving) : doneOf(seq[i-1])||seq[i-1]===c.wipMp;
+      html+=arrow(done?'a-done':(wip&&prevDone)?'a-wip':'');
+      html+=node(done?'st-done':wip?'st-wip':nx?'st-next':'st-rest',
+        curPos==='mp:'+x||curPos==='wip:'+x,
+        esc(x), esc(pName(x)||''),
+        done?'✓ '+esc(dVen)+(dDate?' · '+md(dDate):'')
+        :wip?'<span style="display:inline-block;transform:scaleX(-1)">🚚</span> '+esc(c.last.vendor||'')+' 반출중'+(wDate?' · '+md(wDate):'')
+        :nx?'다음 공정':'대기');
+    });
+    const allDone = seq.length && seq.every(doneOf);
+    const rIn=c.recv?c.recv.in_date:(inh?inh.move_date:'');
+    const rQty=c.recv?Number(c.recv.qty)||0:(inh?Number(inh.in_qty)||0:0);
+    const rShort=c.recv?Number(c.recv.short_qty)||0:(inh?Number(inh.short_qty)||0:0);
+    html+=arrow(closed?'a-done':'');
+    html+=node(closed?'st-done':allDone?'st-next':'st-rest', curPos==='recv',
+      '🏭 사내입고','종결',
+      closed?('✓ '+md(rIn)+' · '+rQty.toLocaleString()+
+              (rShort?' <span style="color:#ffd9d9">(부족 '+rShort+')</span>':''))
+            :allDone?'입고 대기':'대기');
+    $('#iChain').innerHTML='<div class="fx">'+html+'</div>';
+  }
+
   function open(c){
     sel=c; NEW=false; mode('ins');
     $('#infoBox').style.display=''; $('#iChain').style.display='';
@@ -325,32 +387,7 @@
       (c.moving?' <span class="badge" style="background:#e9f2fc;color:#1d568c">반출중</span>':'');
     $('#iVen').textContent=c.last.vendor||'-';
     /* 공정 경로 */
-    /* ── 사내 → 외주 → 사내 흐름 다이어그램 ── */
-    const md=d=>d?String(d).slice(5).replace('-','/'):'';
-    const node=(cls,t,n2,st2)=>'<div class="fx-node '+cls+'"><div class="t">'+t+'</div>'+
-      (n2?'<div class="n">'+n2+'</div>':'')+(st2?'<div class="s">'+st2+'</div>':'')+'</div>';
-    const arrow=cls=>'<div class="fx-arrow'+(cls?' '+cls:'')+'">→</div>';
-    const seq = c.sd.length ? c.sd : c.steps.map(x=>x.mp);   /* 미매칭 시 실제 경유 순서 */
-    let html=node('st-home','🏭 사내','출발', c.steps.length||c.moving?'반출 완료':'대기');
-    seq.forEach((x,i)=>{
-      const info=c.steps.find(s2=>s2.mp===x);
-      const done=!!info||c.seen.has(x);
-      const wip=(!done && x===c.wipMp), nx=(!done && !wip && x===c.rest[0]);
-      const prevDone = i===0 ? (c.steps.length>0||c.moving) : (c.seen.has(seq[i-1])||seq[i-1]===c.wipMp);
-      html+=arrow(done?'a-done':(wip&&prevDone)?'a-wip':'');
-      html+=node(done?'st-done':wip?'st-wip':nx?'st-next':'st-rest',
-        esc(x), esc(pName(x)||''),
-        done?'✓ '+esc(info?info.vendor:'')+(info&&info.date?' · '+md(info.date):'')
-        :wip?'<span style="display:inline-block;transform:scaleX(-1)">🚚</span> '+esc(c.last.vendor||'')+' 반출중'+(c.last.date?' · '+md(c.last.date):'')
-        :nx?'다음 공정':'대기');
-    });
-    const allDone = seq.length && seq.every(x=>c.seen.has(x));
-    html+=arrow(c.recv?'a-done':'');
-    html+=node(c.recv?'st-done':allDone?'st-next':'st-rest','🏭 사내입고','종결',
-      c.recv?('✓ '+md(c.recv.in_date)+' · '+(Number(c.recv.qty)||0).toLocaleString()+
-              (Number(c.recv.short_qty)?' <span style="color:#b23030">(부족 '+Number(c.recv.short_qty)+')</span>':''))
-            :allDone?'입고 대기':'대기');
-    $('#iChain').innerHTML='<div class="fx">'+html+'</div>';
+    drawFlow(c,null);
     /* 미입고 건 */
     const op=ospOf(c.part).filter(o=>o.sdate&&!o.idate);
     $('#openBox').innerHTML = op.length
@@ -654,6 +691,7 @@
     try{
       const mv=await KI.get(OBJ.lotMove+'?select=*&part=eq.'+encodeURIComponent(part)+
                             '&order=created_at.desc&limit=8');
+      if(sel&&sel.part===part) drawFlow(sel,mv);   /* 실제 입출고 일자로 다이어그램 갱신 */
       if(!mv.length)return;
       box.innerHTML='<div class="lr-open"><h5>📝 현장 기록 — QR 입출고 · 특기사항 (최근 '+mv.length+'건)</h5>'+
         '<table class="grid"><thead><tr><th style="width:84px">일자</th><th style="width:62px">구분</th>'+
