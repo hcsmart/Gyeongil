@@ -10,6 +10,7 @@
 .vs-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:9px}
 .vs-k{background:#fff;border:1px solid #dde4ea;border-radius:6px;padding:9px 11px;position:relative;overflow:hidden}
 .vs-k b{display:block;font-size:22px;font-weight:900;letter-spacing:-.6px;color:#22537f;line-height:1.2}
+.vs-k b em{font-style:normal;font-size:12px;font-weight:800;margin-left:2px;opacity:.75}
 .vs-k span{font-size:11px;color:#7b8794;font-weight:700}
 .vs-k.warn b{color:#b23030}.vs-k.hold b{color:#b06a12}.vs-k.ok b{color:#1f8a4c}
 
@@ -154,11 +155,14 @@
     const late=rs.filter(r=>r.due_status==='지연');
     const maxAge=rs.reduce((a,b)=>Math.max(a,num(b.age_days)),0);
     kpi.innerHTML=
-      '<div class="vs-k"><b>'+fmt(totQ)+'</b><span>총 보유수량 ('+new Set(rs.map(r=>r.vendor)).size+'개사)</span></div>'+
-      '<div class="vs-k hold"><b>'+fmt(wait.reduce((a,b)=>a+num(b.stock_qty),0))+'</b>'+
+      '<div class="vs-k"><b>'+fmt(totQ)+'<em>개</em></b>'+
+        '<span>총 보유수량 · 협력사 '+new Set(rs.map(r=>r.vendor)).size+'개사</span></div>'+
+      '<div class="vs-k hold"><b>'+fmt(wait.reduce((a,b)=>a+num(b.stock_qty),0))+'<em>개</em></b>'+
         '<span>도착대기 '+wait.length+'건 — 확인 필요</span></div>'+
-      '<div class="vs-k warn"><b>'+old7.length+'</b><span>7일 이상 체류 (최장 '+maxAge+'일)</span></div>'+
-      '<div class="vs-k '+(late.length?'warn':'ok')+'"><b>'+late.length+'</b><span>납기 지연 건</span></div>';
+      '<div class="vs-k '+(old7.length?'warn':'')+'"><b>'+old7.length+'<em>건</em></b>'+
+        '<span>7일 이상 체류 · 최장 체류 '+maxAge+'일</span></div>'+
+      '<div class="vs-k '+(late.length?'warn':'ok')+'"><b>'+late.length+'<em>건</em></b>'+
+        '<span>납기 지연</span></div>';
 
     /* 그룹 */
     const key = MODE==='part' ? (r=>r.map_part||'(품번 미지정)') : (r=>r.vendor||'(업체 미지정)');
