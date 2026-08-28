@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'GI MES',
-  VER      : 'v12.9',
+  VER      : 'v13.0',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -379,11 +379,11 @@ const VIEWS = {
 'lot-trace':{
   manual:true,
   table:OBJ.lotProg, order:'no.asc', post:'trace',
-  search:[['LOT','text','part'],['매칭품번','text','map_part'],['JOB(관리번호)','text','job'],
+  search:[['LOT','text','part'],['품번','text','map_part'],['JOB(관리번호)','text','job'],
           ['외주처','sel-vendor','vendor'],['가공공정','sel-mp','mp'],['이동일','date2','date'],
           ['공정','text','proc']],
   cols:[['No',46,'center','_i'],['순번',48,'center','seq'],['JOB(관리번호)',118,'','job'],
-        ['LOT',110,'','part'],['매칭품번',110,'','map_part'],['공정',50,'center','proc'],
+        ['LOT',110,'','part'],['품번',110,'','map_part'],['공정',50,'center','proc'],
         ['가공공정',72,'center','mp'],['가공공정명',130,'','mpName'],
         ['외주업체',130,'','vendor'],['이동일',90,'center','date'],
         ['전공정',80,'center','prevMp'],['다음공정',80,'center','nextMp'],['경유단계',0,'','chain','chain']]
@@ -558,7 +558,7 @@ const VIEWS = {
   cols:[['협력사',110,'','vendor'],['담당자',80,'','contact_name'],['연락처',110,'','contact_phone'],
         ['LOT',96,'','part'],['JOB',80,'','job'],
         ['공정',56,'center','mp'],['공정명',110,'','mp_name'],
-        ['매칭품번',100,'','map_part'],['금형제번',80,'center','mold_no'],
+        ['품번',100,'','map_part'],['금형제번',80,'center','mold_no'],
         ['반출일',88,'center','out_date'],['도착일',88,'center','arrived_date'],
         ['반출수량',80,'num','out_qty','n0'],['도착수량',80,'num','arrived_qty','n0'],
         ['이관',70,'num','moved_qty','n0'],
