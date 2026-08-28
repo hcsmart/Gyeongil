@@ -70,7 +70,7 @@
   const CAN_S=KI.can('lot-route','save'), CAN_E=KI.can('lot-route','edit'),
         CAN_D=KI.can('lot-route','delete');
   const TODAY=new Date().toISOString().slice(0,10);
-  let ROWS=[], OSP=[], VEN=[], PROC=[], RT=[], MOLDS=[], sel=null, NEW=false, editNo=null;
+  let ROWS=[], OSP=[], VEN=[], PROC=[], RT=[], MOLDS=[], RCPT=[], sel=null, NEW=false, editNo=null;
 
   const ui=KI.page(cur,[
     ['조회','primary',()=>load()],
@@ -80,7 +80,8 @@
   ]);
   const nt=el('div','note');
   nt.innerHTML='LOT의 <b>표준공정 대비 진척</b>과 현재 위치입니다. 행의 <b>[진행등록 ▸]</b>을 누르면 '+
-    '해당 LOT 정보가 채워진 채로 <b>다음 공정 반출 · 입고</b>를 바로 등록할 수 있습니다.';
+    '해당 LOT 정보가 채워진 채로 <b>다음 공정 반출 · 입고</b>를 바로 등록할 수 있습니다. '+
+    '표준공정이 모두 끝난 LOT은 <b>[🏭 사내입고]</b>로 종결하고, 모달의 <b>[🖨 이동표(QR)]</b>로 공정이동표를 발행하세요.';
   ui.pg.appendChild(nt);
 
   const L=el('div','lr-list');
@@ -89,7 +90,8 @@
     '<input type="text" id="q" placeholder="LOT · JOB · 외주처" style="height:24px;border:1px solid #aeb9c4;padding:0 6px;width:220px">'+
     '<span style="font-weight:700;color:#526171;margin-left:8px">상태</span>'+
     '<select id="fs"><option value="">전체</option><option>진행중</option><option>외주 반출중</option>'+
-      '<option>표준완료</option><option>미매칭</option></select>'+
+      '<option>표준완료</option><option value="사내입고 대기">사내입고 대기</option>'+
+      '<option value="사내입고 완료">사내입고 완료</option><option>미매칭</option></select>'+
     '<span class="sp" id="cnt"></span>';
   const gw=el('div','grid-wrap'); const tbl=el('table','grid');
   tbl.innerHTML='<thead><tr>'+
@@ -113,6 +115,7 @@
       '</div>'+
       '<div class="lr-chain" id="iChain"></div>'+
       '<div id="openBox"></div>'+
+      '<div id="moveBox"></div>'+
       '<div class="lr-open" style="margin-top:10px"><h5>다음 공정 진행등록 (반출)</h5>'+
       '<div style="padding:9px 10px"><div class="lr-f">'+
         '<label>JOB</label><input type="text" id="fJob" placeholder="JOB 번호">'+
@@ -136,7 +139,9 @@
       '</div></div>'+
     '</div>'+
     '<div class="lr-mf"><span class="msg" id="mMsg" style="font-weight:700"></span>'+
-      '<button class="btn" id="mC" style="margin-left:auto">닫기</button>'+
+      '<button class="btn" id="mTag" style="margin-left:auto">🖨 이동표(QR)</button>'+
+      '<button class="btn" id="mInh" style="display:none;color:#15803d;border-color:#8fbf9f">🏭 사내입고</button>'+
+      '<button class="btn" id="mC">닫기</button>'+
       '<button class="btn" id="mEC" style="display:none">↩ 수정취소</button>'+
       '<button class="btn primary" id="mS">📤 반출 등록</button></div>';
   document.body.appendChild(dim); document.body.appendChild(mo);
@@ -203,7 +208,9 @@
     const wipMp = (moving && last.mp && !seen.has(last.mp)) ? last.mp : '';
     const wip = wipMp && sd.includes(wipMp) ? 1 : 0;
     if(wipMp) rest = rest.filter(x=>x!==wipMp);
+    const rc=RCPT.find(x=>String(x.part||'')===String(r.part));
     return {no:r.no, job:r.job, part:r.part, proc:r.proc, map_part:r.map_part||'',
+      recv:rc||null,
       route_no:r.route_no||'', moving:moving, steps:st, last:last, std:m?m.rt:null,
       sd:sd, seen:seen, done:done, total:total, rest:rest, wip:wip, wipMp:wipMp,
       rate: total?Math.round(done/total*100):0,
@@ -225,6 +232,8 @@
       const os=ospState(c.part).t;
       if(f==='외주 반출중') return os==='반출중';
       if(f==='표준완료')  return c.std && !c.rest.length;
+      if(f==='사내입고 대기') return c.std && !c.rest.length && !c.wip && os!=='반출중' && !c.recv;
+      if(f==='사내입고 완료') return !!c.recv;
       if(f==='미매칭')    return !c.std;
       if(f==='진행중')    return c.std && c.rest.length;
       return true;
@@ -242,7 +251,8 @@
         '<td class="center">'+esc(c.last.date||'')+'</td>'+
         '<td>'+(nx?'<b style="color:#1d568c">'+esc(nx)+'</b>'+(pName(nx)?' · '+esc(pName(nx)):'')+
                  (c.rest.length>1?' <small style="color:#96a2ad">외 '+(c.rest.length-1)+'</small>':'')
-               :(c.std?'<span style="color:#15803d;font-weight:700">완료</span>':'-'))+'</td>'+
+               :(c.recv?'<span class="badge b-done">🏭 사내입고 '+esc(c.recv.in_date||'')+'</span>'
+                :(c.std?'<span style="color:#15803d;font-weight:700">완료</span>':'-')))+'</td>'+
         '<td style="display:flex;align-items:center;gap:5px">'+
           '<div class="lr-bar">'+
             (c.wip?'<i class="wip" style="width:'+Math.min(c.wipRate,100)+'%"></i>':'')+
@@ -251,9 +261,13 @@
             (c.wip?' <b style="color:#2e77bd">+1</b>':'')+'</span></td>'+
         '<td class="center" style="white-space:nowrap">'+
           '<button class="lr-go go">진행등록 ▸</button>'+
+          ((CAN_S||CAN_E)&&c.std&&!c.rest.length&&!c.wip&&!c.moving&&!c.recv
+            ?'<button class="lr-go inh" style="background:#2f7d4d;border-color:#2f7d4d;margin-left:4px">🏭 사내입고</button>':'')+
           (CAN_D?'<button class="lr-go del" style="background:#fff;color:#a0505a;border-color:#c9a0a8;margin-left:4px">삭제</button>':'')+
         '</td>';
       t.querySelector('.go').addEventListener('click',ev=>{ ev.stopPropagation(); open(c); });
+      const ih=t.querySelector('.inh');
+      if(ih) ih.addEventListener('click',ev=>{ ev.stopPropagation(); inhouse(c); });
       const db=t.querySelector('.del');
       if(db) db.addEventListener('click',ev=>{ ev.stopPropagation(); delRow(c); });
       t.addEventListener('click',()=>open(c));
@@ -337,6 +351,9 @@
     (base&&base.length?base:[{lot:c.part||'',qty:''}]).forEach(x=>lotRow(x.lot||c.part||'',x.qty));
     $('#mMsg').textContent=''; $('#mMsg').className='msg';
     $('#mS').style.display=(CAN_S||CAN_E)?'':'none';
+    $('#mTag').style.display='';
+    $('#mInh').style.display=((CAN_S||CAN_E)&&c.std&&!c.rest.length&&!c.wip&&!c.moving&&!c.recv)?'':'none';
+    loadMoves(c.part);
     dim.classList.add('on'); mo.style.display='';
   }
 
@@ -356,6 +373,7 @@
     lotBody.innerHTML=''; lotRow('','');
     $('#mMsg').textContent=''; $('#mMsg').className='msg';
     $('#mS').style.display='';
+    $('#mTag').style.display='none'; $('#mInh').style.display='none'; $('#moveBox').innerHTML='';
     dim.classList.add('on'); mo.style.display='';
     $('#fJob').focus();
   }
@@ -459,13 +477,24 @@
       }else{
         body.odate=null;
         const from=$('#fFrom').value;
-        if(from){   /* 외주 → 외주 : 직전 외주건을 이 반출일자로 입고 마감하고 이어서 반출 */
-          const src=OSP.find(x=>String(x.no)===String(from));
-          await KI.upd(TBL.ospOrder,'no=eq.'+from,{idate:body.sdate||TODAY, st:'완료'});
+        if(from){   /* 외주 → 외주 이관 : 전량이면 직전 건 마감, 일부면 잔량을 미결로 유지 (부분출고) */
+          const src=OSP.find(x=>String(x.no)===String(from))||{};
+          const mvs=await KI.get(OBJ.lotMove+'?select=out_qty&io=eq.'+encodeURIComponent('출고')+
+                                 '&osp_no=eq.'+from).catch(()=>[]);
+          const moved=mvs.reduce((a,b)=>a+(Number(b.out_qty)||0),0);
+          const remain=Math.max((Number(src.qty)||0)-moved,0);
+          const full=!remain || qty>=remain;
           await KI.ins(TBL.ospOrder,[body]);
-          m.className='msg ok'; m.textContent='✓ '+(src?esc(src.vendor||''):'')+' → '+ven+
-            ' 외주 이관 등록되었습니다. (LOT '+lots.length+'건 · '+qty.toLocaleString()+')';
-          KI.msg('✓ '+part+' 외주 이관 → '+mp+' · '+ven);
+          await KI.ins(TBL.lotMove,[{part:part, osp_no:Number(from)||null, io:'출고',
+            mp:mp, vendor:ven, move_date:body.sdate||TODAY, out_qty:qty||null,
+            remark:full?null:'부분출고 — 잔량 '+(remain-qty).toLocaleString()+' 유지',
+            worker:(KI.me()||{}).emp_name||'', source:'수동'}]).catch(()=>{});
+          if(full) await KI.upd(TBL.ospOrder,'no=eq.'+from,{idate:body.sdate||TODAY, st:'완료'});
+          m.className='msg ok'; m.textContent='✓ '+(src.vendor?esc(src.vendor):'')+' → '+ven+
+            (full?' 외주 이관(전량) 등록되었습니다.':' 부분출고 등록 — 잔량 '+(remain-qty).toLocaleString()+
+             ' 미결 유지 (다음 출고 시 이 반출건을 다시 선택)')+
+            ' (LOT '+lots.length+'건 · '+qty.toLocaleString()+')';
+          KI.msg('✓ '+part+' 외주 이관 → '+mp+' · '+ven+(full?'':' (부분)'));
         }else{
           await KI.ins(TBL.ospOrder,[body]);
           m.className='msg ok'; m.textContent='✓ '+mp+' 공정으로 반출 등록되었습니다. (LOT '+lots.length+'건 · '+qty.toLocaleString()+')';
@@ -495,17 +524,81 @@
     }catch(e){ KI.msg('❌ '+e.message); }
   }
   async function receive(no){
-    if(!confirm('오늘('+TODAY+') 입고 처리할까요?\n입고하면 다음 공정으로 진행할 수 있습니다.'))return;
+    const o=OSP.find(x=>String(x.no)===String(no))||{};
+    const outQ=Number(o.qty)||0;
+    const inS=prompt('입고 수량을 입력하세요 (출고 '+outQ.toLocaleString()+')\n불량 등으로 부족하면 실제 입고수량을 입력합니다.', String(outQ));
+    if(inS===null)return;
+    const inQ=Number(String(inS).replace(/[^0-9.]/g,''))||0;
+    const short=Math.max(outQ-inQ,0);
+    let reason='';
+    if(short>0){ reason=prompt('부족 '+short.toLocaleString()+' — 사유를 입력하세요 (불량 등)','불량')||''; }
+    const rmk=prompt('특기사항 (없으면 비워두세요)','')||'';
     const m=$('#mMsg');
     try{
       await KI.upd(TBL.ospOrder,'no=eq.'+no,{idate:TODAY, st:'완료'});
-      m.className='msg ok'; m.textContent='✓ 입고 처리되었습니다.';
-      KI.msg('✓ 입고 처리');
+      await KI.ins(TBL.lotMove,[{part:o.part||(sel?sel.part:''), osp_no:Number(no)||null, io:'입고',
+        mp:o.mp||null, vendor:o.vendor||null, move_date:TODAY,
+        out_qty:outQ||null, in_qty:inQ||null, short_qty:short, reason:reason||null,
+        remark:rmk||null, worker:(KI.me()||{}).emp_name||'', source:'수동'}]);
+      m.className='msg ok';
+      m.textContent='✓ 입고 처리되었습니다.'+(short?' (부족 '+short.toLocaleString()+' · '+reason+')':'');
+      KI.msg('✓ 입고 처리'+(short?' — 부족 '+short.toLocaleString():''));
       const keep=sel?sel.part:(lotList()[0]||{}).lot; await load();
       const c=ROWS.map(calc).find(x=>x.part===keep); if(c) open(c);
     }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
   }
+
+  /* ── 사내 최종입고 (LOT 종결) ── */
+  async function inhouse(c){
+    if(!(CAN_S||CAN_E)) return KI.msg('❌ 등록 권한이 없습니다.');
+    const last=ospOf(c.part).slice().sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0]||{};
+    const baseQ=Number(last.qty)||0;
+    const inS=prompt('['+c.part+'] 사내입고 수량을 입력하세요'+(baseQ?' (최종 반출 '+baseQ.toLocaleString()+')':''), String(baseQ||''));
+    if(inS===null)return;
+    const inQ=Number(String(inS).replace(/[^0-9.]/g,''))||0;
+    const short=baseQ?Math.max(baseQ-inQ,0):0;
+    let reason='';
+    if(short>0){ reason=prompt('부족 '+short.toLocaleString()+' — 사유를 입력하세요 (불량 등)','불량')||''; }
+    const rmk=prompt('특기사항 (없으면 비워두세요)','')||'';
+    try{
+      await KI.ins(TBL.lotReceipt,[{part:c.part, job:c.job||null, in_date:TODAY,
+        qty:inQ||null, short_qty:short, reason:reason||null,
+        worker:(KI.me()||{}).emp_name||'', remark:rmk||null}]);
+      await KI.ins(TBL.lotMove,[{part:c.part, io:'사내입고', move_date:TODAY,
+        in_qty:inQ||null, short_qty:short, reason:reason||null, remark:rmk||null,
+        worker:(KI.me()||{}).emp_name||'', source:'수동'}]);
+      KI.msg('✓ '+c.part+' 사내입고 완료 — LOT이 종결되었습니다.');
+      await load();
+      const c2=ROWS.map(calc).find(x=>x.part===c.part); if(sel&&c2) open(c2);
+    }catch(e){ alert('❌ '+e.message); }
+  }
+
+  /* ── 현장 기록 (QR 입출고 · 특기사항) ── */
+  async function loadMoves(part){
+    const box=$('#moveBox'); box.innerHTML='';
+    try{
+      const mv=await KI.get(OBJ.lotMove+'?select=*&part=eq.'+encodeURIComponent(part)+
+                            '&order=created_at.desc&limit=8');
+      if(!mv.length)return;
+      box.innerHTML='<div class="lr-open"><h5>📝 현장 기록 — QR 입출고 · 특기사항 (최근 '+mv.length+'건)</h5>'+
+        '<table class="grid"><thead><tr><th style="width:88px">일자</th><th style="width:66px">구분</th>'+
+        '<th style="width:86px">공정</th><th style="width:110px">외주처</th>'+
+        '<th style="width:80px">출고</th><th style="width:80px">입고</th><th style="width:70px">부족</th>'+
+        '<th style="width:100px">사유</th><th>특기사항</th></tr></thead><tbody>'+
+        mv.map(v=>'<tr><td class="center">'+esc(v.move_date||'')+'</td>'+
+          '<td class="center"><span class="badge '+(v.io==='입고'||v.io==='사내입고'?'b-done':v.io==='출고'?'b-run':'b-wait')+'">'+esc(v.io)+'</span></td>'+
+          '<td class="center">'+esc(v.mp||'')+'</td><td>'+esc(v.vendor||'')+'</td>'+
+          '<td class="num">'+(v.out_qty==null?'':Number(v.out_qty).toLocaleString())+'</td>'+
+          '<td class="num">'+(v.in_qty==null?'':Number(v.in_qty).toLocaleString())+'</td>'+
+          '<td class="num"'+(Number(v.short_qty)>0?' style="color:#b23030;font-weight:800"':'')+'>'+
+            (v.short_qty?Number(v.short_qty).toLocaleString():'')+'</td>'+
+          '<td>'+esc(v.reason||'')+'</td><td>'+esc(v.remark||'')+'</td></tr>').join('')+
+        '</tbody></table></div>';
+    }catch(e){}
+  }
   $('#mS').addEventListener('click',save);
+  $('#mTag').addEventListener('click',()=>{ if(sel) window.open('lot_tag.html?lot='+encodeURIComponent(sel.part),'_blank'); });
+  $('#mInh').addEventListener('click',()=>{ if(sel) inhouse(sel); });
 
   function csv(){
     const head=['JOB','LOT','표준공정','현재공정','현재외주처','최근이동','다음공정','완료','전체','진척률'];
@@ -517,15 +610,16 @@
   }
 
   async function load(){
-    const [rows,osp,ven,proc,rt,molds]=await Promise.all([
+    const [rows,osp,ven,proc,rt,molds,rcpt]=await Promise.all([
       KI.get(OBJ.lotProg+'?select=*&order=no.asc'),
       KI.get(OBJ.ospOrder+'?select=*&order=no.desc'),
       KI.get(OBJ.vendor+'?select=vendor_name&order=vendor_name.asc'),
       KI.get(OBJ.process+'?select=process_code,process_name&order=sort_order.asc'),
       KI.get(OBJ.stdRoute+'?select=*'),
-      KI.get(OBJ.moldSpec+'?select=mold_no,part_no,asset_owner&order=mold_no.asc')
+      KI.get(OBJ.moldSpec+'?select=mold_no,part_no,asset_owner&order=mold_no.asc'),
+      KI.get(OBJ.lotReceipt+'?select=part,in_date,qty,short_qty').catch(()=>[])
     ]);
-    ROWS=rows; OSP=osp; VEN=ven; PROC=proc; RT=rt; MOLDS=molds;
+    ROWS=rows; OSP=osp; VEN=ven; PROC=proc; RT=rt; MOLDS=molds; RCPT=rcpt;
     /* 진행이력이 아직 없는 반출건(입고 전)도 목록에 노출 */
     const have=new Set(ROWS.map(r=>String(r.part||'')));
     OSP.forEach(o=>{ const k=String(o.part||'');

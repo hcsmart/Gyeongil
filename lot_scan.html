@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QR 입출고 — GI MES</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:14px/1.6 'Malgun Gothic','맑은 고딕',sans-serif;background:#eef1f4;color:#1d2833;padding-bottom:30px}
+.top{background:linear-gradient(#3d7ab5,#2e6497);color:#fff;padding:12px 14px;font-weight:800;font-size:16px;display:flex;align-items:center;gap:8px}
+.top small{margin-left:auto;font-weight:400;font-size:11px;opacity:.85}
+.wrap{max-width:560px;margin:0 auto;padding:10px}
+.card{background:#fff;border:1px solid #c6d0da;margin-bottom:10px}
+.card h3{font-size:13px;background:#f0f4f8;border-bottom:1px solid #d9e1e8;padding:8px 11px;color:#2e4a63}
+.card .bd{padding:10px 11px}
+.kv{display:grid;grid-template-columns:82px 1fr;gap:4px 8px;font-size:13px}
+.kv b{color:#526171;font-weight:700}
+.chain{margin-top:8px;line-height:2.1;font-size:12px}
+.chain span{padding:2px 8px;border-radius:2px;background:#eef1f4;color:#7b8794;white-space:nowrap}
+.chain .done{background:#2f7d4d;color:#fff;font-weight:700}
+.chain .nx{background:#2e77bd;color:#fff;font-weight:700}
+.row{display:grid;grid-template-columns:92px 1fr;gap:8px;align-items:center;margin-bottom:8px}
+.row label{font-size:12px;font-weight:700;color:#526171}
+input,select,textarea{width:100%;border:1px solid #aeb9c4;padding:8px;font:inherit;font-size:14px}
+textarea{min-height:64px}
+.bt{width:100%;height:44px;border:0;font-size:15px;font-weight:800;color:#fff;cursor:pointer;margin-top:4px}
+.bt.in{background:#2f7d4d}.bt.out{background:#2e77bd}.bt.home{background:#7b3fa0}.bt.memo{background:#526171}
+.tab{display:flex;border-bottom:2px solid #2e6497;background:#fff}
+.tab button{flex:1;height:40px;border:0;background:#f0f4f8;font-weight:700;color:#526171;cursor:pointer;font-size:13px}
+.tab button.on{background:#2e6497;color:#fff}
+.pane{display:none}.pane.on{display:block}
+.short{color:#b23030;font-weight:800;font-size:12px}
+.part{color:#1d568c;font-weight:800;font-size:12px}
+.msg{padding:9px 12px;font-weight:700;font-size:13px}
+.msg.ok{color:#15803d}.msg.err{color:#b23030}
+.hist td{border-bottom:1px solid #eef1f4;padding:5px 4px;font-size:12px}
+.badge{display:inline-block;padding:1px 7px;border-radius:2px;font-size:11px;font-weight:700}
+.b-in{background:#e2f0e6;color:#15803d}.b-out{background:#e9f2fc;color:#1d568c}.b-etc{background:#f1f3f5;color:#526171}
+.pk{border:1px solid #d6dde4;border-left:4px solid #2e77bd;padding:9px 11px;margin-bottom:8px;background:#fbfcfd;cursor:pointer}
+.pk:active{background:#eef5fc}
+.pk b{color:#22537f;font-size:15px}
+.pk small{display:block;color:#526171;margin-top:2px}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<div class="top">📱 QR 입출고 <small id="who"></small></div>
+<div class="wrap" id="wrap">불러오는 중...</div>
+<script>
+(async function(){
+  if(!await KI.guard('lot-scan'))return;
+  const $=KI.$, el=KI.el, esc=KI.esc;
+  const TODAY=new Date().toISOString().slice(0,10);
+  const me=(KI.me()||{});
+  $('#who').textContent=(me.emp_name||'')+(me.dept?' · '+me.dept:'');
+  const wrap=$('#wrap');
+  let PART=new URLSearchParams(location.search).get('lot')||'';
+  let PROG=null, OSP=[], RT=null, STEPS=[], SEEN=new Set(), RCPT=null, MOVES=[], ALLMV=[], PROC=[], VEN=[];
+  const num=v=>Number(v)||0;
+
+  /* 반출건 잔량 = 출고수량 − 이후 이관(부분출고)된 수량 합계 */
+  const movedOf = (no,mv)=>(mv||ALLMV).filter(m=>m.io==='출고'&&String(m.osp_no||'')===String(no))
+                    .reduce((a,b)=>a+num(b.out_qty),0);
+  const remainOf = (o,mv)=>Math.max(num(o.qty)-movedOf(o.no,mv),0);
+
+  /* ── LOT 미지정 : 직접 입력 + 미결(입고대기·부분출고 잔량) LOT 불러오기 ── */
+  async function boot(){
+    if(PART){ load(); return; }
+    wrap.innerHTML='<div class="card"><h3>LOT 선택</h3><div class="bd">'+
+      '<div class="row"><label>LOT 번호</label><input id="qLot" placeholder="공정이동표의 LOT 번호"></div>'+
+      '<button class="bt out" id="qGo">조회</button></div></div>'+
+      '<div class="card"><h3>📋 미결 LOT — 입고대기 · 부분출고 잔량</h3><div class="bd" id="openList">불러오는 중...</div></div>';
+    $('#qGo').addEventListener('click',()=>{ const v=$('#qLot').value.trim();
+      if(v){ PART=v; history.replaceState(null,'','?lot='+encodeURIComponent(PART)); load(); } });
+    $('#qLot').addEventListener('keydown',e=>{ if(e.key==='Enter')$('#qGo').click(); });
+    try{
+      const [open,mv]=await Promise.all([
+        KI.get(OBJ.ospOrder+'?select=no,part,mp,vendor,sdate,edate,qty&idate=is.null&sdate=not.is.null&order=sdate.desc&limit=100'),
+        KI.get(OBJ.lotMove+'?select=osp_no,io,out_qty&io=eq.'+encodeURIComponent('출고')+'&osp_no=not.is.null&limit=1000').catch(()=>[])
+      ]);
+      const box=$('#openList');
+      if(!open.length){ box.innerHTML='<span style="color:#8894a0">미결 반출건이 없습니다.</span>'; return; }
+      box.innerHTML=open.map(o=>{
+        const rem=remainOf(o,mv), part=rem<num(o.qty);
+        return '<div class="pk" data-lot="'+esc(o.part||'')+'"><b>'+esc(o.part||'')+'</b>'+
+          '<small>'+esc(o.mp||'')+' · '+esc(o.vendor||'')+' · '+esc(o.sdate||'')+' 출고 '+
+          num(o.qty).toLocaleString()+
+          (part?' — <span class="part">잔량 '+rem.toLocaleString()+' (부분출고)</span>':'')+'</small></div>';
+      }).join('');
+      box.querySelectorAll('.pk').forEach(d=>d.addEventListener('click',()=>{
+        PART=d.dataset.lot; history.replaceState(null,'','?lot='+encodeURIComponent(PART)); load(); }));
+    }catch(e){ $('#openList').textContent='❌ '+e.message; }
+  }
+
+  async function load(){
+    wrap.innerHTML='불러오는 중...';
+    const [prog,osp,rts,rcpt,mvAll,proc,ven]=await Promise.all([
+      KI.get(OBJ.lotProg+'?select=*&part=eq.'+encodeURIComponent(PART)+'&order=no.asc&limit=1'),
+      KI.get(OBJ.ospOrder+'?select=*&part=eq.'+encodeURIComponent(PART)+'&order=no.asc'),
+      KI.get(OBJ.stdRoute+'?select=*'),
+      KI.get(OBJ.lotReceipt+'?select=*&part=eq.'+encodeURIComponent(PART)+'&limit=1').catch(()=>[]),
+      KI.get(OBJ.lotMove+'?select=*&part=eq.'+encodeURIComponent(PART)+'&order=created_at.desc&limit=500').catch(()=>[]),
+      KI.get(OBJ.process+'?select=process_code,process_name&order=sort_order.asc').catch(()=>[]),
+      KI.get(OBJ.vendor+'?select=vendor_name&order=vendor_name.asc').catch(()=>[])
+    ]);
+    PROG=prog[0]||null; OSP=osp; RCPT=rcpt[0]||null; ALLMV=mvAll; MOVES=mvAll.slice(0,10); PROC=proc; VEN=ven;
+    const last=OSP[OSP.length-1]||{};
+    RT = rts.find(x=>String(x.standard_process_no)===String((PROG||{}).route_no||last.route_no||''));
+    if(!RT){
+      let best=null;
+      rts.forEach(r=>{ const sd=r.steps||[]; const seq=(PROG&&PROG.steps||[]).map(s=>s.mp);
+        const hit=sd.filter(x=>seq.includes(x)).length;
+        if(hit&&(!best||hit>best.hit)) best={rt:r,hit:hit}; });
+      RT=best?best.rt:null;
+    }
+    STEPS=RT&&Array.isArray(RT.steps)?RT.steps:[];
+    SEEN=new Set((PROG&&Array.isArray(PROG.steps)?PROG.steps:[]).map(s=>s.mp));
+    draw();
+  }
+  const pName=c=>{const p=PROC.find(x=>x.process_code===c);return p?p.process_name:''};
+
+  function draw(){
+    const open=OSP.filter(o=>o.sdate&&!o.idate);
+    const rest=STEPS.filter(x=>!SEEN.has(x)&&!open.some(o=>o.mp===x));
+    const doneAll=STEPS.length&&!rest.length&&!open.length;
+    const last=OSP[OSP.length-1]||{};
+
+    wrap.innerHTML=
+    '<div class="card"><h3>📦 LOT 정보 <a href="lot_scan.html" style="float:right;font-size:11px;color:#2e77bd">다른 LOT ›</a></h3><div class="bd">'+
+      '<div class="kv"><b>LOT</b><span style="font-weight:800;font-size:16px;color:#22537f">'+esc(PART)+'</span>'+
+      '<b>JOB</b><span>'+esc((PROG||{}).job||last.job||'-')+'</span>'+
+      '<b>표준공정</b><span>'+(RT?esc(RT.standard_process_name):'(미매칭)')+'</span>'+
+      '<b>총수량</b><span>'+(last.qty!=null?num(last.qty).toLocaleString():'-')+'</span>'+
+      '<b>사내입고</b><span>'+(RCPT?'✅ '+esc(RCPT.in_date)+' · '+num(RCPT.qty).toLocaleString():'미입고')+'</span></div>'+
+      (STEPS.length?'<div class="chain">'+STEPS.map(x=>{
+        const d=SEEN.has(x), w=open.some(o=>o.mp===x), n=(!d&&!w&&x===rest[0]);
+        return '<span class="'+(d?'done':w?'nx':n?'nx':'')+'">'+esc(x)+(pName(x)?' '+esc(pName(x)):'')+
+               (d?' ✓':w?' (진행중)':'')+'</span>';
+      }).join(' → ')+'</div>':'')+
+    '</div></div>'+
+
+    '<div class="card"><div class="tab">'+
+      '<button data-t="in" class="on">📥 입고</button>'+
+      '<button data-t="out">📤 출고</button>'+
+      (doneAll&&!RCPT?'<button data-t="home">🏭 사내입고</button>':'')+
+      '<button data-t="memo">📝 특기사항</button></div>'+
+
+      /* ── 입고 ── */
+      '<div class="pane on" data-p="in"><div class="bd">'+
+      (open.length? '<div class="row"><label>대상 반출건</label><select id="inNo">'+
+          open.map(o=>{const rem=remainOf(o);
+            return '<option value="'+o.no+'">'+esc(o.mp)+' · '+esc(o.vendor||'')+' ('+esc(o.sdate)+' 출고 '+
+              num(o.qty).toLocaleString()+(rem<num(o.qty)?' · 잔량 '+rem.toLocaleString():'')+')</option>';}).join('')+'</select></div>'+
+        '<div class="row"><label>입고일</label><input type="date" id="inDate" value="'+TODAY+'"></div>'+
+        '<div class="row"><label>입고수량</label><input type="number" id="inQty" inputmode="numeric"></div>'+
+        '<div id="inShort" class="short" style="margin:-4px 0 8px 100px"></div>'+
+        '<div class="row" id="inRsnRow" style="display:none"><label>부족사유</label><input id="inRsn" placeholder="불량 · 파손 등 (선택)"></div>'+
+        '<div class="row"><label>특기사항</label><textarea id="inRmk" placeholder="현장 특기사항을 기록하세요"></textarea></div>'+
+        '<button class="bt in" id="btIn">📥 입고 처리</button>'
+        :'<div style="color:#8894a0;padding:8px 0">입고 대기 중인 반출건이 없습니다.</div>')+
+      '</div></div>'+
+
+      /* ── 출고 : 신규 반출 또는 미결 반출건에서 이관(부분출고 지원) ── */
+      '<div class="pane" data-p="out"><div class="bd">'+
+        '<div class="row"><label>출고 구분</label><select id="outFrom">'+
+          '<option value="">신규 출고 (사내 → 외주)</option>'+
+          open.map(o=>{const rem=remainOf(o);
+            return '<option value="'+o.no+'">이관 : '+esc(o.mp)+' · '+esc(o.vendor||'')+
+              ' (잔량 '+rem.toLocaleString()+')</option>';}).join('')+'</select></div>'+
+        '<div class="row"><label>다음 공정</label><select id="outMp">'+
+          (STEPS.length
+            ? STEPS.map(x=>'<option value="'+esc(x)+'"'+(x===rest[0]?' selected':'')+'>'+esc(x)+
+                (pName(x)?' · '+esc(pName(x)):'')+(SEEN.has(x)?' ✓완료':'')+'</option>').join('')
+            : PROC.map(p=>'<option value="'+esc(p.process_code)+'">'+esc(p.process_code)+' · '+esc(p.process_name)+'</option>').join(''))+
+        '</select></div>'+
+        '<div class="row"><label>받는 외주처</label><select id="outVen"><option value="">선택</option>'+
+          VEN.map(v=>'<option>'+esc(v.vendor_name)+'</option>').join('')+'</select></div>'+
+        '<div class="row"><label>출고일</label><input type="date" id="outDate" value="'+TODAY+'"></div>'+
+        '<div class="row"><label>출고수량</label><input type="number" id="outQty" inputmode="numeric"></div>'+
+        '<div id="outInfo" style="margin:-4px 0 8px 100px;font-size:12px"></div>'+
+        '<div class="row"><label>특기사항</label><textarea id="outRmk" placeholder="부분출고 사유 · 불량 등 (선택)"></textarea></div>'+
+        '<button class="bt out" id="btOut">📤 출고(반출) 등록</button>'+
+      '</div></div>'+
+
+      /* ── 사내입고 ── */
+      (doneAll&&!RCPT?'<div class="pane" data-p="home"><div class="bd">'+
+        '<div class="row"><label>입고일</label><input type="date" id="hDate" value="'+TODAY+'"></div>'+
+        '<div class="row"><label>입고수량</label><input type="number" id="hQty" inputmode="numeric" value="'+
+          (last.qty!=null?num(last.qty):'')+'"></div>'+
+        '<div id="hShort" class="short" style="margin:-4px 0 8px 100px"></div>'+
+        '<div class="row" id="hRsnRow" style="display:none"><label>부족사유</label><input id="hRsn" placeholder="선택"></div>'+
+        '<div class="row"><label>특기사항</label><textarea id="hRmk"></textarea></div>'+
+        '<button class="bt home" id="btHome">🏭 사내입고 (LOT 종결)</button>'+
+      '</div></div>':'')+
+
+      /* ── 특기사항 ── */
+      '<div class="pane" data-p="memo"><div class="bd">'+
+        '<div class="row"><label>특기사항</label><textarea id="mRmk" placeholder="불량 발생 · 지연 사유 등 자유 기록"></textarea></div>'+
+        '<button class="bt memo" id="btMemo">📝 기록 저장</button>'+
+      '</div></div>'+
+      '<div class="msg" id="msg"></div>'+
+    '</div>'+
+
+    '<div class="card"><h3>🕘 최근 기록</h3><div class="bd">'+
+      (MOVES.length?'<table class="hist" style="width:100%;border-collapse:collapse">'+
+        MOVES.map(v=>'<tr><td style="width:76px">'+esc(v.move_date||'')+'</td>'+
+          '<td style="width:66px"><span class="badge '+(v.io==='입고'||v.io==='사내입고'?'b-in':v.io==='출고'?'b-out':'b-etc')+'">'+esc(v.io)+'</span></td>'+
+          '<td>'+esc(v.mp||'')+(v.vendor?' · '+esc(v.vendor):'')+
+          (num(v.short_qty)>0?' <span class="short">부족 '+num(v.short_qty).toLocaleString()+'</span>':'')+
+          (v.remark?'<br><small style="color:#526171">'+esc(v.remark)+'</small>':'')+'</td></tr>').join('')+'</table>'
+      :'<span style="color:#8894a0">기록이 없습니다.</span>')+
+    '</div></div>';
+
+    /* 탭 */
+    wrap.querySelectorAll('.tab button').forEach(b=>b.addEventListener('click',()=>{
+      wrap.querySelectorAll('.tab button').forEach(x=>x.classList.toggle('on',x===b));
+      wrap.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.dataset.p===b.dataset.t));
+    }));
+
+    const msg=(t,ok)=>{ const m=$('#msg'); m.className='msg '+(ok?'ok':'err'); m.textContent=t; };
+
+    /* ── 입고 : 부족수량 자동계산 (사유는 선택) ── */
+    if(open.length){
+      const cur=()=>open.find(o=>String(o.no)===$('#inNo').value)||open[0];
+      const sync=()=>{ const o=cur(), base=remainOf(o), inQ=num($('#inQty').value);
+        const sh=Math.max(base-inQ,0);
+        $('#inShort').textContent=sh>0?'⚠ 부족 '+sh.toLocaleString()+' (사유는 선택 입력)':'';
+        $('#inRsnRow').style.display=sh>0?'':'none'; };
+      $('#inNo').addEventListener('change',()=>{ $('#inQty').value=remainOf(cur())||''; sync(); });
+      $('#inQty').addEventListener('input',sync);
+      $('#inQty').value=remainOf(cur())||''; sync();
+      $('#btIn').addEventListener('click',async()=>{
+        const o=cur(), base=remainOf(o), inQ=num($('#inQty').value);
+        const sh=Math.max(base-inQ,0);
+        try{
+          await KI.upd(TBL.ospOrder,'no=eq.'+o.no,{idate:$('#inDate').value||TODAY, st:'완료'});
+          await KI.ins(TBL.lotMove,[{part:PART, osp_no:Number(o.no)||null, io:'입고',
+            mp:o.mp||null, vendor:o.vendor||null, move_date:$('#inDate').value||TODAY,
+            out_qty:base||null, in_qty:inQ||null, short_qty:sh,
+            reason:($('#inRsn')&&$('#inRsn').value.trim())||null,
+            remark:$('#inRmk').value.trim()||null, worker:me.emp_name||'', source:'QR'}]);
+          msg('✓ 입고 처리되었습니다.'+(sh?' (부족 '+sh.toLocaleString()+')':''),1);
+          setTimeout(load,700);
+        }catch(e){ msg('❌ '+e.message); }
+      });
+    }
+
+    /* ── 출고 : 신규 또는 미결 반출건에서 이관 — 부분출고 시 잔량 미결 유지 ── */
+    (function(){
+      const srcOf=()=>open.find(o=>String(o.no)===$('#outFrom').value)||null;
+      const sync=()=>{
+        const src=srcOf();
+        if(src){
+          const rem=remainOf(src), q=num($('#outQty').value);
+          if(!$('#outQty').value) $('#outQty').value=rem||'';
+          const left=Math.max(rem-num($('#outQty').value),0);
+          $('#outInfo').innerHTML = num($('#outQty').value)>rem
+            ? '<span class="short">⚠ 잔량('+rem.toLocaleString()+')보다 많습니다</span>'
+            : (left>0?'<span class="part">부분출고 — 잔량 '+left.toLocaleString()+' 미결 유지 (다음 작업 후 이 LOT을 다시 불러 출고)</span>'
+                     :'<span style="color:#15803d;font-weight:700">전량 이관 — 반출건이 마감됩니다</span>');
+        }else{
+          const base=num(last.qty);
+          const sh=base?Math.max(base-num($('#outQty').value),0):0;
+          $('#outInfo').innerHTML = sh>0?'<span class="short">직전 수량 대비 부족 '+sh.toLocaleString()+' (특기사항에 사유 기록 권장)</span>':'';
+        }
+      };
+      $('#outFrom').addEventListener('change',()=>{ const s2=srcOf();
+        $('#outQty').value=s2?(remainOf(s2)||''):(num(last.qty)||''); sync(); });
+      $('#outQty').addEventListener('input',sync);
+      $('#outQty').value=num(last.qty)||''; sync();
+      $('#btOut').addEventListener('click',async()=>{
+        const mp=$('#outMp').value, ven=$('#outVen').value, q=num($('#outQty').value);
+        if(!mp) return msg('가공공정을 선택하세요.');
+        if(!ven) return msg('받는 외주처를 선택하세요.');
+        if(!q)  return msg('출고수량을 입력하세요.');
+        const src=srcOf();
+        try{
+          await KI.ins(TBL.ospOrder,[{part:PART, job:(PROG||{}).job||last.job||null, mp:mp, vendor:ven,
+            map_part:last.map_part||null, mold_no:last.mold_no||null,
+            route_no:(PROG||{}).route_no||last.route_no||null,
+            lot:PART, qty:q, lots:[{lot:PART,qty:q}],
+            sdate:$('#outDate').value||TODAY, edate:null, quote:null, st:'진행', odate:null}]);
+          if(src){
+            const rem=remainOf(src), left=Math.max(rem-q,0);
+            await KI.ins(TBL.lotMove,[{part:PART, osp_no:Number(src.no)||null, io:'출고',
+              mp:mp, vendor:ven, move_date:$('#outDate').value||TODAY, out_qty:q,
+              short_qty:0, remark:(left>0?'부분출고 — 잔량 '+left.toLocaleString()+' 유지. ':'')+
+                ($('#outRmk').value.trim()||''), worker:me.emp_name||'', source:'QR'}]);
+            if(left<=0) await KI.upd(TBL.ospOrder,'no=eq.'+src.no,
+              {idate:$('#outDate').value||TODAY, st:'완료'});
+            msg(left>0?'✓ 부분출고 등록 — 잔량 '+left.toLocaleString()+' 미결 유지':'✓ 전량 이관 등록 — 반출건 마감',1);
+          }else{
+            await KI.ins(TBL.lotMove,[{part:PART, io:'출고', mp:mp, vendor:ven,
+              move_date:$('#outDate').value||TODAY, out_qty:q,
+              remark:$('#outRmk').value.trim()||null, worker:me.emp_name||'', source:'QR'}]);
+            msg('✓ '+mp+' 공정으로 출고 등록되었습니다.',1);
+          }
+          setTimeout(load,700);
+        }catch(e){ msg('❌ '+e.message); }
+      });
+    })();
+
+    /* ── 사내입고 (사유는 선택) ── */
+    if($('#btHome')){
+      const base=num(last.qty);
+      const sync=()=>{ const q=num($('#hQty').value), sh=base?Math.max(base-q,0):0;
+        $('#hShort').textContent=sh>0?'⚠ 부족 '+sh.toLocaleString()+' (사유는 선택 입력)':'';
+        $('#hRsnRow').style.display=sh>0?'':'none'; };
+      $('#hQty').addEventListener('input',sync); sync();
+      $('#btHome').addEventListener('click',async()=>{
+        const q=num($('#hQty').value), sh=base?Math.max(base-q,0):0;
+        try{
+          await KI.ins(TBL.lotReceipt,[{part:PART, job:(PROG||{}).job||last.job||null,
+            in_date:$('#hDate').value||TODAY, qty:q||null, short_qty:sh,
+            reason:($('#hRsn')&&$('#hRsn').value.trim())||null,
+            worker:me.emp_name||'', remark:$('#hRmk').value.trim()||null}]);
+          await KI.ins(TBL.lotMove,[{part:PART, io:'사내입고', move_date:$('#hDate').value||TODAY,
+            in_qty:q||null, short_qty:sh, reason:($('#hRsn')&&$('#hRsn').value.trim())||null,
+            remark:$('#hRmk').value.trim()||null, worker:me.emp_name||'', source:'QR'}]);
+          msg('✓ 사내입고 완료 — LOT이 종결되었습니다.',1);
+          setTimeout(load,700);
+        }catch(e){ msg('❌ '+e.message); }
+      });
+    }
+
+    /* ── 특기사항만 기록 ── */
+    $('#btMemo').addEventListener('click',async()=>{
+      const t=$('#mRmk').value.trim();
+      if(!t) return msg('특기사항을 입력하세요.');
+      try{
+        await KI.ins(TBL.lotMove,[{part:PART, io:'기록', move_date:TODAY,
+          remark:t, worker:me.emp_name||'', source:'QR'}]);
+        msg('✓ 특기사항이 기록되었습니다.',1);
+        setTimeout(load,700);
+      }catch(e){ msg('❌ '+e.message); }
+    });
+  }
+
+  await boot();
+})().catch(e=>{ document.getElementById('wrap').textContent='❌ '+e.message; });
+</script>
+</body>
+</html>
