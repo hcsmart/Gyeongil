@@ -24,7 +24,7 @@ const TBL = {                      /* 편집 대상 원천 테이블 */
   inspDetail:'ki_inspection_detail',
   factory:'ki_factory', zone:'ki_zone', asset:'ki_asset',
   sensor:'ki_sensor', envAlert:'ki_env_alert', machine:'ki_machine',
-  shotLedger:'ki_shot_ledger', gradeItem:'ki_grade_item',
+  shotLedger:'ki_shot_ledger', shotDaily:'ki_shot_daily', gradeItem:'ki_grade_item',
   gradeEval:'ki_grade_eval', gradeEvalDet:'ki_grade_eval_detail',
   dailyItem:'ki_daily_item', dailyCheck:'ki_daily_check', dailyCheckDet:'ki_daily_check_detail',
   wash:'ki_wash', washStep:'ki_wash_step', inspPlan:'ki_insp_plan',
@@ -50,7 +50,7 @@ const OBJ = {
   ospOrder : P+'v_osp_order',  ospRecv  : P+'v_osp_receipt',
   lotProg  : P+'v_lot_progress', stdRoute: P+'v_std_route',
   lotReceipt : P+'v_lot_receipt', lotMove : P+'v_lot_move',
-  lotToken : P+'v_lot_token',
+  lotToken : P+'v_lot_token', venStock : P+'v_vendor_stock',
   vendor   : P+'v_vendor',     process  : P+'v_process',
   /* 트윈팩토리 */
   factory  : P+'v_factory',    zone     : P+'v_zone',
@@ -69,7 +69,8 @@ const OBJ = {
   toolRule : P+'v_tool_rule',  moldTool : P+'v_mold_tool',
   toolDue  : P+'v_tool_due',   toolAlert: P+'v_tool_alert',
   /* 수명관리 */
-  shotLedger : P+'v_shot_ledger', gradeItem : P+'v_grade_item',
+  shotLedger : P+'v_shot_ledger', shotDaily : P+'v_shot_daily',
+  gradeItem : P+'v_grade_item',
   gradeEval  : P+'v_grade_eval',  dailyItem : P+'v_daily_item',
   dailyCheck : P+'v_daily_check',
   wash       : P+'v_wash',        washStat : P+'v_wash_status',
@@ -112,6 +113,8 @@ const MENU = [
 
     { key:'m-eval', name:'금형평가', icon:'⏱', groups:[
       { name:'타발수 · 등급', items:[
+        {id:'shot-daily',  f:'shot_daily.html',  n:'일별 타발수 등록',
+         d:'일 생산량 → 누적 · 월별 자동반영'},
         {id:'shot-ledger', f:'shot_ledger.html', n:'월별 타발수', d:'누적 SHOT · 연간 타발수 · 점수'},
         {id:'grade-eval',  f:'grade_eval.html',  n:'금형 등급평가', d:'13항목 · A/B/C/F 반영'}
       ]},
@@ -129,6 +132,10 @@ const MENU = [
         {id:'lot-trace', f:'lot_trace.html', n:'LOT 이동이력', d:'외주업체 경유 이력'},
         {id:'lot-move',  f:'lot_move.html',  n:'QR 입출고 이력', d:'QR 스캔 · 부족수량 · 특기사항'},
         {id:'lot-token', f:'lot_token.html', n:'공정이동표 발행이력', d:'QR 토큰 · 유효 · 폐기'}
+      ]},
+      { name:'협력사 재고', items:[
+        {id:'ven-stock', f:'vendor_stock.html', n:'협력사 재고현황',
+         d:'업체별 보유수량 · 체류일 · 납기'}
       ]},
       { name:'현장 (QR)', items:[
         {id:'lot-scan',  f:'lot_scan.html',  n:'QR 입출고(현장)',
@@ -473,6 +480,26 @@ const VIEWS = {
     ['remark','비고','area']
   ]}
 },
+'ven-stock':{
+  table:OBJ.venStock, order:'vendor.asc,out_date.asc',
+  note:'협력사가 <b>현재 보유 중인 물량</b>입니다. 미입고(미결) 반출건만 집계합니다.<br>'+
+       '<b>보유수량</b> = 도착확인 수량(없으면 반출수량) − 다음 공정으로 이관한 수량 · '+
+       '<b>부족</b> = 반출수량 − 도착확인 수량 (운송 중 파손 등)<br>'+
+       '<b>도착대기</b> 상태로 체류일이 길면 QR 도착확인이 누락된 것이므로 업체에 확인이 필요합니다.',
+  search:[['협력사','text','vendor'],['LOT','text','part'],['JOB','text','job'],
+          ['공정','text','mp'],['상태','text','stock_status'],['납기','text','due_status']],
+  cols:[['협력사',110,'','vendor'],['담당자',80,'','contact_name'],['연락처',110,'','contact_phone'],
+        ['LOT',96,'','part'],['JOB',80,'','job'],
+        ['공정',56,'center','mp'],['공정명',110,'','mp_name'],
+        ['매칭품번',100,'','map_part'],['금형제번',80,'center','mold_no'],
+        ['반출일',88,'center','out_date'],['도착일',88,'center','arrived_date'],
+        ['반출수량',80,'num','out_qty','n0'],['도착수량',80,'num','arrived_qty','n0'],
+        ['이관',70,'num','moved_qty','n0'],
+        ['보유수량',88,'num','stock_qty','n0'],['부족',60,'num','short_qty','n0'],
+        ['체류(일)',70,'num','age_days'],
+        ['상태',76,'center','stock_status','st'],['납기',88,'center','due_date'],
+        ['납기상태',72,'center','due_status','st']]
+},
 'lot-token':{
   table:OBJ.lotToken, order:'issued_at.desc',
   note:'공정이동표 QR의 <b>발행 이력</b>입니다. QR에는 해당 LOT만 열람 · 기록할 수 있는 토큰이 들어 있어 '+
@@ -512,6 +539,30 @@ const VIEWS = {
     ['worker','기록자','text'],
     ['source','경로','sel',['QR','수동'],{def:'수동'}],
     ['remark','특기사항','area']
+  ]}
+},
+'shot-daily':{
+  table:OBJ.shotDaily, order:'work_date.desc,mold_code.asc',
+  note:'금형별 <b>일 생산 타발수</b>를 등록합니다. 저장하면 <b>금형대장의 누적 타발수</b>와 '+
+       '<b>월별 타발수 대장</b>이 자동으로 갱신됩니다.<br>'+
+       '연마 · 교체 도래현황은 이 값을 기준으로 <b>최근 30일 일평균</b>을 산출해 <b>예상 도래일</b>을 계산합니다. '+
+       '일별 등록 시작 이전의 누적분은 금형대장의 <b>기초 타발수</b>로 보존됩니다.',
+  search:[['금형코드','text','mold_code'],['금형명','text','mold_name'],
+          ['작업일','date2','work_date'],['호기','text','machine_no'],['작업자','text','worker']],
+  cols:[['작업일',92,'center','work_date'],['금형코드',92,'','mold_code'],['금형명',150,'','mold_name'],
+        ['고객사',100,'','customer_name'],['등급',52,'center','grade','grade'],
+        ['호기',56,'center','machine_no'],
+        ['일 타발수',96,'num','shot_qty','n0'],['카운터',110,'num','counter_end','n0'],
+        ['누적 타발수',120,'num','cum_shot','n0'],['수명',110,'num','shot_limit','n0'],
+        ['작업자',80,'center','worker'],['비고',0,'','remark']],
+  edit:{ table:TBL.shotDaily, pk:'mold_code', pk2:'work_date', auto:false, fields:[
+    ['mold_code','금형코드','ref',{table:OBJ.moldMst,v:'mold_code',t:'mold_name'},'req'],
+    ['work_date','작업일','date',null,'req'],
+    ['machine_no','호기','ref',{table:OBJ.machine,v:'machine_no',t:'machine_name'}],
+    ['shot_qty','일 타발수','num',null,'req'],
+    ['counter_end','종료 카운터(참고)','num'],
+    ['worker','작업자','text'],
+    ['remark','비고','area']
   ]}
 },
 'tool-rule':{

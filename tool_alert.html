@@ -34,6 +34,7 @@
   const ui=KI.page(cur,[
     ['지금 점검','primary',()=>KI_ALERT.scan()],
     ['ntfy 테스트','',async()=>{ const r=await KI_ALERT.ntfyTest(); alert(r.msg); }],
+    ['기준 초기화','',()=>resetBase()],
     ['엑셀(CSV)','',()=>csv()]
   ]);
 
@@ -41,7 +42,9 @@
   nt.innerHTML='연마 · 교체 <b>도래현황</b>입니다. 판정 기준은 [기준정보 › 생산기준 › 연마/교체주기설정]의 공통기준, '+
     '금형별로 다르면 [금형별 연마/교체주기]의 개별값이 적용됩니다.<br>'+
     '<b>도래</b> 또는 <b>임박</b>이 발생하면 하단 <b>안돈 배너</b>가 켜지고 <b>ntfy 알림</b>이 발송됩니다 '+
-    '(발송 조건은 [시스템 › 알림 설정(ntfy)]에서 지정).';
+    '(발송 조건은 [시스템 › 알림 설정(ntfy)]에서 지정).<br>'+
+    '<b>예상 도래일</b>은 [금형평가 › 일별 타발수 등록]의 <b>최근 30일 일평균</b>으로 산출합니다. '+
+    '일별 등록이 없으면 예측이 표시되지 않습니다.';
   ui.pg.appendChild(nt);
 
   const kpi=el('div','td-kpi'); kpi.id='kpi'; ui.pg.appendChild(kpi);
@@ -65,7 +68,9 @@
     '<th style="width:66px">구분</th><th style="width:100px">부위</th>'+
     '<th style="width:60px">기준</th><th style="width:100px">누적타발</th>'+
     '<th style="width:100px">한도</th><th style="width:100px">잔여</th>'+
-    '<th style="width:110px">소진율</th><th style="width:92px">최근실시</th>'+
+    '<th style="width:110px">소진율</th><th style="width:84px">일평균</th>'+
+    '<th style="width:92px">예상도래</th><th style="width:64px">예상일수</th>'+
+    '<th style="width:92px">최근실시</th>'+
     '<th style="width:92px">도래예정</th><th style="width:70px">D-day</th>'+
     '<th style="width:74px">상태</th><th style="width:70px">사유</th>'+
     '<th style="width:84px">조치</th></tr></thead><tbody></tbody>';
@@ -99,6 +104,10 @@
         '<td>'+(pct==null?'<span style="color:#a7b3bf">-</span>'
               :'<div class="bar'+(pct>=90?' hi':'')+'" title="'+pct+'%"><i style="width:'+
                Math.max(0,Math.min(100,pct))+'%"></i></div>')+'</td>'+
+        '<td class="num">'+(r.avg_daily==null?'-':Number(r.avg_daily).toLocaleString())+'</td>'+
+        '<td class="center"'+(r.eta_days!=null&&r.eta_days<=7?' style="color:#b23030;font-weight:800"':'')+'>'+
+          esc(r.eta_date||'-')+'</td>'+
+        '<td class="num">'+(r.eta_days==null?'-':r.eta_days+'일')+'</td>'+
         '<td class="center">'+esc(r.last_date||'-')+'</td>'+
         '<td class="center">'+esc(r.due_date||'-')+'</td>'+
         '<td class="center">'+(r.d_day==null?'-':
@@ -110,7 +119,7 @@
            '" data-k="'+esc(r.kind)+'">실시등록</button>':'')+'</td>';
       tbody.appendChild(t);
     });
-    if(!rows.length) tbody.innerHTML='<tr><td colspan="17" class="center" style="height:50px;color:#8894a0">해당 조건의 금형이 없습니다.</td></tr>';
+    if(!rows.length) tbody.innerHTML='<tr><td colspan="20" class="center" style="height:50px;color:#8894a0">해당 조건의 금형이 없습니다.</td></tr>';
     tbody.querySelectorAll('button[data-c]').forEach(b=>
       b.addEventListener('click',()=>done(b.dataset.c,b.dataset.k)));
 
@@ -146,10 +155,28 @@
     }catch(e){ alert('❌ '+e.message); }
   }
 
+  /* 최근 실시 기준이 없는 금형 : 현재 누적타발을 기준점으로 세팅 */
+  async function resetBase(){
+    if(!CAN_S) return alert('등록 권한이 필요합니다.');
+    const t=ROWS.filter(r=>r.last_shot==null);
+    if(!t.length) return alert('기준이 없는 금형이 없습니다.');
+    if(!confirm('최근 실시 기록이 없는 '+t.length+'건의 기준점을 현재 누적타발수로 설정합니다.\n'+
+                '(연마 · 교체를 방금 완료한 상태로 간주)\n계속할까요?'))return;
+    try{
+      for(const r of t){
+        await KI.upsert(TBL.moldTool,[{mold_code:r.mold_code, kind:r.kind, part_name:r.part_name||'공통',
+          use_common:(r.rule_src!=='개별'), last_date:new Date().toISOString().slice(0,10),
+          last_shot:Number(r.shot_count)||0, is_active:true, updated_at:new Date().toISOString()}]);
+      }
+      await load(); KI.msg('✓ '+t.length+'건 기준점 설정 완료');
+    }catch(e){ alert('❌ '+e.message); }
+  }
+
   function csv(){
-    const head=['금형코드','금형명','고객사','호기','구분','부위','기준','누적타발','한도','잔여','소진율(%)','최근실시','도래예정','D-day','상태','사유'];
+    const head=['금형코드','금형명','고객사','호기','구분','부위','기준','누적타발','한도','잔여','소진율(%)','일평균','예상도래','예상일수','최근실시','도래예정','D-day','상태','사유'];
     const body=ROWS.map(r=>[r.mold_code,r.mold_name,r.customer_name,r.machine_no,r.kind,r.part_name,
-      r.rule_src,r.used_shot,r.limit_shot,r.left_shot,r.shot_pct,r.last_date,r.due_date,r.d_day,r.due_status,r.reason]
+      r.rule_src,r.used_shot,r.limit_shot,r.left_shot,r.shot_pct,r.avg_daily,r.eta_date,r.eta_days,
+      r.last_date,r.due_date,r.d_day,r.due_status,r.reason]
       .map(v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"').join(','));
     const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
     a.download='연마교체_도래현황_'+new Date().toISOString().slice(0,10)+'.csv'; a.click(); URL.revokeObjectURL(a.href);
