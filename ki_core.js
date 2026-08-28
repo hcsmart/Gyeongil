@@ -175,6 +175,10 @@ function chrome(curId){
   const it  = cur.it;
   document.title = C.APP_NAME+' - '+it.n;
 
+  /* 메뉴 모드 : 'drop'(상단 드롭다운) / 'top'(상단 가로바) / 'left'(좌측 트리) */
+  const NAVMODE = C.NAV_MODE || (C.NAV_TOP===false ? 'left' : 'top');
+  const NAVDROP = (NAVMODE==='drop'), NAVTOP = (NAVMODE==='top');
+
   /* 1차 */
   const t1=el('div','top1');
   t1.innerHTML =
@@ -188,12 +192,13 @@ function chrome(curId){
   document.body.appendChild(t1);
 
   /* 2차 */
-  const t2=el('div','top2'); t2.id='kiSec'; document.body.appendChild(t2);
-
-  /* 3차 메뉴 : NAV_TOP=true → 상단 가로 메뉴 / false → 기존 좌측 트리 */
-  const NAVTOP = (C.NAV_TOP!==false);
   let sepr=null;
-  if(NAVTOP){
+  if(!NAVDROP){ const t2=el('div','top2'); t2.id='kiSec'; document.body.appendChild(t2); }
+
+  if(NAVDROP){
+    document.body.classList.add('navdrop');
+    const dd=el('div','dropnav'); dd.id='kiDrop'; document.body.appendChild(dd);
+  }else if(NAVTOP){
     document.body.classList.add('navtop');
     const t3=el('div','top3'); t3.id='kiTop3';
     t3.innerHTML='<span class="t3-path" id="kiPath">'+esc(cur.modName)+' › '+esc(cur.secName||'')+'</span>'+
@@ -231,12 +236,52 @@ function chrome(curId){
   function drawMod(){
     $('#kiMod').innerHTML = NAV.filter(okMod).map(m=>
       '<button class="module'+(m.key===curMod?' on':'')+'" data-k="'+m.key+'">'+esc(m.name)+'</button>').join('');
-    $('#kiMod').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
-      curMod=b.dataset.k; curSec=mod().second[0].key; drawMod(); drawSec(); drawTree(); drawPath();
-      const ft=$('#kiFoot'); if(ft) ft.textContent='⚙ '+mod().name;
-    }));
+    $('#kiMod').querySelectorAll('button').forEach(b=>{
+      if(NAVDROP){
+        b.addEventListener('click',e=>{ e.stopPropagation(); toggleDrop(b); });
+        b.addEventListener('mouseenter',()=>{ if(dropKey) openDrop(b); });
+        return;
+      }
+      b.addEventListener('click',()=>{
+        curMod=b.dataset.k; curSec=mod().second[0].key; drawMod(); drawSec(); drawTree(); drawPath();
+        const ft=$('#kiFoot'); if(ft) ft.textContent='⚙ '+mod().name;
+      });
+    });
+  }
+
+  /* --- 상단 드롭다운 메뉴 (엑셀형) --- */
+  let dropKey=null;
+  function closeDrop(){
+    dropKey=null;
+    const d=$('#kiDrop'); if(d) d.classList.remove('on');
+    $('#kiMod').querySelectorAll('button.open').forEach(b=>b.classList.remove('open'));
+  }
+  function openDrop(btn){
+    const d=$('#kiDrop'); if(!d) return;
+    const m1=NAV.find(m=>m.key===btn.dataset.k); if(!m1) return;
+    const html=m1.second.filter(okSec).map(m2=>{
+      const its=m2.groups.flatMap(g=>g.items.filter(okItem));
+      if(!its.length) return '';
+      const multi=m1.second.filter(okSec).length>1;
+      return (multi?'<div class="dd-t">'+esc(m2.icon||'')+' '+esc(m2.name)+'</div>':'')+
+        its.map(x=>'<a class="dd-i'+(x.id===curId?' on':'')+'" href="'+x.f+'">'+esc(x.n)+
+          (x.d?'<small>'+esc(x.d)+'</small>':'')+'</a>').join('');
+    }).join('');
+    d.innerHTML=html||'<div class="dd-t">권한이 있는 메뉴가 없습니다.</div>';
+    const r=btn.getBoundingClientRect();
+    d.style.left=Math.max(2,Math.min(r.left,window.innerWidth-260))+'px';
+    d.classList.add('on');
+    $('#kiMod').querySelectorAll('button').forEach(b=>b.classList.toggle('open',b===btn));
+    dropKey=btn.dataset.k;
+  }
+  function toggleDrop(btn){ if(dropKey===btn.dataset.k) closeDrop(); else openDrop(btn); }
+  if(NAVDROP){
+    document.addEventListener('click',e=>{ if(!e.target.closest('#kiDrop')) closeDrop(); });
+    document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDrop(); });
+    window.addEventListener('resize',closeDrop);
   }
   function drawSec(){
+    if(NAVDROP || !$('#kiSec')) return;
     const secs = mod().second.filter(okSec);
     /* 2차 항목이 1개뿐이면 아이콘바 숨김 (상단 가로 메뉴 모드) */
     document.body.classList.toggle('nosec', NAVTOP && secs.length<2);
@@ -253,7 +298,7 @@ function chrome(curId){
     p.textContent=(m?m.name:'')+(s2?' › '+s2.name:'');
   }
   function drawTree(){
-    const box=$('#kiTree');
+    const box=$('#kiTree'); if(!box) return;
     const PF=new Set();
     const prefetch=u=>{ if(!u||PF.has(u))return; PF.add(u);
       try{ const l=document.createElement('link'); l.rel='prefetch'; l.as='document'; l.href=u;
