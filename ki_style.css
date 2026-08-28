@@ -3,7 +3,7 @@
    1차 모듈바 / 2차 아이콘바 / 좌측 트리 / 스플리터 / 상태바
 ============================================================ */
 :root{
-  --top1:42px; --top2:78px; --left:300px; --status:24px;
+  --top1:42px; --top2:78px; --top3:36px; --left:300px; --status:24px;
   --line:#aeb8c2; --blue:#2469a8; --blue-dark:#1d568c; --text:#273746;
 }
 *{box-sizing:border-box}
@@ -350,3 +350,31 @@ table.grid{width:100%;border-collapse:collapse;table-layout:fixed}
 .up-grid tr.bad td{background:#fdf2f2}
 .up-grid td.cell-bad{background:#fbdada;color:#a12626;font-weight:700}
 .up-empty{padding:14px;text-align:center;color:#8894a0}
+
+/* ============================================================
+   상단 가로 메뉴 (KI_CFG.NAV_TOP = true)
+   · 좌측 트리를 3차 가로바로 이동 — 엑셀 사용자 친화 레이아웃
+============================================================ */
+.top3{position:fixed;top:calc(var(--top1) + var(--top2));left:0;right:0;height:var(--top3);
+  display:flex;align-items:center;gap:10px;padding:0 12px;z-index:18;
+  background:linear-gradient(#f7f9fa,#eef2f5);border-bottom:1px solid #8f9ca8}
+.top3 .t3-path{flex:0 0 auto;padding-right:12px;border-right:1px solid #c3cdd6;
+  color:#2f4559;font-weight:800;white-space:nowrap}
+.navtop .top3 .tree{flex:1;min-width:0;display:flex;align-items:center;gap:8px;
+  overflow-x:auto;overflow-y:hidden;padding:0}
+.navtop .top3 .group{display:flex;align-items:center;gap:6px;margin:0;padding-right:10px;
+  border-right:1px dashed #c8d2da}
+.navtop .top3 .group:last-child{border-right:0;padding-right:0}
+.navtop .top3 .group-title{padding:0;font-size:11px;font-weight:700;color:#7b8b9c;white-space:nowrap}
+.navtop .top3 .group-title::before{display:none}
+.navtop .top3 .item{display:flex;align-items:center;height:26px;padding:0 13px;white-space:nowrap;
+  border:1px solid #b6c2cd;border-radius:3px;color:#33465a;font-weight:700;
+  background:linear-gradient(#fff,#eef2f6)}
+.navtop .top3 .item::before{display:none}
+.navtop .top3 .item small{display:none}
+.navtop .top3 .item:hover{border-color:#5f92c6;background:#eaf3fb}
+.navtop .top3 .item.on{background:linear-gradient(#4f84c0,#2e67a8);border-color:#24578f;color:#fff}
+.navtop .workspace{top:calc(var(--top1) + var(--top2) + var(--top3));left:0}
+.navtop .status .msg{margin-left:0}
+@media (max-width:1100px){ .top3 .t3-path{display:none} }
+@media print{ .top3{display:none} .navtop .workspace{position:static} }

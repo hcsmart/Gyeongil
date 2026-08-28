@@ -190,16 +190,26 @@ function chrome(curId){
   /* 2차 */
   const t2=el('div','top2'); t2.id='kiSec'; document.body.appendChild(t2);
 
-  /* 좌측 트리 */
-  const lf=el('div','left');
-  lf.innerHTML='<div class="tree-top" id="kiPath">'+esc(cur.modName)+' › '+esc(cur.secName||'')+'</div>'+
-               '<div class="tree" id="kiTree"></div>'+
-               '<div class="left-foot" id="kiFoot">⚙ '+esc(cur.modName)+'</div>';
-  document.body.appendChild(lf);
+  /* 3차 메뉴 : NAV_TOP=true → 상단 가로 메뉴 / false → 기존 좌측 트리 */
+  const NAVTOP = (C.NAV_TOP!==false);
+  let sepr=null;
+  if(NAVTOP){
+    document.body.classList.add('navtop');
+    const t3=el('div','top3'); t3.id='kiTop3';
+    t3.innerHTML='<span class="t3-path" id="kiPath">'+esc(cur.modName)+' › '+esc(cur.secName||'')+'</span>'+
+                 '<div class="tree" id="kiTree"></div>';
+    document.body.appendChild(t3);
+  }else{
+    const lf=el('div','left');
+    lf.innerHTML='<div class="tree-top" id="kiPath">'+esc(cur.modName)+' › '+esc(cur.secName||'')+'</div>'+
+                 '<div class="tree" id="kiTree"></div>'+
+                 '<div class="left-foot" id="kiFoot">⚙ '+esc(cur.modName)+'</div>';
+    document.body.appendChild(lf);
 
-  const sepr=el('div','splitter'); sepr.id='kiSplit';
-  sepr.title='드래그: 창 폭 조절 / 더블클릭: 기본값(300px)';
-  document.body.appendChild(sepr);
+    sepr=el('div','splitter'); sepr.id='kiSplit';
+    sepr.title='드래그: 창 폭 조절 / 더블클릭: 기본값(300px)';
+    document.body.appendChild(sepr);
+  }
 
   /* 상태바 */
   const st=el('div','status');
@@ -223,7 +233,7 @@ function chrome(curId){
       '<button class="module'+(m.key===curMod?' on':'')+'" data-k="'+m.key+'">'+esc(m.name)+'</button>').join('');
     $('#kiMod').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
       curMod=b.dataset.k; curSec=mod().second[0].key; drawMod(); drawSec(); drawTree(); drawPath();
-      $('#kiFoot').textContent='⚙ '+mod().name;
+      const ft=$('#kiFoot'); if(ft) ft.textContent='⚙ '+mod().name;
     }));
   }
   function drawSec(){
@@ -263,6 +273,7 @@ function chrome(curId){
 
   /* --- 스플리터 --- */
   (function(){
+    if(!sepr) return;                       /* 상단 가로 메뉴 모드 : 스플리터 없음 */
     const root=document.documentElement, MIN=200, MAX=560, DEF=300;
     const apply=w=>root.style.setProperty('--left',w+'px');
     try{ const v=parseInt(localStorage.getItem(LK_LEFT),10); if(v>=MIN) apply(Math.min(v,MAX)); }catch(e){}

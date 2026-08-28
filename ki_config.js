@@ -9,6 +9,7 @@ const KI_CFG = {
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
   LANDING      : 'lot_route.html',    // 로그인 후 기본 화면
+  NAV_TOP      : true,              // true: 메뉴를 상단 가로바로 표시 / false: 기존 좌측 트리
   AUTH_DOMAIN  : 'ki.local',        // 아이디 → 로그인 이메일 : <아이디>@ki.local
   ADMIN_FN     : 'ki-admin-user',   // 계정관리 Edge Function
   MIN_PW       : 6,   // Supabase Auth 기본 최소 길이
