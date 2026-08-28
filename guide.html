@@ -145,7 +145,8 @@
   /* ── 전체 메뉴 설명 (config 에서 자동 생성) ── */
   C.menu=(function(){
     let h='<h2>🗂 전체 메뉴 설명</h2><p>메뉴 구성은 시스템 설정에서 자동으로 생성됩니다.</p>';
-    MENU.filter(m=>m.key!=='guide').forEach(m1=>{
+    const NAV=(typeof MENU_V!=='undefined'&&MENU_V.length)?MENU_V:MENU;
+    NAV.filter(m=>m.key!=='guide').forEach(m1=>{
       h+='<h3>'+esc(m1.name)+'</h3>';
       m1.second.forEach(m2=>{
         h+='<table><thead><tr><th style="width:190px">'+esc(m1.name)+' › '+esc(m2.name)+

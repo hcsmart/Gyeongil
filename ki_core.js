@@ -178,7 +178,7 @@ function chrome(curId){
   /* 1차 */
   const t1=el('div','top1');
   t1.innerHTML =
-    '<a class="logo" href="'+(KI_CFG.LANDING||'mold_due.html')+'"><b>GI</b>MES<i>(Mold)</i></a>'+
+    '<a class="logo" href="'+(KI_CFG.LANDING||'lot_route.html')+'"><b>GI</b>MES<i>(LOT)</i></a>'+
     '<nav class="modules" id="kiMod"></nav>'+
     '<div class="user">'+
       '<button class="mini" id="kiUser">👤</button>'+
@@ -211,14 +211,15 @@ function chrome(curId){
 
   /* --- 렌더 --- */
   let curMod=cur.mod, curSec=cur.sec;
-  const mod=()=>MENU.find(m=>m.key===curMod)||MENU[0];
+  const NAV=(typeof MENU_V!=='undefined'&&MENU_V.length)?MENU_V:MENU;
+  const mod=()=>NAV.find(m=>m.key===curMod)||NAV[0];
   const sec=()=>mod().second.find(x=>x.key===curSec)||mod().second[0];
 
   const okItem = it => can(it.id,'view');
   const okSec  = s2 => s2.groups.some(g=>g.items.some(okItem));
   const okMod  = m1 => m1.second.some(okSec);
   function drawMod(){
-    $('#kiMod').innerHTML = MENU.filter(okMod).map(m=>
+    $('#kiMod').innerHTML = NAV.filter(okMod).map(m=>
       '<button class="module'+(m.key===curMod?' on':'')+'" data-k="'+m.key+'">'+esc(m.name)+'</button>').join('');
     $('#kiMod').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
       curMod=b.dataset.k; curSec=mod().second[0].key; drawMod(); drawSec(); drawTree(); drawPath();

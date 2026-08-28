@@ -8,7 +8,7 @@ const KI_CFG = {
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
-  LANDING      : 'plan_board.html',   // 로그인 후 기본 화면
+  LANDING      : 'lot_route.html',    // 로그인 후 기본 화면
   AUTH_DOMAIN  : 'ki.local',        // 아이디 → 로그인 이메일 : <아이디>@ki.local
   ADMIN_FN     : 'ki-admin-user',   // 계정관리 Edge Function
   MIN_PW       : 6,   // Supabase Auth 기본 최소 길이
@@ -224,7 +224,30 @@ const MENU = [
   ]}
 ];
 
-/* 화면 id → {item, 모듈, 2차, 경로} 색인 */
+/* ============================================================
+   메뉴 숨김 설정  (실전 테스트 : LOT관리만 사용)
+   · 숨겨도 화면 파일 · 데이터 · 권한은 그대로 보존됩니다.
+   · 다시 사용하려면 아래 배열에서 해당 key 를 지우면 됩니다.
+     (전체 복원 → mod:[], sec:[], item:[] 로 비우기)
+============================================================ */
+const HIDE = {
+  mod : ['mold','env'],                 // 1차 모듈 : 금형관리 · 온습도관리
+  sec : ['b-prod','b-chk'],             // 2차 : 기준정보 › 생산기준 · 점검기준
+  item: ['guide-mold','guide-tool','guide-shot']   // 개별 화면 : 금형 관련 사용안내
+};
+
+/* 실제 화면에 표시되는 메뉴 (숨김 제외) */
+const MENU_V = MENU
+  .filter(m1=>!HIDE.mod.includes(m1.key))
+  .map(m1=>Object.assign({},m1,{ second:m1.second
+      .filter(m2=>!HIDE.sec.includes(m2.key))
+      .map(m2=>Object.assign({},m2,{ groups:m2.groups
+          .map(g=>Object.assign({},g,{ items:g.items.filter(it=>!HIDE.item.includes(it.id)) }))
+          .filter(g=>g.items.length) }))
+      .filter(m2=>m2.groups.length) }))
+  .filter(m1=>m1.second.length);
+
+/* 화면 id → {item, 모듈, 2차, 경로} 색인 (숨김 포함 — 직접 URL 접근 대응) */
 const FLAT = {};
 MENU.forEach(m1=>m1.second.forEach(m2=>m2.groups.forEach(g=>g.items.forEach(it=>{
   FLAT[it.id] = {it:it, mod:m1.key, sec:m2.key, modName:m1.name, secName:m2.name,
