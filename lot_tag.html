@@ -57,7 +57,7 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
     KI.get(OBJ.ospOrder+'?select=*&part=eq.'+encodeURIComponent(part)+'&order=no.asc'),
     KI.get(OBJ.stdRoute+'?select=*'),
     KI.get(OBJ.lotReceipt+'?select=*&part=eq.'+encodeURIComponent(part)+'&limit=1').catch(()=>[]),
-    KI.get(OBJ.lotMove+'?select=*&part=eq.'+encodeURIComponent(part)+'&order=created_at.asc&limit=100').catch(()=>[]),
+    KI.get(OBJ.lotMove+'?select=*&part=eq.'+encodeURIComponent(part)+'&order=move_date.asc,move_id.asc&limit=100').catch(()=>[]),
     KI.get(OBJ.vendor+'?select=vendor_name,phone,contact_name,contact_phone,proc_codes&order=sort_order.asc').catch(()=>[])
   ]);
   const venOf=n=>vens.find(v=>v.vendor_name===n)||null;
@@ -80,25 +80,42 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
                   : base+'lot_scan.html?lot='+encodeURIComponent(part);
   const qr=qrcode(0,'M'); qr.addData(url,'Byte'); qr.make();
 
-  const rows = (steps.length?steps:[...seen]).map((mp,i)=>{
-    const h=hist(mp), o=ordOf(mp), mv=mvOf(mp);
-    const inn=mv.filter(m=>m.io==='입고').slice(-1)[0]||{};
-    const short=Number(inn.short_qty)||0;
-    return '<tr>'+
-      '<td class="c">'+(i+1)+'</td>'+
-      '<td class="c'+(seen.has(mp)?' done':'')+'">'+esc(mp)+(seen.has(mp)?' ✓':'')+'</td>'+
-      '<td>'+(function(){ const n=o.vendor||h.vendor||''; const v=venOf(n);
-        return esc(n)+(v&&(v.contact_phone||v.phone)?' <small style="color:#526171">☎ '+esc(v.contact_phone||v.phone)+'</small>':''); })()+'</td>'+
-      '<td class="c">'+esc(o.sdate||'')+'</td>'+
-      '<td class="c">'+(o.qty!=null?Number(o.qty).toLocaleString():'')+'</td>'+
-      '<td class="c">'+esc(o.idate||h.date||'')+'</td>'+
-      '<td class="c">'+(inn.in_qty!=null?Number(inn.in_qty).toLocaleString():'')+'</td>'+
-      '<td class="c"'+(short?' style="color:#b23030;font-weight:800"':'')+'>'+(short?short.toLocaleString():'')+'</td>'+
-      '<td></td>'+
-      '<td>'+esc((inn.remark||''))+'</td>'+
-    '</tr>';
-  }).join('');
-  const blank='<tr>'+'<td class="c"></td>'.repeat(2)+'<td></td>'+'<td class="c"></td>'.repeat(5)+'<td></td><td></td></tr>';
+  /* 이동이력 기반 물류흐름 — 진행등록 화면과 동일한 표현 */
+  const procs = await KI.get(OBJ.process+'?select=process_code,process_name&order=sort_order.asc').catch(()=>[]);
+  const pName = c=>{ const p=procs.find(x=>x.process_code===c); return p?p.process_name:''; };
+  const node  = (mp,ven)=>[mp?(pName(mp)?mp+'·'+pName(mp):mp):'', ven||''].filter(Boolean).join(' ')||'사내';
+
+  const asc = moves.slice().sort((a,b)=>String(a.move_date||'').localeCompare(String(b.move_date||''))
+    ||(Number(a.move_id)||0)-(Number(b.move_id)||0));
+  const doneMp = new Set(asc.filter(m=>m.mp&&(m.io==='도착'||m.io==='입고')).map(m=>m.mp));
+  (Array.isArray(r.steps)?r.steps:[]).forEach(s=>{ if(s.mp) doneMp.add(s.mp); });
+
+  let loc='사내'; const prevAt={};
+  const flow = asc.map(v=>{
+    const here=node(v.mp,v.vendor); let f='',t='',q=null;
+    if(v.io==='출고'){        f=loc; t=here; q=v.out_qty; prevAt[here]=loc; loc=here; }
+    else if(v.io==='도착'){   f=prevAt[here]||'사내'; t=here; q=v.in_qty; loc=here; }
+    else if(v.io==='입고'){   f=here; t='사내 복귀'; q=v.in_qty; loc='사내'; }
+    else if(v.io==='사내입고'){f=(v.mp||v.vendor)?here:loc; t='사내입고 (종결)'; q=v.in_qty; loc='사내'; }
+    else return null;
+    return {d:v.move_date||'', io:v.io, f:f, t:t, q:q, s:Number(v.short_qty)||0, rmk:v.remark||v.reason||''};
+  }).filter(Boolean);
+
+  const rows = flow.map((x,i)=>'<tr>'+
+    '<td class="c">'+(i+1)+'</td>'+
+    '<td class="c">'+esc(x.d)+'</td>'+
+    '<td class="c'+(x.io==='사내입고'?' done':'')+'">'+esc(x.io)+'</td>'+
+    '<td>'+esc(x.f)+'</td>'+
+    '<td class="c" style="color:#7b8794">▶</td>'+
+    '<td'+(x.io==='사내입고'?' class="done"':'')+'>'+esc(x.t)+'</td>'+
+    '<td class="c">'+(x.q!=null?Number(x.q).toLocaleString():'')+'</td>'+
+    '<td class="c"'+(x.s?' style="color:#b23030;font-weight:800"':'')+'>'+(x.s?x.s.toLocaleString():'')+'</td>'+
+    '<td></td>'+
+    '<td>'+esc(x.rmk)+'</td>'+
+  '</tr>').join('');
+  const blank='<tr>'+'<td class="c"></td>'.repeat(3)+'<td></td><td class="c"></td><td></td>'+
+    '<td class="c"></td><td class="c"></td><td></td><td></td></tr>';
+  const restN = Math.max(steps.filter(x=>!doneMp.has(x)).length*2, 2);
 
   box.innerHTML=
     '<div class="hd"><h1>공 정 이 동 표</h1>'+
@@ -107,7 +124,8 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
       '<table class="inf"><tbody>'+
         '<tr><th>LOT 번호</th><td style="font-size:15px">'+esc(part)+'</td><th>JOB</th><td>'+esc(r.job||last.job||'')+'</td></tr>'+
         '<tr><th>매칭품번</th><td>'+esc(last.map_part||'')+'</td><th>금형제번</th><td>'+esc(last.mold_no||'')+'</td></tr>'+
-        '<tr><th>표준공정</th><td colspan="3">'+(rt?esc(rt.standard_process_name)+' ('+steps.length+'단계) — '+steps.map(esc).join(' → '):'(미매칭)')+'</td></tr>'+
+        '<tr><th>표준공정</th><td colspan="3">'+(rt?esc(rt.standard_process_name)+' ('+steps.length+'단계) — '+
+          steps.map(x=>esc(x)+(pName(x)?'·'+esc(pName(x)):'')+(doneMp.has(x)?' ✓':'')).join(' → '):'(미매칭)')+'</td></tr>'+
         '<tr><th>총수량</th><td>'+(last.qty!=null?Number(last.qty).toLocaleString():'')+'</td>'+
             '<th>사내입고</th><td>'+(rcpt[0]?esc(rcpt[0].in_date)+' · '+Number(rcpt[0].qty||0).toLocaleString():'미입고')+'</td></tr>'+
       '</tbody></table>'+
@@ -115,13 +133,13 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
         '<div class="cap">휴대폰 카메라로 스캔 →<br><b>출고 · 입고 · 특기사항</b> 기록<br>'+
         (tok?'<b style="color:#15803d">로그인 불필요</b>':'<b style="color:#b06a12">로그인 필요</b>')+'</div></div>'+
     '</div>'+
-    '<div class="rt"><h3>공정별 입출고 기록</h3>'+
+    '<div class="rt"><h3>공정별 입출고 기록 (물류 흐름)</h3>'+
     '<table class="mv"><thead><tr>'+
-      '<th style="width:30px">순번</th><th style="width:78px">공정</th><th>외주처</th>'+
-      '<th style="width:66px">출고일</th><th style="width:58px">출고수량</th>'+
-      '<th style="width:66px">입고일</th><th style="width:58px">입고수량</th>'+
-      '<th style="width:48px">부족</th><th style="width:56px">확인(인)</th><th style="width:26%">특기사항</th>'+
-    '</tr></thead><tbody>'+(rows||'')+blank.repeat(Math.max(0,2-(steps.length?0:1)))+'</tbody></table></div>'+
+      '<th style="width:30px">순번</th><th style="width:66px">일자</th><th style="width:54px">구분</th>'+
+      '<th>출고처</th><th style="width:16px"></th><th>입고처</th>'+
+      '<th style="width:52px">수량</th><th style="width:42px">부족</th>'+
+      '<th style="width:52px">확인(인)</th><th style="width:22%">특기사항</th>'+
+    '</tr></thead><tbody>'+(rows||'')+blank.repeat(restN)+'</tbody></table></div>'+
     '<div class="foot">'+
       '· 각 공정 <b>입출고 시 QR을 스캔</b>하여 수량과 특기사항을 기록해 주십시오. 시스템에 즉시 반영됩니다.<br>'+
       '· 불량 등으로 <b>수량이 부족하게 출고되는 경우</b> 반드시 부족수량과 사유를 기록해 주십시오.<br>'+
