@@ -21,7 +21,7 @@
 .lr-go:hover{background:#1d568c}
 .lr-dim{position:fixed;inset:0;background:rgba(30,40,50,.42);z-index:60;display:none}
 .lr-dim.on{display:block}
-.lr-mo{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:760px;max-width:94vw;
+.lr-mo{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:960px;max-width:96vw;
   max-height:92vh;overflow:auto;background:#fff;border:1px solid #6d7d8c;box-shadow:0 8px 28px rgba(0,0,0,.28);z-index:61}
 .lr-mh{height:32px;display:flex;align-items:center;gap:8px;padding:0 11px;
   background:linear-gradient(#3d7ab5,#2e6497);color:#fff;font-weight:800}
@@ -44,6 +44,10 @@
 .lr-open{margin:9px 0 0;border:1px solid #dde4ea}
 .lr-open h5{margin:0;padding:5px 9px;background:#eef2f6;border-bottom:1px solid #dde4ea;
   font-size:11px;color:#41556a}
+.lr-open .grid{table-layout:auto}
+.lr-open .grid td,.lr-open .grid th{white-space:normal;overflow:visible;text-overflow:clip;
+  word-break:break-all;font-size:11px;padding:3px 5px}
+.lr-open .grid td.nw{white-space:nowrap}
 .lr-lot{margin-top:9px;border:1px solid #dde4ea}
 .lr-lot .lh{display:flex;align-items:center;gap:7px;padding:4px 8px;background:#f4f7fa;
   border-bottom:1px solid #dde4ea;font-size:11px;color:#41556a;font-weight:700}
@@ -587,11 +591,11 @@
                             '&order=created_at.desc&limit=8');
       if(!mv.length)return;
       box.innerHTML='<div class="lr-open"><h5>📝 현장 기록 — QR 입출고 · 특기사항 (최근 '+mv.length+'건)</h5>'+
-        '<table class="grid"><thead><tr><th style="width:88px">일자</th><th style="width:66px">구분</th>'+
-        '<th style="width:86px">공정</th><th style="width:110px">외주처</th>'+
-        '<th style="width:80px">출고</th><th style="width:80px">입고</th><th style="width:70px">부족</th>'+
-        '<th style="width:100px">사유</th><th>특기사항</th></tr></thead><tbody>'+
-        mv.map(v=>'<tr><td class="center">'+esc(v.move_date||'')+'</td>'+
+        '<table class="grid"><thead><tr><th style="width:84px">일자</th><th style="width:62px">구분</th>'+
+        '<th style="width:56px">공정</th><th style="width:96px">외주처</th>'+
+        '<th style="width:64px">출고</th><th style="width:64px">입고</th><th style="width:52px">부족</th>'+
+        '<th style="width:120px">사유</th><th>특기사항</th></tr></thead><tbody>'+
+        mv.map(v=>'<tr><td class="center nw">'+esc(v.move_date||'')+'</td>'+
           '<td class="center"><span class="badge '+(v.io==='입고'||v.io==='사내입고'?'b-done':v.io==='출고'?'b-run':'b-wait')+'">'+esc(v.io)+'</span></td>'+
           '<td class="center">'+esc(v.mp||'')+'</td><td>'+esc(v.vendor||'')+'</td>'+
           '<td class="num">'+(v.out_qty==null?'':Number(v.out_qty).toLocaleString())+'</td>'+
