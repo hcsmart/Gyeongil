@@ -205,7 +205,8 @@ function chrome(curId){
   if(NAVDROP){
     document.body.classList.add('navdrop');
     const dd=el('div','dropnav'); dd.id='kiDrop'; document.body.appendChild(dd);
-    if(ACTMENU){ const a=$('#kiAct'); a.className='pg-act flyout'; document.body.appendChild(a); }
+    if(ACTMENU){ const a=$('#kiAct'); a.className='pg-act flyout'; document.body.appendChild(a);
+      const a2=el('div','pg-act flyout'); a2.id='kiActLink'; document.body.appendChild(a2); }
   }else if(NAVTOP){
     document.body.classList.add('navtop');
     const t3=el('div','top3'); t3.id='kiTop3';
@@ -259,14 +260,23 @@ function chrome(curId){
 
   /* --- 상단 드롭다운 메뉴 (엑셀형) --- */
   let dropKey=null, actTmr=null;
-  function hideAct(){ const a=$('#kiAct'); if(a) a.classList.remove('on'); }
-  function showAct(anchor){
-    const a=$('#kiAct'), d=$('#kiDrop');
-    if(!a || !d || !a.children.length) return;
+  function hideAct(){ ['#kiAct','#kiActLink'].forEach(k=>{ const a=$(k); if(a) a.classList.remove('on'); }); }
+  function placeAct(a,anchor){
+    const d=$('#kiDrop'); if(!d) return;
     const r=anchor.getBoundingClientRect(), dr=d.getBoundingClientRect();
     a.style.left=Math.min(dr.right-1, window.innerWidth-160)+'px';
-    a.style.top=Math.min(r.top, window.innerHeight-40*a.children.length-16)+'px';
+    a.style.top=Math.min(r.top, Math.max(4,window.innerHeight-34*a.children.length-20))+'px';
     a.classList.add('on');
+  }
+  /* 화면별 실행버튼 목록(방문 시 저장) → 다른 화면 항목에도 우측 메뉴 표시 */
+  function showAct(anchor,id){
+    hideAct();
+    if(id===curId){ const a=$('#kiAct'); if(a&&a.children.length) placeAct(a,anchor); return; }
+    const a2=$('#kiActLink'), acts=actList(id), f=(FLAT[id]&&FLAT[id].it.f)||'';
+    if(!a2||!acts.length||!f) return;
+    a2.innerHTML=acts.map(x=>'<a class="btn'+(x.c?' '+x.c:'')+'" href="'+
+      f+(f.indexOf('?')>=0?'&':'?')+'act='+encodeURIComponent(x.n)+'">'+esc(x.n)+'</a>').join('');
+    placeAct(a2,anchor);
   }
   function closeDrop(){
     dropKey=null; hideAct();
@@ -288,8 +298,7 @@ function chrome(curId){
     if(ACTMENU){
       hideAct();
       d.querySelectorAll('a.dd-i').forEach(a=>{
-        a.addEventListener('mouseenter',()=>{ clearTimeout(actTmr);
-          if(a.dataset.id===curId) showAct(a); else hideAct(); });
+        a.addEventListener('mouseenter',()=>{ clearTimeout(actTmr); showAct(a,a.dataset.id); });
       });
       d.addEventListener('mouseleave',()=>{ actTmr=setTimeout(hideAct,220); });
     }
@@ -301,13 +310,15 @@ function chrome(curId){
   }
   function toggleDrop(btn){ if(dropKey===btn.dataset.k) closeDrop(); else openDrop(btn); }
   if(ACTMENU){
-    const a=$('#kiAct');
-    a.addEventListener('mouseenter',()=>clearTimeout(actTmr));
-    a.addEventListener('mouseleave',()=>{ actTmr=setTimeout(hideAct,220); });
-    a.addEventListener('click',()=>setTimeout(closeDrop,0));
+    ['#kiAct','#kiActLink'].forEach(k=>{ const a=$(k); if(!a)return;
+      a.addEventListener('mouseenter',()=>clearTimeout(actTmr));
+      a.addEventListener('mouseleave',()=>{ actTmr=setTimeout(hideAct,220); });
+      a.addEventListener('click',()=>setTimeout(closeDrop,0));
+    });
   }
   if(NAVDROP){
-    document.addEventListener('click',e=>{ if(!e.target.closest('#kiDrop')&&!e.target.closest('#kiAct')) closeDrop(); });
+    document.addEventListener('click',e=>{
+      if(!e.target.closest('#kiDrop')&&!e.target.closest('#kiAct')&&!e.target.closest('#kiActLink')) closeDrop(); });
     document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDrop(); });
     window.addEventListener('resize',closeDrop);
   }
@@ -396,6 +407,23 @@ function chrome(curId){
 function msg(t){ const m=$('#kiMsg'); if(m)m.textContent=t; }
 const header = chrome;                       /* 하위 호환 */
 
+const ACT_LS='ki_act:';
+/* 화면별 실행버튼 목록 : ① ki_config.js 의 ACTS ② 그리드 화면(VIEWS)은 권한으로 자동 산출 ③ 방문 캐시 */
+function actList(id){
+  if(typeof ACTS!=='undefined' && ACTS[id]) return ACTS[id].map(a=>({n:a[0],c:a[1]||''}));
+  const def=(typeof VIEWS!=='undefined')?VIEWS[id]:null;
+  if(def){
+    const a=[{n:'조회',c:'primary'}];
+    if(def.edit){
+      if(can(id,'save')){ a.push({n:'＋ 등록',c:''}); a.push({n:'📊 엑셀 업로드',c:''}); }
+      if(can(id,'edit'))   a.push({n:'수정',c:''});
+      if(can(id,'delete')) a.push({n:'삭제',c:'danger'});
+    }
+    a.push({n:'초기화',c:''}); a.push({n:'엑셀(CSV)',c:''}); a.push({n:'인쇄',c:''});
+    return a;
+  }
+  try{ return JSON.parse(localStorage.getItem(ACT_LS+id)||'[]'); }catch(e){ return []; }
+}
 function page(cur, actions){
   const it = cur.it || cur;
   const ws=el('div','workspace'), pg=el('div','page');
@@ -409,6 +437,13 @@ function page(cur, actions){
     b.addEventListener('click',fn); act.appendChild(b); });
   if(!SLIM){ h.appendChild(act); pg.appendChild(h); }
   ws.appendChild(pg); document.body.appendChild(ws);
+  /* 화면별 실행버튼 목록 저장 (드롭다운 우측 메뉴용) */
+  try{ if(it.id) localStorage.setItem(ACT_LS+it.id,
+        JSON.stringify((actions||[]).map(a=>({n:a[0],c:a[1]||''})))); }catch(e){}
+  /* 메뉴에서 [?act=버튼명] 으로 진입한 경우 해당 버튼 자동 실행 */
+  const qa=new URLSearchParams(location.search).get('act');
+  if(qa) setTimeout(()=>{ const b=[].slice.call(act.querySelectorAll('button'))
+      .find(x=>x.textContent.trim()===qa); if(b) b.click(); },600);
   return {pg:pg, head:h, act:act, ws:ws};
 }
 
