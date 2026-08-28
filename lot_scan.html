@@ -48,6 +48,12 @@ textarea{min-height:64px}
 <div class="top">📱 QR 입출고 <small id="who"></small></div>
 <div class="wrap" id="wrap">불러오는 중...</div>
 <script>
+/* QR 스캔 → 미로그인 시 index.html 로 튕기며 ?lot= 이 사라지므로 미리 저장 */
+try{
+  const _l=new URLSearchParams(location.search).get('lot');
+  if(_l) localStorage.setItem('ki_scan_lot',_l);
+}catch(e){}
+
 (async function(){
   if(!await KI.guard('lot-scan'))return;
   const $=KI.$, el=KI.el, esc=KI.esc;
@@ -56,6 +62,8 @@ textarea{min-height:64px}
   $('#who').textContent=(me.emp_name||'')+(me.dept?' · '+me.dept:'');
   const wrap=$('#wrap');
   let PART=new URLSearchParams(location.search).get('lot')||'';
+  if(!PART){ try{ PART=localStorage.getItem('ki_scan_lot')||''; }catch(e){} 
+    if(PART) history.replaceState(null,'','?lot='+encodeURIComponent(PART)); }
   let PROG=null, OSP=[], RT=null, STEPS=[], SEEN=new Set(), RCPT=null, MOVES=[], ALLMV=[], PROC=[], VEN=[];
   const num=v=>Number(v)||0;
 
@@ -74,7 +82,8 @@ textarea{min-height:64px}
       '<div id="qHit" style="margin-top:8px"></div></div></div>'+
       '<div class="card" id="mineCard" style="display:none"><h3 id="mineTtl">🏭 우리 업체 LOT</h3><div class="bd" id="mineList"></div></div>'+
       '<div class="card"><h3>📋 미결 LOT — 입고대기 · 부분출고 잔량</h3><div class="bd" id="openList">불러오는 중...</div></div>';
-    const pick=v=>{ PART=v; history.replaceState(null,'','?lot='+encodeURIComponent(PART)); load(); };
+    const pick=v=>{ PART=v; try{ localStorage.setItem('ki_scan_lot',v); }catch(e){}
+      history.replaceState(null,'','?lot='+encodeURIComponent(PART)); load(); };
     $('#qGo').addEventListener('click',async()=>{
       const v=$('#qLot').value.trim(); if(!v)return;
       const hit=$('#qHit'); hit.textContent='검색 중...';
@@ -171,7 +180,7 @@ textarea{min-height:64px}
 
     wrap.innerHTML=
     '<div class="card"><h3>📦 LOT 정보 '+
-      '<a href="lot_scan.html" style="float:right;font-size:11px;color:#2e77bd">다른 LOT ›</a>'+
+      '<a href="lot_scan.html" id="otherLot" style="float:right;font-size:11px;color:#2e77bd">다른 LOT ›</a>'+
       '<a href="lot_tag.html?lot='+encodeURIComponent(PART)+'" target="_blank" style="float:right;font-size:11px;color:#7b8794;margin-right:12px">🖨 이동표 재발행(분실 시)</a></h3><div class="bd">'+
       '<div class="kv"><b>LOT</b><span style="font-weight:800;font-size:16px;color:#22537f">'+esc(PART)+'</span>'+
       '<b>JOB</b><span>'+esc((PROG||{}).job||last.job||'-')+'</span>'+
@@ -261,6 +270,9 @@ textarea{min-height:64px}
           (v.remark?'<br><small style="color:#526171">'+esc(v.remark)+'</small>':'')+'</td></tr>').join('')+'</table>'
       :'<span style="color:#8894a0">기록이 없습니다.</span>')+
     '</div></div>';
+
+    const ol=$('#otherLot');
+    if(ol) ol.addEventListener('click',()=>{ try{ localStorage.removeItem('ki_scan_lot'); }catch(e){} });
 
     /* 탭 */
     wrap.querySelectorAll('.tab button').forEach(b=>b.addEventListener('click',()=>{

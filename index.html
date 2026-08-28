@@ -68,7 +68,21 @@ $('#go').addEventListener('click',go);
 
 function dest(){
   const r=new URLSearchParams(location.search).get('r');
-  return (r && /^[a-z_]+\.html$/.test(r)) ? r : (C.LANDING||'mold_due.html');
+  if(r && /^[a-z_]+\.html$/.test(r)){
+    /* QR 스캔으로 진입한 경우 LOT 번호를 함께 복원 */
+    if(r==='lot_scan.html'){
+      let lot='';
+      try{ lot=localStorage.getItem('ki_scan_lot')||''; }catch(e){}
+      if(lot) return r+'?lot='+encodeURIComponent(lot);
+    }
+    return r;
+  }
+  /* 기본 화면 권한이 없는 계정(협력사 등)은 접근 가능한 첫 화면으로 */
+  const home=C.LANDING||'mold_due.html';
+  const homeId=Object.keys(FLAT).find(k=>FLAT[k].it.f===home);
+  if(!homeId || KI.can(homeId,'view')) return home;
+  const ok=Object.keys(FLAT).find(k=>KI.can(k,'view'));
+  return ok?FLAT[ok].it.f:home;
 }
 async function go(){
   const id=uid.value.trim(), p=pw.value;
