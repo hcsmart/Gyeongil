@@ -297,7 +297,7 @@ function chrome(curId){
       if(!its.length) return '';
       const multi=m1.second.filter(okSec).length>1;
       return (multi?'<div class="dd-t">'+esc(m2.icon||'')+' '+esc(m2.name)+'</div>':'')+
-        its.map(x=>'<a class="dd-i'+(x.id===curId?' on':'')+'" data-id="'+x.id+'" href="'+x.f+'">'+esc(x.n)+
+        its.map(x=>'<a class="dd-i" data-id="'+x.id+'" href="'+x.f+'">'+esc(x.n)+
           (x.d?'<small>'+esc(x.d)+'</small>':'')+'</a>').join('');
     }).join('');
     d.innerHTML=html||'<div class="dd-t">권한이 있는 메뉴가 없습니다.</div>';

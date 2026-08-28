@@ -460,3 +460,17 @@ body.scanpage .status{display:none}
 /* 그리드 상단 현재 위치(메뉴 경로) */
 .grid-tb .crumb{color:#33506b;font-size:11px;font-weight:800}
 .grid-tb .crumb::before{content:'📌';margin-right:5px;font-size:10px}
+
+/* 부드러운 드롭다운 · 플라이아웃 (fade + slide) */
+.dropnav{display:block;visibility:hidden;opacity:0;transform:translateY(-8px);pointer-events:none;
+  transition:opacity .16s ease, transform .16s ease, visibility 0s linear .16s}
+.dropnav.on{visibility:visible;opacity:1;transform:translateY(0);pointer-events:auto;
+  transition:opacity .16s ease, transform .16s ease}
+.pg-act.flyout{display:flex;visibility:hidden;opacity:0;transform:translateX(-8px);pointer-events:none;
+  transition:opacity .15s ease, transform .15s ease, visibility 0s linear .15s}
+.pg-act.flyout.on{visibility:visible;opacity:1;transform:translateX(0);pointer-events:auto;
+  transition:opacity .15s ease, transform .15s ease}
+.dropnav a.dd-i, .pg-act.flyout .btn, .pg-act.flyout a.btn{transition:background .12s ease}
+@media (prefers-reduced-motion: reduce){
+  .dropnav,.pg-act.flyout{transition:none;transform:none}
+}
