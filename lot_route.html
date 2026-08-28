@@ -200,8 +200,10 @@
       '<div class="lr-chain" id="iChain"></div>'+
       '<div id="openBox"></div>'+
       '<div id="moveBox"></div>'+
-      '<div class="lr-open" style="margin-top:10px"><h5>다음 공정 진행등록 (반출)</h5>'+
-      '<div style="padding:9px 10px"><div class="lr-f">'+
+      '<div class="lr-open lr-fold" id="outFold" style="margin-top:10px">'+
+      '<h5><span class="arw">▶</span>📤 다음 공정 진행등록 (반출)'+
+      '<span class="cnt" id="outCnt">클릭하여 펼치기</span></h5>'+
+      '<div class="fold-bd"><div style="padding:9px 10px"><div class="lr-f">'+
         '<label>JOB</label><span style="display:flex;gap:4px;min-width:0">'+
           '<input type="text" id="fJob" placeholder="JOB 번호" style="flex:1;min-width:0">'+
           '<button type="button" id="fJobGen" title="JOB-YYMMDD## 형태로 자동생성" '+
@@ -226,7 +228,7 @@
         '<table><thead><tr><th style="width:44px">NO</th><th>LOT 번호</th>'+
         '<th style="width:120px">수량</th><th style="width:38px"></th></tr></thead>'+
         '<tbody id="lotBody"></tbody></table></div>'+
-      '</div></div>'+
+      '</div></div></div>'+
     '</div>'+
     '<div class="lr-mf"><span class="msg" id="mMsg" style="font-weight:700"></span>'+
       '<button class="btn" id="mTag" style="margin-left:auto">🖨 이동표(QR)</button>'+
@@ -544,6 +546,7 @@
     $('#mS').style.display='';
     $('#mTag').style.display='none'; $('#mInh').style.display='none'; $('#moveBox').innerHTML='';
     dim.classList.add('on'); mo.style.display='';
+    if(window.openOutForm) window.openOutForm();   /* 신규등록은 입력폼을 바로 펼침 */
     $('#fJob').focus();
   }
 
@@ -566,6 +569,7 @@
     if(!lotBody.children.length) lotRow(o.part||'','');
     $('#fFrom').value=''; showFrom(false); fromNote();
     $('#mMsg').className='msg'; $('#mMsg').textContent='✎ 반출번호 '+o.no+' 수정 중입니다.';
+    if(window.openOutForm) window.openOutForm();   /* 수정도 입력폼을 바로 펼침 */
     mo.scrollTop=mo.scrollHeight;
   }
   function cancelEdit(){
@@ -639,6 +643,14 @@
   async function save(){
     const m=$('#mMsg');
     if(!sel && !NEW && !editNo) return;
+    /* 접혀 있으면 먼저 펼쳐 입력 내용을 보여준다 */
+    const fd=$('#outFold');
+    if(fd && !fd.classList.contains('open')){
+      fd.classList.add('open'); $('#outCnt').textContent='';
+      m.className='msg'; m.textContent='반출 정보를 확인한 뒤 다시 [반출 등록]을 누르세요.';
+      fd.scrollIntoView({block:'nearest'});
+      return;
+    }
     const lots=lotList();
     if(!lots.length || lots.some(x=>!x.lot)){
       m.className='msg err'; m.textContent='반출 LOT 번호를 입력하세요.'; return; }
@@ -829,6 +841,24 @@
       if(keep) h5.click();
     }catch(e){}
   }
+  /* 반출등록 섹션 접기/펼치기 (기본 접힘 · 마지막 상태 기억) */
+  (function(){
+    const fd=$('#outFold'), h5=fd.querySelector('h5');
+    const sync=()=>{ $('#outCnt').textContent=fd.classList.contains('open')?'':'클릭하여 펼치기'; };
+    h5.addEventListener('click',()=>{
+      const on=fd.classList.toggle('open');
+      sync();
+      try{ localStorage.setItem('ki_out_fold',on?'1':'0'); }catch(e){}
+    });
+    let keep=false; try{ keep=localStorage.getItem('ki_out_fold')==='1'; }catch(e){}
+    if(keep) fd.classList.add('open');
+    sync();
+  })();
+  /* 다른 곳에서 반출 등록을 유도할 때 자동으로 펼침 */
+  window.openOutForm=function(){ const fd=$('#outFold');
+    if(fd&&!fd.classList.contains('open')){ fd.classList.add('open'); $('#outCnt').textContent=''; }
+    const t=$('#fVen'); if(t) t.focus();
+  };
   $('#mS').addEventListener('click',save);
   $('#mTag').addEventListener('click',()=>{ if(sel) window.open('lot_tag.html?lot='+encodeURIComponent(sel.part),'_blank'); });
   $('#mInh').addEventListener('click',()=>{ if(sel) inhouse(sel); });
