@@ -70,7 +70,11 @@ try{
   /* 반출건 잔량 = 출고수량 − 이후 이관(부분출고)된 수량 합계 */
   const movedOf = (no,mv)=>(mv||ALLMV).filter(m=>m.io==='출고'&&String(m.osp_no||'')===String(no))
                     .reduce((a,b)=>a+num(b.out_qty),0);
-  const remainOf = (o,mv)=>Math.max(num(o.qty)-movedOf(o.no,mv),0);
+  const arrQtyOf = (no,mv)=>{ const a=(mv||ALLMV).filter(m=>(m.io==='도착'||m.io==='입고')&&
+                       String(m.osp_no||'')===String(no)&&m.in_qty!=null)[0];
+                     return a?num(a.in_qty):null; };
+  const remainOf = (o,mv)=>{ const a=arrQtyOf(o.no,mv);
+                     return Math.max((a==null?num(o.qty):a)-movedOf(o.no,mv),0); };
   const arrivedOf = (o,mv)=>(mv||ALLMV).find(m=>(m.io==='도착'||m.io==='입고')&&String(m.osp_no||'')===String(o.no))||null;
 
   /* ── LOT 미지정 : 직접 입력 + 미결(입고대기·부분출고 잔량) LOT 불러오기 ── */
@@ -246,7 +250,7 @@ try{
       (doneAll&&!RCPT?'<div class="pane" data-p="home"><div class="bd">'+
         '<div class="row"><label>입고일</label><input type="date" id="hDate" value="'+TODAY+'"></div>'+
         '<div class="row"><label>입고수량</label><input type="number" id="hQty" inputmode="numeric" value="'+
-          (last.qty!=null?num(last.qty):'')+'"></div>'+
+          ((OSP[0]||{}).qty!=null?num(OSP[0].qty):'')+'"></div>'+
         '<div id="hShort" class="short" style="margin:-4px 0 8px 100px"></div>'+
         '<div class="row" id="hRsnRow" style="display:none"><label>부족사유</label><input id="hRsn" placeholder="선택"></div>'+
         '<div class="row"><label>특기사항</label><textarea id="hRmk"></textarea></div>'+
@@ -372,7 +376,7 @@ try{
 
     /* ── 사내입고 (사유는 선택) ── */
     if($('#btHome')){
-      const base=num(last.qty);
+      const base=num((OSP[0]||{}).qty);   /* 최초 반출수량 기준 */
       const sync=()=>{ const q=num($('#hQty').value), sh=base?Math.max(base-q,0):0;
         $('#hShort').textContent=sh>0?'⚠ 부족 '+sh.toLocaleString()+' (사유는 선택 입력)':'';
         $('#hRsnRow').style.display=sh>0?'':'none'; };
