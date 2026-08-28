@@ -547,16 +547,16 @@ const VIEWS = {
        '<b>월별 타발수 대장</b>이 자동으로 갱신됩니다.<br>'+
        '연마 · 교체 도래현황은 이 값을 기준으로 <b>최근 30일 일평균</b>을 산출해 <b>예상 도래일</b>을 계산합니다. '+
        '일별 등록 시작 이전의 누적분은 금형대장의 <b>기초 타발수</b>로 보존됩니다.',
-  search:[['금형코드','text','mold_code'],['금형명','text','mold_name'],
+  search:[['금형제번','text','mold_code'],['금형명','text','mold_name'],
           ['작업일','date2','work_date'],['호기','text','machine_no'],['작업자','text','worker']],
-  cols:[['작업일',92,'center','work_date'],['금형코드',92,'','mold_code'],['금형명',150,'','mold_name'],
+  cols:[['작업일',92,'center','work_date'],['금형제번',92,'','mold_code'],['금형명',150,'','mold_name'],
         ['고객사',100,'','customer_name'],['등급',52,'center','grade','grade'],
         ['호기',56,'center','machine_no'],
         ['일 타발수',96,'num','shot_qty','n0'],['카운터',110,'num','counter_end','n0'],
         ['누적 타발수',120,'num','cum_shot','n0'],['수명',110,'num','shot_limit','n0'],
         ['작업자',80,'center','worker'],['비고',0,'','remark']],
   edit:{ table:TBL.shotDaily, pk:'mold_code', pk2:'work_date', auto:false, fields:[
-    ['mold_code','금형코드','ref',{table:OBJ.moldMst,v:'mold_code',t:'mold_name'},'req'],
+    ['mold_code','금형제번','ref',{table:OBJ.moldMst,v:'mold_code',t:'mold_name'},'req'],
     ['work_date','작업일','date',null,'req'],
     ['machine_no','호기','ref',{table:OBJ.machine,v:'machine_no',t:'machine_name'}],
     ['shot_qty','일 타발수','num',null,'req'],
