@@ -178,12 +178,16 @@ function chrome(curId){
   /* 메뉴 모드 : 'drop'(상단 드롭다운) / 'top'(상단 가로바) / 'left'(좌측 트리) */
   const NAVMODE = C.NAV_MODE || (C.NAV_TOP===false ? 'left' : 'top');
   const NAVDROP = (NAVMODE==='drop'), NAVTOP = (NAVMODE==='top');
+  /* SLIM_HEAD : 화면 제목 · 버튼을 상단바로 올리고 안내문(note)을 숨겨 그리드 영역 확보 */
+  if(C.SLIM_HEAD!==false) document.body.classList.add('slim');
 
   /* 1차 */
   const t1=el('div','top1');
   t1.innerHTML =
     '<a class="logo" href="'+(KI_CFG.LANDING||'lot_route.html')+'"><b>GI</b>MES<i>(LOT)</i></a>'+
     '<nav class="modules" id="kiMod"></nav>'+
+    '<span class="pg-title" id="kiTitle"></span>'+
+    '<div class="pg-act top" id="kiAct"></div>'+
     '<div class="user">'+
       '<button class="mini" id="kiUser">👤</button>'+
       '<button class="mini" id="kiOut">🔒</button>'+
@@ -368,12 +372,16 @@ const header = chrome;                       /* 하위 호환 */
 function page(cur, actions){
   const it = cur.it || cur;
   const ws=el('div','workspace'), pg=el('div','page');
+  const SLIM = document.body.classList.contains('slim') && $('#kiAct');
   const h=el('div','pg-head');
   h.innerHTML='<h2>'+esc(it.n)+'</h2><span class="sub">'+esc(it.d||'')+'</span>';
-  const act=el('div','pg-act');
+  const act = SLIM ? $('#kiAct') : el('div','pg-act');
+  if(SLIM){ act.innerHTML=''; const t=$('#kiTitle');
+    if(t){ t.textContent=it.n; t.title=it.d||''; } }
   (actions||[]).forEach(([label,cls,fn])=>{ const b=el('button','btn'+(cls?' '+cls:''),label);
     b.addEventListener('click',fn); act.appendChild(b); });
-  h.appendChild(act); pg.appendChild(h); ws.appendChild(pg); document.body.appendChild(ws);
+  if(!SLIM){ h.appendChild(act); pg.appendChild(h); }
+  ws.appendChild(pg); document.body.appendChild(ws);
   return {pg:pg, head:h, act:act, ws:ws};
 }
 

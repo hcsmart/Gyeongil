@@ -406,3 +406,17 @@ body.navdrop .module.open{background:#e5edf5;color:var(--blue-dark);box-shadow:i
 .dropnav a.dd-i small{display:block;margin-top:1px;font-size:10px;font-weight:400;color:#8b98a5}
 .dropnav a.dd-i.on small{color:#d6e6f6}
 @media print{ .dropnav{display:none} }
+
+/* ============================================================
+   SLIM 헤더 (KI_CFG.SLIM_HEAD = true)
+   · 화면제목 · 실행버튼을 상단바로 이동, 페이지 헤더/안내문 제거
+============================================================ */
+.pg-title{flex:0 0 auto;padding:0 14px 0 16px;color:#41556a;font-size:14px;font-weight:800;
+  white-space:nowrap;border-left:1px solid #d5dce2}
+.pg-title:empty{display:none}
+.pg-act.top{display:flex;align-items:center;gap:4px;margin-left:auto;padding-right:10px}
+.pg-act.top:empty{display:none}
+body.slim .top1 .user{margin-left:0;border-left:1px solid #d5dce2}
+body.slim .page > .note{display:none}
+body.slim .page > .pg-head{display:none}
+@media (max-width:1280px){ body.slim .pg-title{display:none} }

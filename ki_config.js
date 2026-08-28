@@ -10,6 +10,7 @@ const KI_CFG = {
   DB_PREFIX    : 'ki_',
   LANDING      : 'lot_route.html',    // 로그인 후 기본 화면
   NAV_MODE     : 'drop',            // 'drop': 상단 메뉴 클릭 → 드롭다운 / 'top': 상단 가로바 / 'left': 좌측 트리
+  SLIM_HEAD    : true,              // true: 화면제목·버튼을 상단바로 이동 + 안내문 숨김 (그리드 영역 최대)
   AUTH_DOMAIN  : 'ki.local',        // 아이디 → 로그인 이메일 : <아이디>@ki.local
   ADMIN_FN     : 'ki-admin-user',   // 계정관리 Edge Function
   MIN_PW       : 6,   // Supabase Auth 기본 최소 길이
