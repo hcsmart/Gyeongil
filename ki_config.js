@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'GI MES',
-  VER      : 'v12.5',
+  VER      : 'v12.6',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -140,9 +140,7 @@ const MENU = [
         {id:'ven-stock', f:'vendor_stock.html', n:'협력사 재고현황',
          d:'업체별 보유수량 · 체류일 · 납기'}
       ]},
-      { name:'현장 (모바일)', items:[
-        {id:'mobile-home',f:'mobile_home.html',n:'현장 홈(폰)',
-         d:'폰 전용 대형 카드 홈 — 현장 화면 바로가기'},
+      { name:'현장 (QR)', items:[
         {id:'lot-scan',  f:'lot_scan.html',  n:'QR 입출고(현장)', pop:1,
          d:'공정이동표 QR 스캔 — 출고 · 입고 · 특기사항 (별도 창)'},
         {id:'lot-vendor',f:'lot_vendor.html',n:'협력사 QR 스캔(모바일)', pop:1,
@@ -257,7 +255,6 @@ const ACTS = {
   'lot-route'  : [['신규등록',''],['엑셀다운로드',''],['인쇄','']],
   'lot-scan'   : [],
   'lot-vendor' : [],
-  'mobile-home': [],
   'notify-cfg' : [['저장','primary'],['ntfy 테스트','green'],['새로고침','']],
   'settings'   : [],
   'user-info'  : [],

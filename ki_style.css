@@ -491,3 +491,54 @@ body.popmode .page{border:0}
   border-radius:15px;background:rgba(255,255,255,.16);color:#fff;font:inherit;font-size:12px;
   font-weight:700;cursor:pointer}
 .pop-head button:hover{background:rgba(255,255,255,.28)}
+
+/* ===== 모바일 : 햄버거 드로어 (PC 메뉴와 동일 구성) ===== */
+body.mobnav{padding:0}
+body.mobnav .top1,body.mobnav .top2,body.mobnav .top3,
+body.mobnav .left,body.mobnav .splitter,body.mobnav .status{display:none !important}
+body.mobnav .workspace{position:static !important;top:auto !important;left:0 !important;right:0 !important;
+  bottom:auto !important;padding:0 !important;margin:0 !important;width:auto !important}
+body.mobnav .page{border:0}
+body.mob-lock{overflow:hidden}
+
+.mob-bar{display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:80;height:52px;padding:0 10px;
+  background:linear-gradient(135deg,#3579b8,#22537f);color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.16)}
+.mob-ham{width:40px;height:40px;border:0;background:rgba(255,255,255,.14);border-radius:10px;color:#fff;
+  font-size:20px;cursor:pointer;line-height:1}
+.mob-lg{font-size:17px;font-weight:900;letter-spacing:-.5px}
+.mob-lg b{color:#ffd88a}
+.mob-ttl{margin-left:auto;font-size:13.5px;font-weight:700;opacity:.94;max-width:44vw;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mob-usr{width:38px;height:38px;border:0;background:rgba(255,255,255,.14);border-radius:10px;color:#fff;
+  font-size:15px;cursor:pointer}
+
+.mob-dim{position:fixed;inset:0;background:rgba(12,24,36,.5);z-index:90;opacity:0;visibility:hidden;
+  transition:opacity .22s}
+.mob-dim.on{opacity:1;visibility:visible}
+.mob-drawer{position:fixed;top:0;left:0;bottom:0;width:82vw;max-width:330px;z-index:95;background:#fff;
+  box-shadow:6px 0 26px rgba(0,0,0,.25);transform:translateX(-102%);transition:transform .25s cubic-bezier(.2,.8,.3,1);
+  overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:20px}
+.mob-drawer.on{transform:none}
+.mob-me{background:linear-gradient(135deg,#3579b8,#22537f);color:#fff;padding:18px 16px 15px}
+.mob-me b{display:block;font-size:18px;font-weight:900;letter-spacing:-.4px}
+.mob-me span{font-size:12px;opacity:.9}
+
+.mob-mod{border-bottom:1px solid #eef1f4}
+.mob-m1{width:100%;height:52px;border:0;background:#fff;font:inherit;font-size:16px;font-weight:800;
+  color:#1d2833;text-align:left;padding:0 16px;cursor:pointer;display:flex;align-items:center}
+.mob-m1 span{margin-left:auto;color:#9aa7b3;font-size:13px;transition:transform .2s}
+.mob-mod.open .mob-m1{color:#1b4b7d;background:#f5f9fd}
+.mob-mod.open .mob-m1 span{transform:rotate(180deg)}
+.mob-body{display:none;padding:2px 0 8px;background:#fafcfe}
+.mob-mod.open .mob-body{display:block}
+.mob-sec{font-size:11.5px;font-weight:800;color:#8894a0;padding:9px 16px 4px;letter-spacing:.3px}
+.mob-sec i{font-style:normal;margin-right:5px}
+.mob-it{display:flex;align-items:center;padding:12px 16px 12px 26px;font-size:15px;color:#2f4256;
+  text-decoration:none;border-left:3px solid transparent}
+.mob-it:active{background:#eef4fa}
+.mob-it.on{background:#eaf2fa;border-left-color:#2668a8;color:#1b4b7d;font-weight:800}
+.mob-it em{margin-left:auto;font-style:normal;font-size:10.5px;font-weight:700;color:#8894a0;
+  background:#eef1f4;border-radius:9px;padding:2px 7px}
+.mob-foot{padding:16px}
+.mob-foot button{width:100%;height:46px;border:1.5px solid #cfd9e2;border-radius:11px;background:#fff;
+  font:inherit;font-size:14.5px;font-weight:800;color:#41556a;cursor:pointer}

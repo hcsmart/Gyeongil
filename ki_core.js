@@ -138,7 +138,6 @@ async function guard(menuId){
   if(!ME) await loadMe();                 /* ② 캐시 없을 때만 조회 */
   else setTimeout(()=>{ loadMe().catch(()=>{}); },0);   /* ③ 백그라운드 갱신 */
   if(!ME){ await signOut(); toLogin(); return false; }
-  if(mobileHome()) return false;          /* 폰 접속 → 현장 홈으로 전환 */
   if(menuId&&!can(menuId,'view')){
     alert('이 화면에 대한 조회 권한이 없습니다.\n관리자에게 문의하세요.');
     location.href=C.LANDING; return false;
@@ -172,24 +171,10 @@ const upsert = (t,b)=>send('POST',t,b,'resolution=merge-duplicates,return=repres
 /* ---------- 화면 크롬 (1차 모듈 / 2차 아이콘 / 좌측 트리 / 상태바) ---------- */
 const LK_LEFT='ki_left_w';
 
-/* ---------- 모바일 현장 홈 ----------
-   좁은 화면(폰)에서는 3단 메뉴 대신 현장 전용 홈으로 유도한다.
-   '전체 메뉴로 이동'을 누르면 ki_full=1이 저장되어 이후 자동이동하지 않는다. */
-const MOBILE_HOME='mobile_home.html';
+/* ---------- 모바일 판정 ---------- */
 function isPhone(){
-  return Math.min(screen.width||9999, window.innerWidth||9999) <= 640
+  return Math.min(screen.width||9999, window.innerWidth||9999) <= 820
       && /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent||'');
-}
-function wantFull(){ try{ return localStorage.getItem('ki_full')==='1'; }catch(e){ return false; } }
-function mobileHome(){
-  if(/^kiPop_/.test(window.name||'')) return false;      /* 팝업 창은 제외 */
-  if(!isPhone() || wantFull()) return false;
-  const here=(location.pathname.split('/').pop()||'').toLowerCase();
-  if(here===MOBILE_HOME || here==='index.html' || here==='') return false;
-  const land=String(C.LANDING||'lot_route.html').split('?')[0].toLowerCase();
-  if(here!==land) return false;                          /* 로그인 직후 랜딩만 전환 */
-  location.replace(MOBILE_HOME);
-  return true;
 }
 
 /* 팝업 전용 화면 (메뉴 정의의 pop:1) — 보안상 본 화면과 분리된 별도 창으로 실행 */
@@ -247,7 +232,7 @@ function chrome(curId){
   /* 1차 */
   const t1=el('div','top1');
   t1.innerHTML =
-    '<a class="logo" href="'+(KI_CFG.LANDING||'lot_route.html')+'"><b>GI</b>MES<i>(LOT)</i></a>'+
+    '<a class="logo" href="'+(KI_CFG.LANDING||'lot_route.html')+'"><b>GI</b>MES</a>'+
     '<nav class="modules" id="kiMod"></nav>'+
     '<div class="pg-act top" id="kiAct"></div>'+
     '<div class="user">'+
@@ -480,7 +465,63 @@ function chrome(curId){
   const net=async()=>{ let ok=true; try{ await get(OBJ.employee+'?select=emp_no&limit=1'); }catch(e){ ok=false; }
     $('#kiDot').classList.toggle('off',!ok); $('#kiNet').textContent=ok?'Connected':'Offline'; };
   net(); setInterval(net,120000);
+
+  /* --- 모바일 : 햄버거 드로어 (PC 메뉴와 동일 구성 · HIDE 반영) --- */
+  if(isPhone()) mobileNav(curId,cur);
   return cur;
+}
+
+/* 폰에서는 3단 메뉴 대신 상단바 + 슬라이드 드로어로 전환한다.
+   메뉴 원본은 PC와 같은 MENU_V(숨김 모듈 제외)를 그대로 사용한다. */
+function mobileNav(curId,cur){
+  if(document.getElementById('kiMobBar')) return;
+  document.body.classList.add('mobnav');
+  const it=cur.it, s=session();
+
+  const bar=el('div','mob-bar'); bar.id='kiMobBar';
+  bar.innerHTML='<button class="mob-ham" id="kiHam" aria-label="메뉴">☰</button>'+
+    '<span class="mob-lg"><b>GI</b>MES</span>'+
+    '<span class="mob-ttl">'+esc(it.n)+'</span>'+
+    '<button class="mob-usr" id="kiMobOut">🔒</button>';
+  document.body.insertBefore(bar,document.body.firstChild);
+
+  const dim=el('div','mob-dim'); dim.id='kiMobDim';
+  const dw =el('div','mob-drawer'); dw.id='kiMobDrawer';
+
+  const src=(typeof MENU_V!=='undefined')?MENU_V:MENU;
+  let html='<div class="mob-me"><b>'+esc(s?s.name:'-')+'</b>'+
+           '<span>'+esc(s&&s.role==='admin'?'관리자':'사용자')+'</span></div>';
+  src.forEach(m1=>{
+    /* 현재 화면이 속한 모듈은 펼친 상태로 */
+    const openM = (cur.mod===m1.key);
+    let inner='';
+    m1.second.forEach(m2=>{
+      const items=[];
+      m2.groups.forEach(g=>g.items.forEach(x=>{ if(can(x.id,'view')) items.push(x); }));
+      if(!items.length) return;
+      inner+='<div class="mob-sec">'+(m2.icon?'<i>'+m2.icon+'</i>':'')+esc(m2.name)+'</div>'+
+        items.map(x=>'<a class="mob-it'+(x.id===curId?' on':'')+'" href="'+esc(x.f)+'" data-id="'+esc(x.id)+'">'+
+          esc(x.n)+(x.pop?'<em>새 창</em>':'')+'</a>').join('');
+    });
+    if(!inner) return;
+    html+='<div class="mob-mod'+(openM?' open':'')+'">'+
+      '<button class="mob-m1" type="button">'+esc(m1.name)+'<span>▾</span></button>'+
+      '<div class="mob-body">'+inner+'</div></div>';
+  });
+  html+='<div class="mob-foot"><button type="button" id="kiMobLogout">🔒 로그아웃</button></div>';
+  dw.innerHTML=html;
+  document.body.appendChild(dim); document.body.appendChild(dw);
+
+  const openNav =v=>{ dw.classList.toggle('on',v); dim.classList.toggle('on',v);
+                      document.body.classList.toggle('mob-lock',v); };
+  document.getElementById('kiHam').addEventListener('click',()=>openNav(!dw.classList.contains('on')));
+  dim.addEventListener('click',()=>openNav(false));
+  dw.querySelectorAll('.mob-m1').forEach(b=>b.addEventListener('click',()=>{
+    b.parentNode.classList.toggle('open');
+  }));
+  const out=()=>{ if(confirm('로그아웃 하시겠습니까?')) logout(); };
+  document.getElementById('kiMobOut').addEventListener('click',out);
+  document.getElementById('kiMobLogout').addEventListener('click',out);
 }
 function msg(t){ const m=$('#kiMsg'); if(m)m.textContent=t; }
 const header = chrome;                       /* 하위 호환 */
