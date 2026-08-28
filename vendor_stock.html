@@ -28,14 +28,25 @@
 .vs-gb{display:none}
 .vs-g.open .vs-gb{display:block}
 .vs-gb table{width:100%;border-collapse:collapse}
-.vs-gb th{background:#fafbfc;border-bottom:1px solid #e4e9ee;font-size:11px;color:#526171;
-  height:26px;font-weight:700;white-space:nowrap;padding:0 6px}
-.vs-gb td{border-bottom:1px solid #eef1f4;padding:6px;font-size:12px;white-space:nowrap}
+.vs-gb th{background:#f7fafc;border-bottom:1px solid #cfd9e2;border-right:1px solid #e2e8ee;
+  font-size:11px;color:#526171;height:28px;font-weight:800;white-space:nowrap;padding:0 6px;text-align:center}
+.vs-gb td{border-bottom:1px solid #eef1f4;border-right:1px solid #eef1f4;
+  padding:6px;font-size:12px;white-space:nowrap;text-align:center}
+.vs-gb th:last-child,.vs-gb td:last-child{border-right:0}
 .vs-gb tr:last-child td{border-bottom:0}
 .vs-gb tr:hover td{background:#f6f9fc}
+/* 수량 계열은 우측정렬 유지 (자릿수 비교) */
+.vs-gb td.num{text-align:right;padding-right:10px;font-variant-numeric:tabular-nums}
+.vs-gb th.num{text-align:right;padding-right:10px}
+.vs-gb td.lf{text-align:left}
+/* 수량 그룹 경계 강조 */
+.vs-gb th.sep,.vs-gb td.sep{border-left:1px solid #cfd9e2}
 .num{text-align:right}.center{text-align:center}
-.lot{font-weight:800;color:#22537f}
-.pt{font-weight:800;color:#1d3550}
+.vs-gb td.lot{font-weight:800;color:#22537f}
+.vs-gb td.pt{font-weight:800;color:#1d3550}
+/* 짝수행 옅은 배경 — 가로 시선 이동 보조 */
+.vs-gb tbody tr:nth-child(even) td{background:#fcfdfe}
+.vs-gb tbody tr:hover td{background:#eef4fa}
 .neg{color:#b23030;font-weight:800}
 /* 체류일 배지 */
 .age{display:inline-block;min-width:44px;text-align:center;padding:2px 7px;border-radius:11px;
@@ -177,31 +188,31 @@
             '<span class="q">'+fmt(q)+'<small>개 · '+rows.length+'건</small></span>'+
           '</span></div>'+
         '<div class="vs-gb"><table><thead><tr>'+
-          '<th style="width:96px">'+(MODE==='part'?'협력사':'품번')+'</th>'+
-          '<th style="width:88px">LOT</th><th style="width:56px">공정</th><th style="width:104px">공정명</th>'+
-          '<th style="width:86px">반출일</th><th style="width:86px">도착일</th>'+
-          '<th style="width:70px">반출</th><th style="width:70px">도착</th>'+
-          '<th style="width:78px">보유</th><th style="width:56px">부족</th>'+
-          '<th style="width:74px">체류</th><th style="width:70px">상태</th>'+
-          '<th style="width:86px">납기</th><th style="width:64px">납기상태</th>'+
-          '<th style="width:104px">담당 · 연락처</th></tr></thead><tbody>'+
+          '<th style="width:100px">'+(MODE==='part'?'협력사':'품번')+'</th>'+
+          '<th style="width:88px">LOT</th><th style="width:52px">공정</th><th style="width:110px">공정명</th>'+
+          '<th style="width:88px" class="sep">반출일</th><th style="width:88px">도착일</th>'+
+          '<th style="width:70px" class="num sep">반출</th><th style="width:70px" class="num">도착</th>'+
+          '<th style="width:78px" class="num">보유</th><th style="width:58px" class="num">부족</th>'+
+          '<th style="width:70px" class="sep">체류</th><th style="width:74px">상태</th>'+
+          '<th style="width:88px" class="sep">납기</th><th style="width:66px">납기상태</th>'+
+          '<th style="width:118px" class="sep">담당 · 연락처</th></tr></thead><tbody>'+
         rows.map(r=>'<tr>'+
           '<td class="'+(MODE==='part'?'':'pt')+'">'+esc(MODE==='part'?r.vendor:r.map_part||'-')+'</td>'+
           '<td class="lot">'+esc(r.part||'')+'</td>'+
-          '<td class="center">'+esc(r.mp||'')+'</td><td>'+esc(r.mp_name||'')+'</td>'+
-          '<td class="center">'+esc(r.out_date||'')+'</td>'+
-          '<td class="center">'+esc(r.arrived_date||'—')+'</td>'+
-          '<td class="num">'+fmt(r.out_qty)+'</td>'+
+          '<td>'+esc(r.mp||'')+'</td><td>'+esc(r.mp_name||'')+'</td>'+
+          '<td class="sep">'+esc(r.out_date||'')+'</td>'+
+          '<td>'+esc(r.arrived_date||'—')+'</td>'+
+          '<td class="num sep">'+fmt(r.out_qty)+'</td>'+
           '<td class="num">'+(r.arrived_qty==null?'—':fmt(r.arrived_qty))+'</td>'+
           '<td class="num" style="font-weight:800;color:#1d568c">'+fmt(r.stock_qty)+'</td>'+
           '<td class="num '+(num(r.short_qty)?'neg':'')+'">'+(num(r.short_qty)?fmt(r.short_qty):'')+'</td>'+
-          '<td class="center"><span class="age '+ageCls(num(r.age_days))+'">'+num(r.age_days)+'일</span></td>'+
-          '<td class="center"><span class="st '+(r.stock_status==='도착대기'?'st-w':'st-r')+'">'+
+          '<td class="sep"><span class="age '+ageCls(num(r.age_days))+'">'+num(r.age_days)+'일</span></td>'+
+          '<td><span class="st '+(r.stock_status==='도착대기'?'st-w':'st-r')+'">'+
             esc(r.stock_status||'')+'</span></td>'+
-          '<td class="center">'+esc(r.due_date||'-')+'</td>'+
-          '<td class="center">'+(r.due_status&&r.due_status!=='-'
+          '<td class="sep">'+esc(r.due_date||'-')+'</td>'+
+          '<td>'+(r.due_status&&r.due_status!=='-'
             ?'<span class="st '+dueCls(r.due_status)+'">'+esc(r.due_status)+'</span>':'')+'</td>'+
-          '<td>'+esc(r.contact_name||'')+(r.contact_phone?'<br><small style="color:#7b8794">'+
+          '<td class="sep">'+esc(r.contact_name||'')+(r.contact_phone?'<br><small style="color:#7b8794">'+
             esc(r.contact_phone)+'</small>':'')+'</td>'+
         '</tr>').join('')+'</tbody></table></div></div>';
     }).join('');
