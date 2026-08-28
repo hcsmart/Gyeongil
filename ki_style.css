@@ -450,3 +450,9 @@ body.actmenu .top1 .user{margin-left:auto}
 /* 현장(QR) 등 자체 레이아웃 화면 : 상단바만 얹고 본문은 일반 스크롤 유지 */
 body.scanpage{overflow:auto;height:auto}
 body.scanpage .status{display:none}
+
+/* 하위 실행메뉴가 있는 드롭다운 항목 : ▸ 표시 + 클릭 이동 없음 */
+.dropnav a.dd-i{position:relative;padding-right:28px}
+.dropnav a.dd-i.has-sub::after{content:'▸';position:absolute;right:11px;top:50%;
+  transform:translateY(-50%);color:#8b98a5;font-size:12px}
+.dropnav a.dd-i.on.has-sub::after{color:#d6e6f6}

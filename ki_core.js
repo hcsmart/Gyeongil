@@ -304,8 +304,13 @@ function chrome(curId){
     if(ACTMENU){
       hideAct();
       d.querySelectorAll('a.dd-i').forEach(a=>{
+        const hasSub = actList(a.dataset.id).length>0;
+        if(hasSub) a.classList.add('has-sub');
         a.addEventListener('mouseenter',()=>{ clearTimeout(actTmr);
           actTmr=setTimeout(()=>showAct(a,a.dataset.id),ACT_DELAY); });
+        /* 하위(실행) 메뉴가 있는 항목은 클릭으로 이동하지 않음 — 우측에서 선택 */
+        if(hasSub) a.addEventListener('click',e=>{ e.preventDefault();
+          clearTimeout(actTmr); showAct(a,a.dataset.id); });
       });
       d.addEventListener('mouseleave',()=>{ clearTimeout(actTmr);
         actTmr=setTimeout(()=>hideAct(),ACT_LINGER); });
