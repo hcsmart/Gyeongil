@@ -4,9 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>QR 입출고 — GI MES</title>
+<link rel="stylesheet" href="ki_style.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font:14px/1.6 'Malgun Gothic','맑은 고딕',sans-serif;background:#eef1f4;color:#1d2833;padding-bottom:30px}
+body{font:14px/1.6 'Malgun Gothic','맑은 고딕',sans-serif;background:#eef1f4;color:#1d2833;
+  height:auto;overflow:auto;padding-top:calc(var(--top1,42px) + 4px);padding-bottom:40px}
 .top{background:linear-gradient(#3d7ab5,#2e6497);color:#fff;padding:12px 14px;font-weight:800;font-size:16px;display:flex;align-items:center;gap:8px}
 .top small{margin-left:auto;font-weight:400;font-size:11px;opacity:.85}
 .wrap{max-width:560px;margin:0 auto;padding:10px}
@@ -56,6 +58,8 @@ try{
 
 (async function(){
   if(!await KI.guard('lot-scan'))return;
+  document.body.classList.add('scanpage');
+  KI.chrome('lot-scan');                 /* 상단 메뉴바 표시 */
   const $=KI.$, el=KI.el, esc=KI.esc;
   const TODAY=new Date().toISOString().slice(0,10);
   const me=(KI.me()||{});

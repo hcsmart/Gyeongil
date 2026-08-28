@@ -446,3 +446,7 @@ body.actmenu .top1 .user{margin-left:auto}
 .pg-act.flyout .btn.danger,
 .pg-act.flyout a.btn.danger{color:#a8332c}
 .pg-title{display:none}
+
+/* 현장(QR) 등 자체 레이아웃 화면 : 상단바만 얹고 본문은 일반 스크롤 유지 */
+body.scanpage{overflow:auto;height:auto}
+body.scanpage .status{display:none}
