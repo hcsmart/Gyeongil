@@ -1111,7 +1111,10 @@ async function grid(id, need){
   const sp=searchPanel(def); ui.pg.appendChild(sp);
   const gw=el('div','grid-wrap');
   const tb=el('div','grid-tb');
-  const src=el('span',null,def.table); src.style.cssText='color:#94a1ae;font-size:10px';
+  /* 현재 위치 표시 : 모듈 - 화면명 - 실행버튼 (마우스 오버 시 원본 테이블명) */
+  const qa=new URLSearchParams(location.search).get('act');
+  const src=el('span','crumb', cur.modName+' - '+cur.it.n+' - '+(qa||'조회'));
+  src.title=def.table;
   const cnt=el('span','right','총 0건');
   tb.appendChild(src); tb.appendChild(cnt); gw.appendChild(tb);
   const tbl=el('table','grid'), thead=el('thead'), tr=el('tr');

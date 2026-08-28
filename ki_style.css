@@ -456,3 +456,7 @@ body.scanpage .status{display:none}
 .dropnav a.dd-i.has-sub::after{content:'▸';position:absolute;right:11px;top:50%;
   transform:translateY(-50%);color:#8b98a5;font-size:12px}
 .dropnav a.dd-i.on.has-sub::after{color:#d6e6f6}
+
+/* 그리드 상단 현재 위치(메뉴 경로) */
+.grid-tb .crumb{color:#33506b;font-size:11px;font-weight:800}
+.grid-tb .crumb::before{content:'📌';margin-right:5px;font-size:10px}
