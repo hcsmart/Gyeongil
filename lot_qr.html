@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>공정이동표 입출고 — GI MES</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:14px/1.6 'Malgun Gothic','맑은 고딕',sans-serif;background:#eef1f4;color:#1d2833;padding-bottom:30px}
+.top{background:linear-gradient(#3d7ab5,#2e6497);color:#fff;padding:12px 14px;font-weight:800;font-size:16px;display:flex;align-items:center;gap:8px}
+.top small{margin-left:auto;font-weight:400;font-size:11px;opacity:.85}
+.wrap{max-width:560px;margin:0 auto;padding:10px}
+.card{background:#fff;border:1px solid #c6d0da;margin-bottom:10px}
+.card h3{font-size:13px;background:#f0f4f8;border-bottom:1px solid #d9e1e8;padding:8px 11px;color:#2e4a63}
+.card .bd{padding:10px 11px}
+.kv{display:grid;grid-template-columns:82px 1fr;gap:4px 8px;font-size:13px}
+.kv b{color:#526171;font-weight:700}
+.chain{margin-top:8px;line-height:2.1;font-size:12px}
+.chain span{padding:2px 8px;border-radius:2px;background:#eef1f4;color:#7b8794;white-space:nowrap}
+.chain .done{background:#2f7d4d;color:#fff;font-weight:700}
+.chain .nx{background:#2e77bd;color:#fff;font-weight:700}
+.row{display:grid;grid-template-columns:92px 1fr;gap:8px;align-items:center;margin-bottom:8px}
+.row label{font-size:12px;font-weight:700;color:#526171}
+input,select,textarea{width:100%;border:1px solid #aeb9c4;padding:8px;font:inherit;font-size:14px}
+textarea{min-height:60px}
+.bt{width:100%;height:44px;border:0;font-size:15px;font-weight:800;color:#fff;cursor:pointer;margin-top:4px}
+.bt.in{background:#2f7d4d}.bt.out{background:#2e77bd}.bt.home{background:#7b3fa0}.bt.memo{background:#526171}
+.tab{display:flex;border-bottom:2px solid #2e6497;background:#fff;flex-wrap:wrap}
+.tab button{flex:1;min-width:88px;height:40px;border:0;background:#f0f4f8;font-weight:700;color:#526171;cursor:pointer;font-size:13px}
+.tab button.on{background:#2e6497;color:#fff}
+.pane{display:none}.pane.on{display:block}
+.short{color:#b23030;font-weight:800;font-size:12px}
+.part{color:#1d568c;font-weight:800;font-size:12px}
+.msg{padding:9px 12px;font-weight:700;font-size:13px}
+.msg.ok{color:#15803d}.msg.err{color:#b23030}
+.hist td{border-bottom:1px solid #eef1f4;padding:5px 4px;font-size:12px}
+.badge{display:inline-block;padding:1px 7px;border-radius:2px;font-size:11px;font-weight:700}
+.b-in{background:#e2f0e6;color:#15803d}.b-out{background:#e9f2fc;color:#1d568c}.b-etc{background:#f1f3f5;color:#526171}
+.err-box{max-width:480px;margin:40px auto;background:#fff;border:1px solid #e0a5a5;padding:22px;text-align:center;color:#b23030;font-weight:700}
+</style>
+<script src="ki_config.js"></script>
+</head>
+<body>
+<div class="top">📋 공정이동표 입출고 <small id="who"></small></div>
+<div class="wrap" id="wrap">불러오는 중...</div>
+<script>
+(function(){
+const C=KI_CFG;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num=v=>Number(v)||0;
+const TODAY=new Date().toISOString().slice(0,10);
+const TOKEN=new URLSearchParams(location.search).get('t')||'';
+const wrap=$('#wrap');
+let D=null, WORKER='';
+try{ WORKER=localStorage.getItem('ki_qr_worker')||''; }catch(e){}
+
+/* ── 토큰 RPC (로그인 불필요 — publishable key 사용) ── */
+async function rpc(fn,args){
+  const r=await fetch(C.SUPABASE_URL+'/rest/v1/rpc/'+fn,{
+    method:'POST',
+    headers:{'Content-Type':'application/json',apikey:C.SUPABASE_KEY,
+             Authorization:'Bearer '+C.SUPABASE_KEY},
+    body:JSON.stringify(Object.assign({p_token:TOKEN},args||{}))});
+  const t=await r.text();
+  let j=null; try{ j=JSON.parse(t); }catch(e){}
+  if(!r.ok) throw new Error((j&&(j.message||j.hint))||t.slice(0,150)||('오류 '+r.status));
+  return j;
+}
+
+if(!TOKEN){ wrap.innerHTML='<div class="err-box">공정이동표의 QR을 스캔해 주세요.<br><small>(유효한 이동표 링크가 아닙니다)</small></div>'; return; }
+
+const movedOf = no => (D.moves||[]).filter(m=>m.io==='출고'&&String(m.osp_no||'')===String(no))
+                       .reduce((a,b)=>a+num(b.out_qty),0);
+const remainOf = o => Math.max(num(o.qty)-movedOf(o.no),0);
+const arrivedOf = o => (D.moves||[]).find(m=>(m.io==='도착'||m.io==='입고')&&String(m.osp_no||'')===String(o.no))||null;
+const pName = c => { const p=(D.procs||[]).find(x=>x.c===c); return p?p.n:''; };
+
+async function load(){
+  wrap.innerHTML='불러오는 중...';
+  try{ D=await rpc('ki_scan_info'); }
+  catch(e){ wrap.innerHTML='<div class="err-box">'+esc(e.message)+
+    '<br><br><small style="font-weight:400;color:#526171">폐기되었거나 만료된 이동표입니다.<br>발주처 담당자에게 재발행을 요청하세요.</small></div>'; return; }
+  draw();
+}
+
+function draw(){
+  const osp=(D.osp||[]), lot=D.lot||{}, rt=D.route||null;
+  const open=osp.filter(o=>o.sdate&&!o.idate);
+  const STEPS=rt&&Array.isArray(rt.steps)?rt.steps:[];
+  const SEEN=new Set((Array.isArray(lot.steps)?lot.steps:[]).map(s=>s.mp));
+  const rest=STEPS.filter(x=>!SEEN.has(x)&&!open.some(o=>o.mp===x));
+  const doneAll=STEPS.length&&!rest.length&&!open.length;
+  const last=osp[osp.length-1]||{};
+  const VEN=D.vendors||[], MV=(D.moves||[]).slice(0,10);
+  $('#who').textContent=WORKER?('기록자 '+WORKER):'';
+
+  wrap.innerHTML=
+  '<div class="card"><h3>📦 LOT 정보</h3><div class="bd">'+
+    '<div class="kv"><b>LOT</b><span style="font-weight:800;font-size:16px;color:#22537f">'+esc(D.part)+'</span>'+
+    '<b>JOB</b><span>'+esc(lot.job||last.job||'-')+'</span>'+
+    '<b>표준공정</b><span>'+(rt?esc(rt.standard_process_name):'(미매칭)')+'</span>'+
+    '<b>총수량</b><span>'+(last.qty!=null?num(last.qty).toLocaleString():'-')+'</span>'+
+    '<b>사내입고</b><span>'+(D.receipt?'✅ '+esc(D.receipt.in_date)+' · '+num(D.receipt.qty).toLocaleString():'미입고')+'</span></div>'+
+    (STEPS.length?'<div class="chain">'+STEPS.map(x=>{
+      const d=SEEN.has(x), w=open.some(o=>o.mp===x), n=(!d&&!w&&x===rest[0]);
+      return '<span class="'+(d?'done':w||n?'nx':'')+'">'+esc(x)+(pName(x)?' '+esc(pName(x)):'')+
+             (d?' ✓':w?' (진행중)':'')+'</span>';
+    }).join(' → ')+'</div>':'')+
+  '</div></div>'+
+
+  '<div class="card"><div class="bd" style="padding-bottom:2px">'+
+    '<div class="row"><label>기록자</label><input id="wk" value="'+esc(WORKER)+'" placeholder="담당자 성함 (업체명 포함 권장)"></div>'+
+  '</div><div class="tab">'+
+    '<button data-t="in" class="on">📥 도착확인</button>'+
+    '<button data-t="out">📤 출고</button>'+
+    (doneAll&&!D.receipt?'<button data-t="home">🏭 사내입고</button>':'')+
+    '<button data-t="memo">📝 특기사항</button></div>'+
+
+    /* 도착확인 */
+    '<div class="pane on" data-p="in"><div class="bd">'+
+    (open.length? '<div class="row"><label>대상 반출건</label><select id="inNo">'+
+        open.map(o=>{const rem=remainOf(o),arr=arrivedOf(o);
+          return '<option value="'+o.no+'">'+esc(o.mp||'')+' · '+esc(o.vendor||'')+' ('+esc(o.sdate||'')+' 출고 '+
+            num(o.qty).toLocaleString()+(rem<num(o.qty)?' · 잔량 '+rem.toLocaleString():'')+')'+
+            (arr?' — 도착✓':'')+'</option>';}).join('')+'</select></div>'+
+      '<div class="row"><label>확인 업체</label><select id="inVen">'+
+        VEN.map(v=>'<option>'+esc(v)+'</option>').join('')+'</select></div>'+
+      '<div class="row"><label>도착일</label><input type="date" id="inDate" value="'+TODAY+'"></div>'+
+      '<div class="row"><label>입고수량</label><input type="number" id="inQty" inputmode="numeric"></div>'+
+      '<div id="inShort" class="short" style="margin:-4px 0 8px 100px"></div>'+
+      '<div class="row" id="inRsnRow" style="display:none"><label>부족사유</label><input id="inRsn" placeholder="불량 · 파손 등 (선택)"></div>'+
+      '<div class="row"><label>특기사항</label><textarea id="inRmk"></textarea></div>'+
+      '<div class="row"><label>사내 복귀</label><label style="font-weight:400;font-size:13px">'+
+        '<input type="checkbox" id="inClose" style="width:auto;margin-right:6px">사내로 복귀한 입고 (반출건 마감)</label></div>'+
+      '<button class="bt in" id="btIn">📥 도착확인 등록</button>'
+      :'<div style="color:#8894a0;padding:8px 0">도착확인 대기 중인 반출건이 없습니다.</div>')+
+    '</div></div>'+
+
+    /* 출고 */
+    '<div class="pane" data-p="out"><div class="bd">'+
+      '<div class="row"><label>출고 구분</label><select id="outFrom">'+
+        '<option value="">신규 출고</option>'+
+        open.map(o=>'<option value="'+o.no+'">이관 : '+esc(o.mp||'')+' · '+esc(o.vendor||'')+
+          ' (잔량 '+remainOf(o).toLocaleString()+')</option>').join('')+'</select></div>'+
+      '<div class="row"><label>다음 공정</label><select id="outMp">'+
+        (STEPS.length
+          ? STEPS.map(x=>'<option value="'+esc(x)+'"'+(x===rest[0]?' selected':'')+'>'+esc(x)+
+              (pName(x)?' · '+esc(pName(x)):'')+(SEEN.has(x)?' ✓완료':'')+'</option>').join('')
+          : (D.procs||[]).map(p=>'<option value="'+esc(p.c)+'">'+esc(p.c)+' · '+esc(p.n)+'</option>').join(''))+
+      '</select></div>'+
+      '<div class="row"><label>받는 외주처</label><select id="outVen"><option value="">선택</option>'+
+        VEN.map(v=>'<option>'+esc(v)+'</option>').join('')+'</select></div>'+
+      '<div class="row"><label>출고일</label><input type="date" id="outDate" value="'+TODAY+'"></div>'+
+      '<div class="row"><label>출고수량</label><input type="number" id="outQty" inputmode="numeric"></div>'+
+      '<div id="outInfo" style="margin:-4px 0 8px 100px;font-size:12px"></div>'+
+      '<div class="row"><label>특기사항</label><textarea id="outRmk" placeholder="부분출고 사유 · 불량 등 (선택)"></textarea></div>'+
+      '<button class="bt out" id="btOut">📤 출고(반출) 등록</button>'+
+    '</div></div>'+
+
+    /* 사내입고 */
+    (doneAll&&!D.receipt?'<div class="pane" data-p="home"><div class="bd">'+
+      '<div class="row"><label>입고일</label><input type="date" id="hDate" value="'+TODAY+'"></div>'+
+      '<div class="row"><label>입고수량</label><input type="number" id="hQty" inputmode="numeric" value="'+
+        (last.qty!=null?num(last.qty):'')+'"></div>'+
+      '<div id="hShort" class="short" style="margin:-4px 0 8px 100px"></div>'+
+      '<div class="row" id="hRsnRow" style="display:none"><label>부족사유</label><input id="hRsn" placeholder="선택"></div>'+
+      '<div class="row"><label>특기사항</label><textarea id="hRmk"></textarea></div>'+
+      '<button class="bt home" id="btHome">🏭 사내입고 (LOT 종결)</button>'+
+      '<div style="font-size:11px;color:#b06a12;margin-top:6px">※ 종결 시 이 이동표 QR은 더 이상 사용할 수 없습니다.</div>'+
+    '</div></div>':'')+
+
+    /* 특기사항 */
+    '<div class="pane" data-p="memo"><div class="bd">'+
+      '<div class="row"><label>특기사항</label><textarea id="mRmk" placeholder="불량 발생 · 지연 사유 등 자유 기록"></textarea></div>'+
+      '<button class="bt memo" id="btMemo">📝 기록 저장</button>'+
+    '</div></div>'+
+    '<div class="msg" id="msg"></div>'+
+  '</div>'+
+
+  '<div class="card"><h3>🕘 최근 기록</h3><div class="bd">'+
+    (MV.length?'<table class="hist" style="width:100%;border-collapse:collapse">'+
+      MV.map(v=>'<tr><td style="width:76px">'+esc(v.move_date||'')+'</td>'+
+        '<td style="width:66px"><span class="badge '+(v.io==='출고'?'b-out':(v.io==='기록'?'b-etc':'b-in'))+'">'+esc(v.io)+'</span></td>'+
+        '<td>'+esc(v.mp||'')+(v.vendor?' · '+esc(v.vendor):'')+
+        (num(v.short_qty)>0?' <span class="short">부족 '+num(v.short_qty).toLocaleString()+'</span>':'')+
+        (v.worker?' <small style="color:#8894a0">/'+esc(v.worker)+'</small>':'')+
+        (v.remark?'<br><small style="color:#526171">'+esc(v.remark)+'</small>':'')+'</td></tr>').join('')+'</table>'
+    :'<span style="color:#8894a0">기록이 없습니다.</span>')+
+  '</div></div>';
+
+  /* 탭 */
+  wrap.querySelectorAll('.tab button').forEach(b=>b.addEventListener('click',()=>{
+    wrap.querySelectorAll('.tab button').forEach(x=>x.classList.toggle('on',x===b));
+    wrap.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.dataset.p===b.dataset.t));
+  }));
+  $('#wk').addEventListener('input',()=>{ WORKER=$('#wk').value.trim();
+    try{ localStorage.setItem('ki_qr_worker',WORKER); }catch(e){} });
+
+  const msg=(t,ok)=>{ const m=$('#msg'); m.className='msg '+(ok?'ok':'err'); m.textContent=t; };
+  const busy=(b,on,txt)=>{ b.disabled=on; if(on){ b.dataset.o=b.textContent; b.textContent=txt||'처리 중...'; }
+                           else b.textContent=b.dataset.o||b.textContent; };
+
+  /* 도착확인 */
+  if(open.length){
+    const cur=()=>open.find(o=>String(o.no)===$('#inNo').value)||open[0];
+    const sync=()=>{ const o=cur(), base=remainOf(o), q=num($('#inQty').value);
+      const sh=Math.max(base-q,0);
+      $('#inShort').textContent=sh>0?'⚠ 부족 '+sh.toLocaleString()+' (사유는 선택 입력)':'';
+      $('#inRsnRow').style.display=sh>0?'':'none'; };
+    const syncVen=()=>{ const o=cur(); if(o&&o.vendor) $('#inVen').value=o.vendor; };
+    $('#inNo').addEventListener('change',()=>{ $('#inQty').value=remainOf(cur())||''; syncVen(); sync(); });
+    $('#inQty').addEventListener('input',sync);
+    $('#inQty').value=remainOf(cur())||''; syncVen(); sync();
+    $('#btIn').addEventListener('click',async()=>{
+      const b=$('#btIn'); busy(b,true);
+      try{
+        const r=await rpc('ki_scan_arrive',{p_no:Number(cur().no), p_vendor:$('#inVen').value,
+          p_date:$('#inDate').value||TODAY, p_qty:num($('#inQty').value),
+          p_reason:($('#inRsn')&&$('#inRsn').value)||'', p_remark:$('#inRmk').value,
+          p_close:$('#inClose').checked, p_worker:WORKER});
+        msg(r.closed?'✓ 사내 복귀 입고 처리 — 반출건이 마감되었습니다.'
+                    :'✓ 도착확인 등록 — 작업 완료 후 [📤 출고]에서 다음 공정으로 이관하세요.'+
+                     (r.short?' (부족 '+num(r.short).toLocaleString()+')':''),1);
+        setTimeout(load,700);
+      }catch(e){ msg('❌ '+e.message); busy(b,false); }
+    });
+  }
+
+  /* 출고 */
+  (function(){
+    const srcOf=()=>open.find(o=>String(o.no)===$('#outFrom').value)||null;
+    const sync=()=>{
+      const src=srcOf();
+      if(src){
+        const rem=remainOf(src), q=num($('#outQty').value), left=Math.max(rem-q,0);
+        $('#outInfo').innerHTML = q>rem
+          ? '<span class="short">⚠ 잔량('+rem.toLocaleString()+')보다 많습니다</span>'
+          : (left>0?'<span class="part">부분출고 — 잔량 '+left.toLocaleString()+' 미결 유지</span>'
+                   :'<span style="color:#15803d;font-weight:700">전량 이관 — 반출건이 마감됩니다</span>');
+      }else{
+        const base=num(last.qty), sh=base?Math.max(base-num($('#outQty').value),0):0;
+        $('#outInfo').innerHTML = sh>0?'<span class="short">직전 수량 대비 부족 '+sh.toLocaleString()+' (특기사항에 사유 기록 권장)</span>':'';
+      }
+    };
+    $('#outFrom').addEventListener('change',()=>{ const s=srcOf();
+      $('#outQty').value=s?(remainOf(s)||''):(num(last.qty)||''); sync(); });
+    $('#outQty').addEventListener('input',sync);
+    $('#outQty').value=num(last.qty)||''; sync();
+    $('#btOut').addEventListener('click',async()=>{
+      const b=$('#btOut'); const src=srcOf();
+      if(!$('#outVen').value) return msg('받는 외주처를 선택하세요.');
+      busy(b,true);
+      try{
+        const r=await rpc('ki_scan_out',{p_from:src?Number(src.no):null, p_mp:$('#outMp').value,
+          p_vendor:$('#outVen').value, p_date:$('#outDate').value||TODAY,
+          p_qty:num($('#outQty').value), p_remark:$('#outRmk').value, p_worker:WORKER});
+        msg(r.left>0?'✓ 부분출고 등록 — 잔량 '+num(r.left).toLocaleString()+' 미결 유지. 이동표는 제품과 함께 다음 업체로 보내세요.'
+                    :'✓ 출고 등록 완료 — 이동표를 제품과 함께 다음 업체로 보내세요.',1);
+        setTimeout(load,700);
+      }catch(e){ msg('❌ '+e.message); busy(b,false); }
+    });
+  })();
+
+  /* 사내입고 */
+  if($('#btHome')){
+    const base=num(last.qty);
+    const sync=()=>{ const q=num($('#hQty').value), sh=base?Math.max(base-q,0):0;
+      $('#hShort').textContent=sh>0?'⚠ 부족 '+sh.toLocaleString()+' (사유는 선택 입력)':'';
+      $('#hRsnRow').style.display=sh>0?'':'none'; };
+    $('#hQty').addEventListener('input',sync); sync();
+    $('#btHome').addEventListener('click',async()=>{
+      const b=$('#btHome');
+      if(!confirm('사내입고로 LOT을 종결합니다.\n이 이동표 QR은 이후 사용할 수 없습니다. 계속할까요?'))return;
+      busy(b,true);
+      try{
+        await rpc('ki_scan_home',{p_date:$('#hDate').value||TODAY, p_qty:num($('#hQty').value),
+          p_reason:($('#hRsn')&&$('#hRsn').value)||'', p_remark:$('#hRmk').value, p_worker:WORKER});
+        wrap.innerHTML='<div class="err-box" style="border-color:#8fbf9f;color:#15803d">'+
+          '✅ 사내입고 완료 — LOT이 종결되었습니다.<br><small style="font-weight:400;color:#526171">이 이동표는 사용 종료되었습니다.</small></div>';
+      }catch(e){ msg('❌ '+e.message); busy(b,false); }
+    });
+  }
+
+  /* 특기사항 */
+  $('#btMemo').addEventListener('click',async()=>{
+    const b=$('#btMemo'); busy(b,true);
+    try{
+      await rpc('ki_scan_memo',{p_remark:$('#mRmk').value, p_worker:WORKER});
+      msg('✓ 특기사항이 기록되었습니다.',1);
+      setTimeout(load,700);
+    }catch(e){ msg('❌ '+e.message); busy(b,false); }
+  });
+}
+
+load();
+})();
+</script>
+</body>
+</html>

@@ -50,6 +50,7 @@ const OBJ = {
   ospOrder : P+'v_osp_order',  ospRecv  : P+'v_osp_receipt',
   lotProg  : P+'v_lot_progress', stdRoute: P+'v_std_route',
   lotReceipt : P+'v_lot_receipt', lotMove : P+'v_lot_move',
+  lotToken : P+'v_lot_token',
   vendor   : P+'v_vendor',     process  : P+'v_process',
   /* 트윈팩토리 */
   factory  : P+'v_factory',    zone     : P+'v_zone',
@@ -126,7 +127,8 @@ const MENU = [
         {id:'lot-route', f:'lot_route.html', n:'LOT 진행등록',
          d:'진척 · 다음공정 반출 · 입고 등록'},
         {id:'lot-trace', f:'lot_trace.html', n:'LOT 이동이력', d:'외주업체 경유 이력'},
-        {id:'lot-move',  f:'lot_move.html',  n:'QR 입출고 이력', d:'QR 스캔 · 부족수량 · 특기사항'}
+        {id:'lot-move',  f:'lot_move.html',  n:'QR 입출고 이력', d:'QR 스캔 · 부족수량 · 특기사항'},
+        {id:'lot-token', f:'lot_token.html', n:'공정이동표 발행이력', d:'QR 토큰 · 유효 · 폐기'}
       ]},
       { name:'현장 (QR)', items:[
         {id:'lot-scan',  f:'lot_scan.html',  n:'QR 입출고(현장)',
@@ -470,6 +472,20 @@ const VIEWS = {
     ['sort_order','순서','num'],
     ['remark','비고','area']
   ]}
+},
+'lot-token':{
+  table:OBJ.lotToken, order:'issued_at.desc',
+  note:'공정이동표 QR의 <b>발행 이력</b>입니다. QR에는 해당 LOT만 열람 · 기록할 수 있는 토큰이 들어 있어 '+
+       '협력사는 <b>로그인 없이</b> 도착확인 · 출고 · 특기사항을 기록합니다.<br>'+
+       '분실 · 훼손 시 이동표 화면의 <b>[♻ 재발행]</b>으로 기존 QR을 폐기하고 새로 출력하세요. '+
+       '사내입고로 LOT이 종결되면 토큰은 자동 폐기됩니다.',
+  search:[['LOT','text','part'],['JOB','text','job'],['상태','text','status'],
+          ['발행자','text','issued_by'],['발행일','date2','issued_at']],
+  cols:[['LOT',110,'','part'],['JOB',100,'','job'],['상태',70,'center','status','st'],
+        ['발행일시',140,'center','issued_at','dt'],['발행자',90,'center','issued_by'],
+        ['만료일시',140,'center','expires_at','dt'],
+        ['최근사용',140,'center','last_used_at','dt'],['사용횟수',72,'num','use_count'],
+        ['비고',0,'','remark']]
 },
 'lot-move':{
   table:OBJ.lotMove, order:'created_at.desc',
