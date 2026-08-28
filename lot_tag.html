@@ -51,13 +51,15 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
   const box=document.getElementById('sheet');
   if(!part){ box.textContent='LOT 번호가 없습니다. (lot_tag.html?lot=LOT번호)'; return; }
 
-  const [prog,osp,rts,rcpt,moves]=await Promise.all([
+  const [prog,osp,rts,rcpt,moves,vens]=await Promise.all([
     KI.get(OBJ.lotProg+'?select=*&part=eq.'+encodeURIComponent(part)+'&order=no.asc&limit=1'),
     KI.get(OBJ.ospOrder+'?select=*&part=eq.'+encodeURIComponent(part)+'&order=no.asc'),
     KI.get(OBJ.stdRoute+'?select=*'),
     KI.get(OBJ.lotReceipt+'?select=*&part=eq.'+encodeURIComponent(part)+'&limit=1').catch(()=>[]),
-    KI.get(OBJ.lotMove+'?select=*&part=eq.'+encodeURIComponent(part)+'&order=created_at.asc&limit=100').catch(()=>[])
+    KI.get(OBJ.lotMove+'?select=*&part=eq.'+encodeURIComponent(part)+'&order=created_at.asc&limit=100').catch(()=>[]),
+    KI.get(OBJ.vendor+'?select=vendor_name,phone,contact_name,contact_phone,proc_codes&order=sort_order.asc').catch(()=>[])
   ]);
+  const venOf=n=>vens.find(v=>v.vendor_name===n)||null;
   const r=prog[0]||{}, last=osp[osp.length-1]||{};
   const rt = r.route_no ? rts.find(x=>String(x.standard_process_no)===String(r.route_no))
            : rts.find(x=>String(x.standard_process_no)===String(last.route_no||''));
@@ -79,7 +81,8 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
     return '<tr>'+
       '<td class="c">'+(i+1)+'</td>'+
       '<td class="c'+(seen.has(mp)?' done':'')+'">'+esc(mp)+(seen.has(mp)?' ✓':'')+'</td>'+
-      '<td>'+esc(o.vendor||h.vendor||'')+'</td>'+
+      '<td>'+(function(){ const n=o.vendor||h.vendor||''; const v=venOf(n);
+        return esc(n)+(v&&(v.contact_phone||v.phone)?' <small style="color:#526171">☎ '+esc(v.contact_phone||v.phone)+'</small>':''); })()+'</td>'+
       '<td class="c">'+esc(o.sdate||'')+'</td>'+
       '<td class="c">'+(o.qty!=null?Number(o.qty).toLocaleString():'')+'</td>'+
       '<td class="c">'+esc(o.idate||h.date||'')+'</td>'+
@@ -116,7 +119,16 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
       '· 각 공정 <b>입출고 시 QR을 스캔</b>하여 수량과 특기사항을 기록해 주십시오. 시스템에 즉시 반영됩니다.<br>'+
       '· 불량 등으로 <b>수량이 부족하게 출고되는 경우</b> 반드시 부족수량과 사유를 기록해 주십시오.<br>'+
       '· QR 사용이 불가한 경우 본 이동표에 수기 기재 후 LOT과 함께 반송해 주십시오.'+
-    '</div>';
+    '</div>'+
+    (function(){
+      const names=[...new Set(osp.map(o=>o.vendor).filter(Boolean))];
+      const hit=names.map(venOf).filter(Boolean);
+      if(!hit.length) return '';
+      return '<div class="foot" style="border-top:1px solid #b6c3cf">'+
+        '<b>협력사 연락처</b> — '+hit.map(v=>esc(v.vendor_name)+
+          (v.contact_name?' '+esc(v.contact_name):'')+
+          (v.contact_phone||v.phone?' ☎'+esc(v.contact_phone||v.phone):'')).join(' · ')+'</div>';
+    })();
 })().catch(e=>{ document.getElementById('sheet').textContent='❌ '+e.message; });
 </script>
 </body>

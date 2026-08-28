@@ -32,8 +32,9 @@ const TBL = {                      /* 편집 대상 원천 테이블 */
   toolRule:'ki_tool_rule', moldTool:'ki_mold_tool',
   toolAlert:'ki_tool_alert', notifyCfg:'ki_notify_config',
   moldType:'ki_mold_type', material:'ki_material',
-  vendorT:'vendors', stdRouteT:'machining_standard_routes',
+  vendorT:'ki_vendor', stdRouteT:'machining_standard_routes',
   /* 외주 LOT (원천 테이블) */
+  lotReceipt:'ki_lot_receipt', lotMove:'ki_lot_move',
   ospOrder:'outsourcing_order_status_rows',
   ospRecv :'outsourcing_receipt_confirm_candidates',
   lotProg :'machining_purchase_progress_rows'
@@ -48,6 +49,7 @@ const OBJ = {
   /* 외주 LOT */
   ospOrder : P+'v_osp_order',  ospRecv  : P+'v_osp_receipt',
   lotProg  : P+'v_lot_progress', stdRoute: P+'v_std_route',
+  lotReceipt : P+'v_lot_receipt', lotMove : P+'v_lot_move',
   vendor   : P+'v_vendor',     process  : P+'v_process',
   /* 트윈팩토리 */
   factory  : P+'v_factory',    zone     : P+'v_zone',
@@ -123,7 +125,12 @@ const MENU = [
       { name:'추적', items:[
         {id:'lot-route', f:'lot_route.html', n:'LOT 진행등록',
          d:'진척 · 다음공정 반출 · 입고 등록'},
-        {id:'lot-trace', f:'lot_trace.html', n:'LOT 이동이력', d:'외주업체 경유 이력'}
+        {id:'lot-trace', f:'lot_trace.html', n:'LOT 이동이력', d:'외주업체 경유 이력'},
+        {id:'lot-move',  f:'lot_move.html',  n:'QR 입출고 이력', d:'QR 스캔 · 부족수량 · 특기사항'}
+      ]},
+      { name:'현장 (QR)', items:[
+        {id:'lot-scan',  f:'lot_scan.html',  n:'QR 입출고(현장)',
+         d:'공정이동표 QR 스캔 — 출고 · 입고 · 특기사항'}
       ]}
     ]}
   ]},
@@ -161,7 +168,7 @@ const MENU = [
     ]},
     { key:'b-osp', name:'외주기준', icon:'↔', groups:[
       { name:'외주 기준정보', items:[
-        {id:'vendor',    f:'vendor.html',    n:'외주업체',      d:'외주 가공 거래처'},
+        {id:'vendor',    f:'vendor.html',    n:'협력사 정보',   d:'외주 가공 · 연락처 · 담당공정'},
         {id:'std-route', f:'std_route.html', n:'표준 공정경로', d:'표준공정 가공순서'}
       ]}
     ]},
@@ -316,26 +323,39 @@ const VIEWS = {
         ['가공공정 순서',0,'','_steps','chain']]
 },
 'vendor':{
-  table:OBJ.vendor, order:'vendor_name.asc',
-  note:'외주가공 · 밀링 플래그가 모두 꺼진 업체는 이 화면(외주업체)에 표시되지 않습니다.',
+  table:OBJ.vendor, order:'sort_order.asc,vendor_name.asc',
+  note:'<b>협력사(외주업체) 기준정보</b>입니다. 여기 등록된 업체가 LOT 진행등록 · QR 입출고 · 외주발주의 '+
+       '<b>외주처 선택 목록</b>과 <b>공정이동표의 연락처</b>로 사용됩니다.<br>'+
+       '외주업체 계정의 소속(dept)에 <b>업체명을 그대로 입력</b>하면 QR 입출고 화면에서 해당 업체 LOT이 자동 표시됩니다. '+
+       '외주가공 · 밀링 플래그가 모두 꺼지거나 미사용 처리하면 목록에서 제외됩니다.',
   edit:{ table:TBL.vendorT, pk:'vendor_code', fields:[
     ['vendor_code','업체코드','text',null,'req'],
     ['vendor_name','업체명','text',null,'req'],
-    ['vendor_type','구분','text'],
+    ['vendor_type','구분','sel',['외주가공','밀링','열처리','표면처리','기타']],
+    ['proc_codes','담당 공정코드(쉼표)','text'],
     ['partner_type','협력형태','text'],
     ['location_type','지역','text'],
     ['ceo_name','대표자','text'],
-    ['phone','전화','text'],
+    ['phone','대표전화','text'],
+    ['contact_name','담당자','text'],
+    ['contact_phone','담당자 연락처','text'],
+    ['email','이메일','text'],
+    ['address','주소','text'],
     ['outsourcing_flag','외주가공','bool',{def:true}],
     ['milling_flag','밀링','bool',{def:false}],
+    ['is_active','사용','bool',{def:true}],
+    ['sort_order','순서','num'],
     ['remark','비고','area']
   ]},
-  search:[['업체명','text','vendor_name'],['업체코드','text','vendor_code'],['구분','text','vendor_type']],
-  cols:[['No',46,'center','_i'],['업체코드',90,'','vendor_code'],['업체명',170,'','vendor_name'],
-        ['구분',90,'center','vendor_type'],['협력형태',90,'center','partner_type'],
-        ['지역',80,'center','location_type'],['대표자',90,'','ceo_name'],['전화',110,'','phone'],
-        ['외주',50,'center','outsourcing_flag','bool'],['밀링',50,'center','milling_flag','bool'],
-        ['비고',0,'','remark']]
+  search:[['업체명','text','vendor_name'],['업체코드','text','vendor_code'],
+          ['구분','text','vendor_type'],['담당공정','text','proc_codes']],
+  cols:[['업체코드',80,'center','vendor_code'],['업체명',150,'','vendor_name'],
+        ['구분',80,'center','vendor_type'],['담당공정',90,'center','proc_codes'],
+        ['대표자',80,'','ceo_name'],['대표전화',110,'','phone'],
+        ['담당자',80,'','contact_name'],['담당자 연락처',110,'','contact_phone'],
+        ['지역',80,'center','location_type'],
+        ['외주',46,'center','outsourcing_flag','bool'],['밀링',46,'center','milling_flag','bool'],
+        ['사용',46,'center','is_active','bool'],['비고',0,'','remark']]
 },
 
 'env-hist':{
@@ -449,6 +469,33 @@ const VIEWS = {
     ['density','비중','num',null,'req'],
     ['sort_order','순서','num'],
     ['remark','비고','area']
+  ]}
+},
+'lot-move':{
+  table:OBJ.lotMove, order:'created_at.desc',
+  note:'공정이동표 <b>QR 스캔</b>으로 기록된 입출고 · 특기사항 이력입니다. '+
+       '<b>부족수량</b>은 불량 등으로 출고수량보다 적게 입고된 수량이며, 사유와 함께 기록됩니다.',
+  search:[['LOT','text','part'],['구분','text','io'],['가공공정','text','mp'],
+          ['외주처','text','vendor'],['일자','date2','move_date'],['특기사항','text','remark']],
+  cols:[['일시',134,'center','created_at','dt'],['LOT',110,'','part'],
+        ['구분',66,'center','io','st'],['가공공정',86,'center','mp'],['외주처',110,'','vendor'],
+        ['일자',88,'center','move_date'],
+        ['출고수량',86,'num','out_qty','n0'],['입고수량',86,'num','in_qty','n0'],
+        ['부족',70,'num','short_qty','n0'],['사유',110,'','reason'],
+        ['기록자',80,'center','worker'],['경로',56,'center','source'],['특기사항',0,'','remark']],
+  edit:{ table:TBL.lotMove, pk:'move_id', auto:true, fields:[
+    ['part','LOT 번호','text',null,'req'],
+    ['io','구분','sel',['출고','입고','사내입고','기록'],'req'],
+    ['mp','가공공정','text'],
+    ['vendor','외주처','text'],
+    ['move_date','일자','date'],
+    ['out_qty','출고수량','num'],
+    ['in_qty','입고수량','num'],
+    ['short_qty','부족수량','num'],
+    ['reason','부족사유','text'],
+    ['worker','기록자','text'],
+    ['source','경로','sel',['QR','수동'],{def:'수동'}],
+    ['remark','특기사항','area']
   ]}
 },
 'tool-rule':{
