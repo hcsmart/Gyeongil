@@ -104,7 +104,7 @@
   const CAN_S=KI.can('lot-route','save'), CAN_E=KI.can('lot-route','edit'),
         CAN_D=KI.can('lot-route','delete');
   const TODAY=new Date().toISOString().slice(0,10);
-  let ROWS=[], OSP=[], VEN=[], PROC=[], RT=[], MOLDS=[], RCPT=[], sel=null, NEW=false, editNo=null;
+  let ROWS=[], OSP=[], VEN=[], PROC=[], RT=[], MOLDS=[], RCPT=[], MVIN=[], sel=null, NEW=false, editNo=null;
 
   const ui=KI.page(cur,[
     ['신규등록','',()=>openNew()],
@@ -251,7 +251,8 @@
     const wipMp = (moving && last.mp && !seen.has(last.mp)) ? last.mp : '';
     const wip = wipMp && sd.includes(wipMp) ? 1 : 0;
     if(wipMp) rest = rest.filter(x=>x!==wipMp);
-    const rc=RCPT.find(x=>String(x.part||'')===String(r.part));
+    const rc=RCPT.find(x=>String(x.part||'')===String(r.part))
+      ||MVIN.find(x=>String(x.part||'')===String(r.part))||null;
     return {no:r.no, job:r.job, part:r.part, proc:r.proc,
       map_part:r.map_part||(ospOf(r.part).find(o2=>o2.map_part)||{}).map_part||'',
       recv:rc||null,
@@ -678,7 +679,7 @@
     if(short>0){ reason=prompt('부족 '+short.toLocaleString()+' — 사유를 입력하세요 (불량 등)','불량')||''; }
     const rmk=prompt('특기사항 (없으면 비워두세요)','')||'';
     try{
-      await KI.ins(TBL.lotReceipt,[{part:c.part, job:c.job||null, in_date:TODAY,
+      await KI.upsert(TBL.lotReceipt+'?on_conflict=part',[{part:c.part, job:c.job||null, in_date:TODAY,
         qty:inQ||null, short_qty:short, reason:reason||null,
         worker:(KI.me()||{}).emp_name||'', remark:rmk||null}]);
       await KI.ins(TBL.lotMove,[{part:c.part, io:'사내입고', move_date:TODAY,
@@ -728,16 +729,18 @@
   }
 
   async function load(){
-    const [rows,osp,ven,proc,rt,molds,rcpt]=await Promise.all([
+    const [rows,osp,ven,proc,rt,molds,rcpt,mvin]=await Promise.all([
       KI.get(OBJ.lotProg+'?select=*&order=no.asc'),
       KI.get(OBJ.ospOrder+'?select=*&order=no.desc'),
       KI.get(OBJ.vendor+'?select=vendor_name&order=vendor_name.asc'),
       KI.get(OBJ.process+'?select=process_code,process_name&order=sort_order.asc'),
       KI.get(OBJ.stdRoute+'?select=*'),
       KI.get(OBJ.moldSpec+'?select=mold_no,part_no,asset_owner&order=mold_no.asc'),
-      KI.get(OBJ.lotReceipt+'?select=part,in_date,qty,short_qty').catch(()=>[])
+      KI.get(OBJ.lotReceipt+'?select=part,in_date,qty,short_qty').catch(()=>[]),
+      KI.get(OBJ.lotMove+'?select=part,move_date,in_qty,short_qty&io=eq.'+encodeURIComponent('사내입고')).catch(()=>[])
     ]);
     ROWS=rows; OSP=osp; VEN=ven; PROC=proc; RT=rt; MOLDS=molds; RCPT=rcpt;
+    MVIN=(mvin||[]).map(v=>({part:v.part,in_date:v.move_date,qty:v.in_qty,short_qty:v.short_qty}));
     /* 진행이력이 아직 없는 반출건(입고 전)도 목록에 노출 */
     const have=new Set(ROWS.map(r=>String(r.part||'')));
     OSP.forEach(o=>{ const k=String(o.part||'');
