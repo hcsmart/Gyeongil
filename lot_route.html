@@ -129,7 +129,7 @@
     '<span class="sp" id="cnt"></span>';
   const gw=el('div','grid-wrap'); const tbl=el('table','grid');
   tbl.innerHTML='<thead><tr>'+
-    '<th style="width:110px">JOB</th><th style="width:104px">LOT</th>'+
+    '<th style="width:110px">JOB</th><th style="width:104px">품번</th><th style="width:104px">LOT</th>'+
     '<th style="width:130px">표준공정</th><th style="width:150px">현재 공정</th>'+
     '<th style="width:110px">현재 외주처</th><th style="width:88px">최근 이동</th>'+
     '<th style="width:150px">다음 공정</th><th style="width:120px">진척</th>'+
@@ -249,7 +249,8 @@
     const wip = wipMp && sd.includes(wipMp) ? 1 : 0;
     if(wipMp) rest = rest.filter(x=>x!==wipMp);
     const rc=RCPT.find(x=>String(x.part||'')===String(r.part));
-    return {no:r.no, job:r.job, part:r.part, proc:r.proc, map_part:r.map_part||'',
+    return {no:r.no, job:r.job, part:r.part, proc:r.proc,
+      map_part:r.map_part||(ospOf(r.part).find(o2=>o2.map_part)||{}).map_part||'',
       recv:rc||null,
       route_no:r.route_no||'', moving:moving, steps:st, last:last, std:m?m.rt:null,
       sd:sd, seen:seen, done:done, total:total, rest:rest, wip:wip, wipMp:wipMp,
@@ -283,6 +284,7 @@
       const nx=c.rest[0];
       const t=el('tr','clk');
       t.innerHTML='<td>'+esc(c.job||'')+'</td>'+
+        '<td>'+esc(c.map_part||'')+'</td>'+
         '<td style="font-weight:800;color:#22537f">'+esc(c.part||'')+'</td>'+
         '<td>'+(c.std?esc(c.std.standard_process_name):'<span style="color:#96a2ad">(미매칭)</span>')+'</td>'+
         '<td>'+esc(c.last.mp||'-')+(pName(c.last.mp)?' · '+esc(pName(c.last.mp)):'')+
@@ -313,7 +315,7 @@
       t.addEventListener('click',()=>open(c));
       tbody.appendChild(t);
     });
-    if(!list.length) tbody.innerHTML='<tr><td colspan="9" class="center" style="height:52px;color:#8894a0">조건에 맞는 LOT이 없습니다.</td></tr>';
+    if(!list.length) tbody.innerHTML='<tr><td colspan="10" class="center" style="height:52px;color:#8894a0">조건에 맞는 LOT이 없습니다.</td></tr>';
     $('#cnt').textContent=list.length+'건';
   }
 
@@ -720,8 +722,8 @@
   $('#mInh').addEventListener('click',()=>{ if(sel) inhouse(sel); });
 
   function csv(){
-    const head=['JOB','LOT','표준공정','현재공정','현재외주처','최근이동','다음공정','완료','전체','진척률'];
-    const body=ROWS.map(calc).map(c=>[c.job,c.part,c.std?c.std.standard_process_name:'(미매칭)',
+    const head=['JOB','품번','LOT','표준공정','현재공정','현재외주처','최근이동','다음공정','완료','전체','진척률'];
+    const body=ROWS.map(calc).map(c=>[c.job,c.map_part,c.part,c.std?c.std.standard_process_name:'(미매칭)',
       c.last.mp,c.last.vendor,c.last.date,c.rest[0]||'',c.done,c.total,c.rate+'%']
       .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
     const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
@@ -756,7 +758,7 @@
     KI.msg('LOT '+ROWS.length+'건 · 외주 반출중 '+OSP.filter(o=>o.sdate&&!o.idate).length+'건');
   }
   try{ await load(); }
-  catch(e){ tbody.innerHTML='<tr><td colspan="9" class="center" style="height:60px;color:#b0442f">❌ '+
+  catch(e){ tbody.innerHTML='<tr><td colspan="10" class="center" style="height:60px;color:#b0442f">❌ '+
     KI.esc(e.message)+'</td></tr>'; KI.msg('❌ '+e.message); }
 })();
 </script>
