@@ -138,7 +138,7 @@ async function guard(menuId){
   if(!ME) await loadMe();                 /* ② 캐시 없을 때만 조회 */
   else setTimeout(()=>{ loadMe().catch(()=>{}); },0);   /* ③ 백그라운드 갱신 */
   if(!ME){ await signOut(); toLogin(); return false; }
-  if(mobileLanding()) return false;       /* 폰 : 첫 화면을 협력사 재고현황으로 */
+  if(mobileLanding(menuId)) return false;  /* 폰 : 첫 화면 · 숨김메뉴 → MOBILE_LANDING */
   if(menuId&&!can(menuId,'view')){
     alert('이 화면에 대한 조회 권한이 없습니다.\n관리자에게 문의하세요.');
     location.href=C.LANDING; return false;
@@ -177,18 +177,26 @@ function isPhone(){
   return Math.min(screen.width||9999, window.innerWidth||9999) <= 820
       && /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent||'');
 }
-/* 폰 로그인 직후 첫 화면 (권한 없으면 기본 랜딩으로) */
-function mobileLanding(){
+/* 폰 첫 화면 : MOBILE_LANDING 으로 유도
+   ① 기본 랜딩(LANDING)에 들어왔을 때
+   ② 메뉴에서 숨긴 모듈(HIDE)의 화면에 들어왔을 때 — 폰에서는 되돌아갈 메뉴가 없음 */
+function visibleMenu(id){
+  const src=(typeof MENU_V!=='undefined')?MENU_V:null;
+  if(!src) return true;
+  return src.some(m1=>m1.second.some(m2=>m2.groups.some(g=>g.items.some(x=>x.id===id))));
+}
+function mobileLanding(curId){
   const f=C.MOBILE_LANDING;
   if(!f || !isPhone()) return false;
   if(/^kiPop_/.test(window.name||'')) return false;
   const here=(location.pathname.split('/').pop()||'').toLowerCase();
-  const land=String(C.LANDING||'').split('?')[0].toLowerCase();
-  if(!land || here!==land) return false;              /* 기본 랜딩에 들어왔을 때만 */
   const tgt=String(f).split('?')[0].toLowerCase();
   if(here===tgt) return false;
+  const land=String(C.LANDING||'').split('?')[0].toLowerCase();
+  const hidden = curId && !visibleMenu(curId);      /* 메뉴에 없는 화면 */
+  if(here!==land && !hidden) return false;
   const id=Object.keys(FLAT).find(k=>String(FLAT[k].it.f).split('?')[0].toLowerCase()===tgt);
-  if(id && !can(id,'view')) return false;             /* 권한 없으면 그대로 */
+  if(id && !can(id,'view')) return false;
   location.replace(f);
   return true;
 }

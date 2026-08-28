@@ -77,6 +77,13 @@ function dest(){
     }
     return r;
   }
+  /* 폰은 모바일 첫 화면 우선 */
+  const phone = Math.min(screen.width||9999, window.innerWidth||9999)<=820
+             && /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent||'');
+  if(phone && C.MOBILE_LANDING){
+    const mid=Object.keys(FLAT).find(k=>FLAT[k].it.f===C.MOBILE_LANDING);
+    if(!mid || KI.can(mid,'view')) return C.MOBILE_LANDING;
+  }
   /* 기본 화면 권한이 없는 계정(협력사 등)은 접근 가능한 첫 화면으로 */
   const home=C.LANDING||'mold_due.html';
   const homeId=Object.keys(FLAT).find(k=>FLAT[k].it.f===home);
