@@ -429,3 +429,20 @@ body.slim .page > .pg-head{display:none}
 .pg-act.flyout .btn{height:28px;padding:0 12px;text-align:left;font-weight:700}
 body.actmenu .top1 .user{margin-left:auto}
 @media print{ .pg-act.flyout{display:none} }
+
+.pg-act.flyout a.btn{display:flex;align-items:center;text-decoration:none}
+.pg-act.flyout a.btn.primary{color:#fff}
+
+/* 우측 실행메뉴 : 버튼이 아닌 엑셀형 메뉴 항목으로 표시 */
+.pg-act.flyout{min-width:150px;padding:4px 0;gap:0}
+.pg-act.flyout .btn,
+.pg-act.flyout a.btn{display:flex;align-items:center;width:100%;height:auto;min-height:28px;
+  padding:6px 16px;border:0;border-radius:0;background:none;color:#2c3e50;font-weight:700;
+  text-align:left;text-decoration:none;white-space:nowrap;box-shadow:none}
+.pg-act.flyout .btn:hover,
+.pg-act.flyout a.btn:hover{background:#e5eef6;border:0;color:#1d568c}
+.pg-act.flyout .btn.primary,
+.pg-act.flyout a.btn.primary{color:#1d568c}
+.pg-act.flyout .btn.danger,
+.pg-act.flyout a.btn.danger{color:#a8332c}
+.pg-title{display:none}

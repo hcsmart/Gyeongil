@@ -189,7 +189,6 @@ function chrome(curId){
   t1.innerHTML =
     '<a class="logo" href="'+(KI_CFG.LANDING||'lot_route.html')+'"><b>GI</b>MES<i>(LOT)</i></a>'+
     '<nav class="modules" id="kiMod"></nav>'+
-    '<span class="pg-title" id="kiTitle"></span>'+
     '<div class="pg-act top" id="kiAct"></div>'+
     '<div class="user">'+
       '<button class="mini" id="kiUser">👤</button>'+
@@ -244,7 +243,8 @@ function chrome(curId){
   const okMod  = m1 => m1.second.some(okSec);
   function drawMod(){
     $('#kiMod').innerHTML = NAV.filter(okMod).map(m=>
-      '<button class="module'+(m.key===curMod?' on':'')+'" data-k="'+m.key+'">'+esc(m.name)+'</button>').join('');
+      '<button class="module'+((!NAVDROP&&m.key===curMod)?' on':'')+'" data-k="'+m.key+'">'+
+      esc(m.name)+'</button>').join('');
     $('#kiMod').querySelectorAll('button').forEach(b=>{
       if(NAVDROP){
         b.addEventListener('click',e=>{ e.stopPropagation(); toggleDrop(b); });
@@ -431,8 +431,7 @@ function page(cur, actions){
   const h=el('div','pg-head');
   h.innerHTML='<h2>'+esc(it.n)+'</h2><span class="sub">'+esc(it.d||'')+'</span>';
   const act = SLIM ? $('#kiAct') : el('div','pg-act');
-  if(SLIM){ act.innerHTML=''; const t=$('#kiTitle');
-    if(t){ t.textContent=it.n; t.title=it.d||''; } }
+  if(SLIM){ act.innerHTML=''; }
   (actions||[]).forEach(([label,cls,fn])=>{ const b=el('button','btn'+(cls?' '+cls:''),label);
     b.addEventListener('click',fn); act.appendChild(b); });
   if(!SLIM){ h.appendChild(act); pg.appendChild(h); }
