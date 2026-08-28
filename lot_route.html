@@ -16,7 +16,7 @@
 .lr-bar i.full{background:#2f7d4d}
 .lr-bar i.wip{background:#bcd7f0}
 .lr-chain .wip{background:#bcd7f0;color:#1d568c;padding:1px 7px;border-radius:2px;font-weight:700}
-.lr-go{height:21px;padding:0 8px;border:1px solid #2e77bd;background:#2e77bd;color:#fff;
+.lr-go{height:21px;padding:0 6px;border:1px solid #2e77bd;background:#2e77bd;color:#fff;
   border-radius:2px;font-size:11px;font-weight:700;cursor:pointer}
 .lr-go:hover{background:#1d568c}
 .lr-dim{position:fixed;inset:0;background:rgba(30,40,50,.42);z-index:60;display:none}
@@ -99,7 +99,7 @@
     '<th style="width:130px">표준공정</th><th style="width:150px">현재 공정</th>'+
     '<th style="width:110px">현재 외주처</th><th style="width:88px">최근 이동</th>'+
     '<th style="width:150px">다음 공정</th><th style="width:120px">진척</th>'+
-    '<th style="width:160px">진행등록 · 삭제</th></tr></thead><tbody></tbody>';
+    '<th style="width:236px">진행등록 · 사내입고 · 삭제</th></tr></thead><tbody></tbody>';
   gw.appendChild(tbl); L.appendChild(tb); L.appendChild(gw); ui.pg.appendChild(L);
   const tbody=tbl.querySelector('tbody');
   ['q','fs'].forEach(id=>$('#'+id).addEventListener('input',draw));
@@ -262,8 +262,8 @@
         '<td class="center" style="white-space:nowrap">'+
           '<button class="lr-go go">진행등록 ▸</button>'+
           ((CAN_S||CAN_E)&&c.std&&!c.rest.length&&!c.wip&&!c.moving&&!c.recv
-            ?'<button class="lr-go inh" style="background:#2f7d4d;border-color:#2f7d4d;margin-left:4px">🏭 사내입고</button>':'')+
-          (CAN_D?'<button class="lr-go del" style="background:#fff;color:#a0505a;border-color:#c9a0a8;margin-left:4px">삭제</button>':'')+
+            ?'<button class="lr-go inh" style="background:#2f7d4d;border-color:#2f7d4d;margin-left:3px">🏭 사내입고</button>':'')+
+          (CAN_D?'<button class="lr-go del" style="background:#fff;color:#a0505a;border-color:#c9a0a8;margin-left:3px">삭제</button>':'')+
         '</td>';
       t.querySelector('.go').addEventListener('click',ev=>{ ev.stopPropagation(); open(c); });
       const ih=t.querySelector('.inh');
