@@ -180,6 +180,9 @@ function chrome(curId){
   const NAVDROP = (NAVMODE==='drop'), NAVTOP = (NAVMODE==='top');
   /* SLIM_HEAD : 화면 제목 · 버튼을 상단바로 올리고 안내문(note)을 숨겨 그리드 영역 확보 */
   if(C.SLIM_HEAD!==false) document.body.classList.add('slim');
+  /* ACT_IN_MENU : 실행버튼을 상단바가 아닌 드롭다운 메뉴의 우측 플라이아웃으로 표시 */
+  const ACTMENU = NAVDROP && (C.ACT_IN_MENU!==false);
+  if(ACTMENU) document.body.classList.add('actmenu');
 
   /* 1차 */
   const t1=el('div','top1');
@@ -202,6 +205,7 @@ function chrome(curId){
   if(NAVDROP){
     document.body.classList.add('navdrop');
     const dd=el('div','dropnav'); dd.id='kiDrop'; document.body.appendChild(dd);
+    if(ACTMENU){ const a=$('#kiAct'); a.className='pg-act flyout'; document.body.appendChild(a); }
   }else if(NAVTOP){
     document.body.classList.add('navtop');
     const t3=el('div','top3'); t3.id='kiTop3';
@@ -254,9 +258,18 @@ function chrome(curId){
   }
 
   /* --- 상단 드롭다운 메뉴 (엑셀형) --- */
-  let dropKey=null;
+  let dropKey=null, actTmr=null;
+  function hideAct(){ const a=$('#kiAct'); if(a) a.classList.remove('on'); }
+  function showAct(anchor){
+    const a=$('#kiAct'), d=$('#kiDrop');
+    if(!a || !d || !a.children.length) return;
+    const r=anchor.getBoundingClientRect(), dr=d.getBoundingClientRect();
+    a.style.left=Math.min(dr.right-1, window.innerWidth-160)+'px';
+    a.style.top=Math.min(r.top, window.innerHeight-40*a.children.length-16)+'px';
+    a.classList.add('on');
+  }
   function closeDrop(){
-    dropKey=null;
+    dropKey=null; hideAct();
     const d=$('#kiDrop'); if(d) d.classList.remove('on');
     $('#kiMod').querySelectorAll('button.open').forEach(b=>b.classList.remove('open'));
   }
@@ -268,10 +281,18 @@ function chrome(curId){
       if(!its.length) return '';
       const multi=m1.second.filter(okSec).length>1;
       return (multi?'<div class="dd-t">'+esc(m2.icon||'')+' '+esc(m2.name)+'</div>':'')+
-        its.map(x=>'<a class="dd-i'+(x.id===curId?' on':'')+'" href="'+x.f+'">'+esc(x.n)+
+        its.map(x=>'<a class="dd-i'+(x.id===curId?' on':'')+'" data-id="'+x.id+'" href="'+x.f+'">'+esc(x.n)+
           (x.d?'<small>'+esc(x.d)+'</small>':'')+'</a>').join('');
     }).join('');
     d.innerHTML=html||'<div class="dd-t">권한이 있는 메뉴가 없습니다.</div>';
+    if(ACTMENU){
+      hideAct();
+      d.querySelectorAll('a.dd-i').forEach(a=>{
+        a.addEventListener('mouseenter',()=>{ clearTimeout(actTmr);
+          if(a.dataset.id===curId) showAct(a); else hideAct(); });
+      });
+      d.addEventListener('mouseleave',()=>{ actTmr=setTimeout(hideAct,220); });
+    }
     const r=btn.getBoundingClientRect();
     d.style.left=Math.max(2,Math.min(r.left,window.innerWidth-260))+'px';
     d.classList.add('on');
@@ -279,8 +300,14 @@ function chrome(curId){
     dropKey=btn.dataset.k;
   }
   function toggleDrop(btn){ if(dropKey===btn.dataset.k) closeDrop(); else openDrop(btn); }
+  if(ACTMENU){
+    const a=$('#kiAct');
+    a.addEventListener('mouseenter',()=>clearTimeout(actTmr));
+    a.addEventListener('mouseleave',()=>{ actTmr=setTimeout(hideAct,220); });
+    a.addEventListener('click',()=>setTimeout(closeDrop,0));
+  }
   if(NAVDROP){
-    document.addEventListener('click',e=>{ if(!e.target.closest('#kiDrop')) closeDrop(); });
+    document.addEventListener('click',e=>{ if(!e.target.closest('#kiDrop')&&!e.target.closest('#kiAct')) closeDrop(); });
     document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDrop(); });
     window.addEventListener('resize',closeDrop);
   }

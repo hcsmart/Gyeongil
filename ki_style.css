@@ -420,3 +420,12 @@ body.slim .top1 .user{margin-left:0;border-left:1px solid #d5dce2}
 body.slim .page > .note{display:none}
 body.slim .page > .pg-head{display:none}
 @media (max-width:1280px){ body.slim .pg-title{display:none} }
+
+/* 실행버튼 플라이아웃 (KI_CFG.ACT_IN_MENU = true) — 드롭다운 현재화면 항목 hover 시 표시 */
+.pg-act.flyout{position:fixed;z-index:41;display:none;flex-direction:column;gap:3px;
+  min-width:132px;padding:5px;background:#fff;border:1px solid #8f9ca8;
+  box-shadow:0 6px 18px rgba(20,40,60,.25)}
+.pg-act.flyout.on{display:flex}
+.pg-act.flyout .btn{height:28px;padding:0 12px;text-align:left;font-weight:700}
+body.actmenu .top1 .user{margin-left:auto}
+@media print{ .pg-act.flyout{display:none} }
