@@ -138,6 +138,7 @@ async function guard(menuId){
   if(!ME) await loadMe();                 /* ② 캐시 없을 때만 조회 */
   else setTimeout(()=>{ loadMe().catch(()=>{}); },0);   /* ③ 백그라운드 갱신 */
   if(!ME){ await signOut(); toLogin(); return false; }
+  if(mobileLanding()) return false;       /* 폰 : 첫 화면을 협력사 재고현황으로 */
   if(menuId&&!can(menuId,'view')){
     alert('이 화면에 대한 조회 권한이 없습니다.\n관리자에게 문의하세요.');
     location.href=C.LANDING; return false;
@@ -175,6 +176,21 @@ const LK_LEFT='ki_left_w';
 function isPhone(){
   return Math.min(screen.width||9999, window.innerWidth||9999) <= 820
       && /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent||'');
+}
+/* 폰 로그인 직후 첫 화면 (권한 없으면 기본 랜딩으로) */
+function mobileLanding(){
+  const f=C.MOBILE_LANDING;
+  if(!f || !isPhone()) return false;
+  if(/^kiPop_/.test(window.name||'')) return false;
+  const here=(location.pathname.split('/').pop()||'').toLowerCase();
+  const land=String(C.LANDING||'').split('?')[0].toLowerCase();
+  if(!land || here!==land) return false;              /* 기본 랜딩에 들어왔을 때만 */
+  const tgt=String(f).split('?')[0].toLowerCase();
+  if(here===tgt) return false;
+  const id=Object.keys(FLAT).find(k=>String(FLAT[k].it.f).split('?')[0].toLowerCase()===tgt);
+  if(id && !can(id,'view')) return false;             /* 권한 없으면 그대로 */
+  location.replace(f);
+  return true;
 }
 
 /* 팝업 전용 화면 (메뉴 정의의 pop:1) — 보안상 본 화면과 분리된 별도 창으로 실행 */

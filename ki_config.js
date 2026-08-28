@@ -4,11 +4,12 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'GI MES',
-  VER      : 'v12.7',
+  VER      : 'v12.9',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
-  LANDING      : 'lot_route.html',    // 로그인 후 기본 화면
+  LANDING      : 'lot_route.html',    // 로그인 후 기본 화면 (PC)
+  MOBILE_LANDING:'vendor_stock.html', // 폰 접속 시 첫 화면 (권한 없으면 LANDING)
   NAV_MODE     : 'drop',            // 'drop': 상단 메뉴 클릭 → 드롭다운 / 'top': 상단 가로바 / 'left': 좌측 트리
   SLIM_HEAD    : true,              // true: 화면제목·버튼을 상단바로 이동 + 안내문 숨김 (그리드 영역 최대)
   ACT_IN_MENU  : false,             // true: 실행버튼을 드롭다운 우측에 표시 / false: 상단바 우측 별도 버튼

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>협력사 재고현황 — GI MES</title>
+<link rel="stylesheet" href="ki_style.css" />
+<style>
+/* ===== 요약 KPI ===== */
+.vs-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:9px}
+.vs-k{background:#fff;border:1px solid #dde4ea;border-radius:6px;padding:9px 11px;position:relative;overflow:hidden}
+.vs-k b{display:block;font-size:22px;font-weight:900;letter-spacing:-.6px;color:#22537f;line-height:1.2}
+.vs-k span{font-size:11px;color:#7b8794;font-weight:700}
+.vs-k.warn b{color:#b23030}.vs-k.hold b{color:#b06a12}.vs-k.ok b{color:#1f8a4c}
+
+/* ===== 그룹 카드 ===== */
+.vs-wrap{display:flex;flex-direction:column;gap:9px}
+.vs-g{background:#fff;border:1px solid #dde4ea;border-radius:6px;overflow:hidden}
+.vs-gh{display:flex;align-items:center;gap:8px;padding:9px 11px;background:#f2f6fa;
+  border-bottom:1px solid #dde4ea;cursor:pointer;user-select:none}
+.vs-gh .arw{font-size:10px;color:#7b8b9c;transition:transform .18s}
+.vs-g.open .arw{transform:rotate(90deg)}
+.vs-gh .ttl{font-size:14px;font-weight:900;color:#1d3550;letter-spacing:-.3px}
+.vs-gh .sub{font-size:11px;color:#7b8794;font-weight:700}
+.vs-gh .rt{margin-left:auto;display:flex;align-items:center;gap:9px;font-size:12px;font-weight:800}
+.vs-gh .q{color:#1d568c;font-size:15px}
+.vs-gh .q small{font-size:10.5px;color:#7b8794;font-weight:700;margin-left:2px}
+.vs-gb{display:none}
+.vs-g.open .vs-gb{display:block}
+.vs-gb table{width:100%;border-collapse:collapse}
+.vs-gb th{background:#fafbfc;border-bottom:1px solid #e4e9ee;font-size:11px;color:#526171;
+  height:26px;font-weight:700;white-space:nowrap;padding:0 6px}
+.vs-gb td{border-bottom:1px solid #eef1f4;padding:6px;font-size:12px;white-space:nowrap}
+.vs-gb tr:last-child td{border-bottom:0}
+.vs-gb tr:hover td{background:#f6f9fc}
+.num{text-align:right}.center{text-align:center}
+.lot{font-weight:800;color:#22537f}
+.pt{font-weight:800;color:#1d3550}
+.neg{color:#b23030;font-weight:800}
+/* 체류일 배지 */
+.age{display:inline-block;min-width:44px;text-align:center;padding:2px 7px;border-radius:11px;
+  font-size:11.5px;font-weight:800}
+.age.a0{background:#eef4fa;color:#41556a}
+.age.a1{background:#fdf3e6;color:#a4600f}
+.age.a2{background:#fdeceb;color:#b23030}
+.age.a3{background:#b23030;color:#fff}
+.st{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:800}
+.st-w{background:#fdf3e6;color:#a4600f}.st-r{background:#e9f2fc;color:#1d568c}
+.st-late{background:#fdeceb;color:#b23030}.st-soon{background:#fdf3e6;color:#a4600f}
+.st-ok{background:#eef4fa;color:#41556a}
+.vs-bar{height:5px;background:#eef1f4;border-radius:3px;overflow:hidden;min-width:56px}
+.vs-bar i{display:block;height:100%;background:#2e77bd}
+.vs-empty{text-align:center;color:#8894a0;padding:30px;font-weight:700}
+.vs-tb{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:8px 10px;background:#fff;
+  border:1px solid #dde4ea;border-radius:6px;margin-bottom:9px}
+.vs-tb select,.vs-tb input{height:28px;border:1px solid #aeb9c4;padding:0 7px;font:inherit;font-size:13px}
+.vs-tb .sp{margin-left:auto;font-size:12px;color:#526171;font-weight:700}
+.seg{display:flex;border:1px solid #aeb9c4;border-radius:4px;overflow:hidden}
+.seg button{height:28px;padding:0 12px;border:0;background:#fff;font:inherit;font-size:12.5px;
+  font-weight:700;color:#526171;cursor:pointer}
+.seg button.on{background:#2e6497;color:#fff}
+
+@media (max-width:820px){
+  .vs-kpi{grid-template-columns:1fr 1fr;gap:7px}
+  .vs-k b{font-size:20px}
+  .vs-gh{padding:11px 10px}
+  .vs-gh .ttl{font-size:15px}
+  .vs-gb{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .vs-gb table{min-width:660px}
+  .vs-tb input[type=text]{width:100%}
+  .seg{width:100%}.seg button{flex:1}
+}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  const $=s=>document.querySelector(s), esc=KI.esc, el=KI.el;
+  const num=v=>Number(v)||0, fmt=v=>num(v).toLocaleString();
+  if(!await KI.guard('ven-stock'))return;
+  const cur=KI.chrome('ven-stock');
+  const ui=KI.page(cur,[
+    ['조회','primary',()=>load()],
+    ['엑셀다운로드','',()=>csv()],
+    ['인쇄','',()=>window.print()]
+  ]);
+
+  const nt=el('div','note');
+  nt.innerHTML='협력사가 <b>현재 보유 중인 물량</b>입니다. 미입고(미결) 반출건만 집계합니다.<br>'+
+    '<b>보유수량</b> = 도착확인 수량(없으면 반출수량) − 다음 공정 이관수량 · '+
+    '<b>체류일</b> = 반출일로부터 경과일수. 체류가 길수록 자금이 묶여 있다는 뜻입니다.<br>'+
+    '<b>도착대기</b> 상태로 체류일이 길면 QR 도착확인 누락일 수 있으니 업체에 확인하세요.';
+  ui.pg.appendChild(nt);
+
+  let ROWS=[], MODE='part';   /* part | vendor */
+
+  const tb=el('div','vs-tb');
+  tb.innerHTML=
+    '<span style="font-weight:800;color:#526171">묶음</span>'+
+    '<div class="seg" id="seg">'+
+      '<button data-m="part" class="on">품번별</button>'+
+      '<button data-m="vendor">협력사별</button></div>'+
+    '<span style="font-weight:700;color:#526171;margin-left:6px">검색</span>'+
+    '<input type="text" id="q" placeholder="품번 · LOT · 협력사 · JOB" style="width:200px">'+
+    '<select id="fst"><option value="">상태 전체</option><option>도착대기</option><option>작업중</option></select>'+
+    '<select id="fage"><option value="">체류 전체</option><option value="7">7일 이상</option>'+
+      '<option value="14">14일 이상</option><option value="30">30일 이상</option></select>'+
+    '<span class="sp" id="cnt"></span>';
+  ui.pg.appendChild(tb);
+
+  const kpi=el('div','vs-kpi'); ui.pg.appendChild(kpi);
+  const wrap=el('div','vs-wrap'); ui.pg.appendChild(wrap);
+
+  const ageCls=d=>d>=30?'a3':d>=14?'a2':d>=7?'a1':'a0';
+  const dueCls=s=>s==='지연'?'st-late':s==='임박'?'st-soon':'st-ok';
+
+  function filtered(){
+    const q=($('#q').value||'').trim().toLowerCase();
+    const st=$('#fst').value, ag=num($('#fage').value);
+    return ROWS.filter(r=>{
+      if(st&&r.stock_status!==st) return false;
+      if(ag&&num(r.age_days)<ag) return false;
+      if(q){ const s=[r.map_part,r.part,r.vendor,r.job,r.mold_no,r.mp,r.mp_name]
+              .map(x=>String(x||'').toLowerCase()).join(' ');
+        if(s.indexOf(q)<0) return false; }
+      return true;
+    });
+  }
+
+  function draw(){
+    const rs=filtered();
+    $('#cnt').textContent='총 '+rs.length.toLocaleString()+'건 · 보유 '+
+      fmt(rs.reduce((a,b)=>a+num(b.stock_qty),0))+'개';
+
+    /* KPI */
+    const totQ=rs.reduce((a,b)=>a+num(b.stock_qty),0);
+    const wait=rs.filter(r=>r.stock_status==='도착대기');
+    const old7=rs.filter(r=>num(r.age_days)>=7);
+    const late=rs.filter(r=>r.due_status==='지연');
+    const maxAge=rs.reduce((a,b)=>Math.max(a,num(b.age_days)),0);
+    kpi.innerHTML=
+      '<div class="vs-k"><b>'+fmt(totQ)+'</b><span>총 보유수량 ('+new Set(rs.map(r=>r.vendor)).size+'개사)</span></div>'+
+      '<div class="vs-k hold"><b>'+fmt(wait.reduce((a,b)=>a+num(b.stock_qty),0))+'</b>'+
+        '<span>도착대기 '+wait.length+'건 — 확인 필요</span></div>'+
+      '<div class="vs-k warn"><b>'+old7.length+'</b><span>7일 이상 체류 (최장 '+maxAge+'일)</span></div>'+
+      '<div class="vs-k '+(late.length?'warn':'ok')+'"><b>'+late.length+'</b><span>납기 지연 건</span></div>';
+
+    /* 그룹 */
+    const key = MODE==='part' ? (r=>r.map_part||'(품번 미지정)') : (r=>r.vendor||'(업체 미지정)');
+    const sub = MODE==='part' ? (r=>r.vendor||'') : (r=>r.map_part||'');
+    const G={};
+    rs.forEach(r=>{ const k=key(r); (G[k]=G[k]||[]).push(r); });
+    const keys=Object.keys(G).sort((a,b)=>
+      G[b].reduce((x,y)=>x+num(y.stock_qty),0)-G[a].reduce((x,y)=>x+num(y.stock_qty),0));
+
+    if(!keys.length){ wrap.innerHTML='<div class="vs-empty">보유 중인 물량이 없습니다.</div>'; return; }
+    const gTot=Math.max.apply(null,keys.map(k=>G[k].reduce((a,b)=>a+num(b.stock_qty),0)));
+
+    wrap.innerHTML=keys.map((k,i)=>{
+      const rows=G[k].slice().sort((a,b)=>num(b.age_days)-num(a.age_days));
+      const q=rows.reduce((a,b)=>a+num(b.stock_qty),0);
+      const mx=rows.reduce((a,b)=>Math.max(a,num(b.age_days)),0);
+      const sh=rows.reduce((a,b)=>a+num(b.short_qty),0);
+      const names=[...new Set(rows.map(sub).filter(Boolean))];
+      return '<div class="vs-g'+(i<3?' open':'')+'">'+
+        '<div class="vs-gh"><span class="arw">▶</span>'+
+          '<span class="ttl">'+esc(k)+'</span>'+
+          '<span class="sub">'+esc(names.slice(0,3).join(' · '))+(names.length>3?' 외 '+(names.length-3):'')+'</span>'+
+          '<span class="rt">'+
+            '<span class="vs-bar" style="width:70px"><i style="width:'+Math.round(q/gTot*100)+'%"></i></span>'+
+            (sh?'<span class="neg">부족 '+fmt(sh)+'</span>':'')+
+            '<span class="age '+ageCls(mx)+'">최장 '+mx+'일</span>'+
+            '<span class="q">'+fmt(q)+'<small>개 · '+rows.length+'건</small></span>'+
+          '</span></div>'+
+        '<div class="vs-gb"><table><thead><tr>'+
+          '<th style="width:96px">'+(MODE==='part'?'협력사':'품번')+'</th>'+
+          '<th style="width:88px">LOT</th><th style="width:56px">공정</th><th style="width:104px">공정명</th>'+
+          '<th style="width:86px">반출일</th><th style="width:86px">도착일</th>'+
+          '<th style="width:70px">반출</th><th style="width:70px">도착</th>'+
+          '<th style="width:78px">보유</th><th style="width:56px">부족</th>'+
+          '<th style="width:74px">체류</th><th style="width:70px">상태</th>'+
+          '<th style="width:86px">납기</th><th style="width:64px">납기상태</th>'+
+          '<th style="width:104px">담당 · 연락처</th></tr></thead><tbody>'+
+        rows.map(r=>'<tr>'+
+          '<td class="'+(MODE==='part'?'':'pt')+'">'+esc(MODE==='part'?r.vendor:r.map_part||'-')+'</td>'+
+          '<td class="lot">'+esc(r.part||'')+'</td>'+
+          '<td class="center">'+esc(r.mp||'')+'</td><td>'+esc(r.mp_name||'')+'</td>'+
+          '<td class="center">'+esc(r.out_date||'')+'</td>'+
+          '<td class="center">'+esc(r.arrived_date||'—')+'</td>'+
+          '<td class="num">'+fmt(r.out_qty)+'</td>'+
+          '<td class="num">'+(r.arrived_qty==null?'—':fmt(r.arrived_qty))+'</td>'+
+          '<td class="num" style="font-weight:800;color:#1d568c">'+fmt(r.stock_qty)+'</td>'+
+          '<td class="num '+(num(r.short_qty)?'neg':'')+'">'+(num(r.short_qty)?fmt(r.short_qty):'')+'</td>'+
+          '<td class="center"><span class="age '+ageCls(num(r.age_days))+'">'+num(r.age_days)+'일</span></td>'+
+          '<td class="center"><span class="st '+(r.stock_status==='도착대기'?'st-w':'st-r')+'">'+
+            esc(r.stock_status||'')+'</span></td>'+
+          '<td class="center">'+esc(r.due_date||'-')+'</td>'+
+          '<td class="center">'+(r.due_status&&r.due_status!=='-'
+            ?'<span class="st '+dueCls(r.due_status)+'">'+esc(r.due_status)+'</span>':'')+'</td>'+
+          '<td>'+esc(r.contact_name||'')+(r.contact_phone?'<br><small style="color:#7b8794">'+
+            esc(r.contact_phone)+'</small>':'')+'</td>'+
+        '</tr>').join('')+'</tbody></table></div></div>';
+    }).join('');
+
+    wrap.querySelectorAll('.vs-gh').forEach(h=>h.addEventListener('click',()=>
+      h.parentNode.classList.toggle('open')));
+  }
+
+  function csv(){
+    const rs=filtered();
+    const head=['협력사','담당자','연락처','품번','금형제번','LOT','JOB','공정','공정명',
+                '반출일','도착일','반출수량','도착수량','이관','보유수량','부족','체류일','상태','납기','납기상태'];
+    const body=rs.map(r=>[r.vendor,r.contact_name,r.contact_phone,r.map_part,r.mold_no,r.part,r.job,
+      r.mp,r.mp_name,r.out_date,r.arrived_date,r.out_qty,r.arrived_qty,r.moved_qty,r.stock_qty,
+      r.short_qty,r.age_days,r.stock_status,r.due_date,r.due_status]);
+    const txt='\uFEFF'+[head].concat(body).map(a=>a.map(v=>
+      '"'+String(v==null?'':v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv'}));
+    a.download='협력사재고현황_'+new Date().toISOString().slice(0,10)+'.csv';
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  async function load(){
+    wrap.innerHTML='<div class="vs-empty">불러오는 중...</div>';
+    try{
+      ROWS=await KI.get(OBJ.venStock+'?select=*&order=vendor.asc,out_date.asc');
+      draw();
+      KI.msg(cur.path+' — '+ROWS.length.toLocaleString()+'건 조회되었습니다.');
+    }catch(e){
+      wrap.innerHTML='<div class="vs-empty">❌ '+esc(e.message)+'</div>';
+      KI.msg('❌ '+e.message);
+    }
+  }
+
+  ['q','fst','fage'].forEach(id=>$('#'+id).addEventListener('input',draw));
+  $('#seg').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+    MODE=b.dataset.m;
+    $('#seg').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+    draw();
+  }));
+  load();
+})();
+</script>
+</body>
+</html>
