@@ -138,6 +138,7 @@ async function guard(menuId){
   if(!ME) await loadMe();                 /* ② 캐시 없을 때만 조회 */
   else setTimeout(()=>{ loadMe().catch(()=>{}); },0);   /* ③ 백그라운드 갱신 */
   if(!ME){ await signOut(); toLogin(); return false; }
+  if(mobileHome()) return false;          /* 폰 접속 → 현장 홈으로 전환 */
   if(menuId&&!can(menuId,'view')){
     alert('이 화면에 대한 조회 권한이 없습니다.\n관리자에게 문의하세요.');
     location.href=C.LANDING; return false;
@@ -170,6 +171,26 @@ const upsert = (t,b)=>send('POST',t,b,'resolution=merge-duplicates,return=repres
 
 /* ---------- 화면 크롬 (1차 모듈 / 2차 아이콘 / 좌측 트리 / 상태바) ---------- */
 const LK_LEFT='ki_left_w';
+
+/* ---------- 모바일 현장 홈 ----------
+   좁은 화면(폰)에서는 3단 메뉴 대신 현장 전용 홈으로 유도한다.
+   '전체 메뉴로 이동'을 누르면 ki_full=1이 저장되어 이후 자동이동하지 않는다. */
+const MOBILE_HOME='mobile_home.html';
+function isPhone(){
+  return Math.min(screen.width||9999, window.innerWidth||9999) <= 640
+      && /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent||'');
+}
+function wantFull(){ try{ return localStorage.getItem('ki_full')==='1'; }catch(e){ return false; } }
+function mobileHome(){
+  if(/^kiPop_/.test(window.name||'')) return false;      /* 팝업 창은 제외 */
+  if(!isPhone() || wantFull()) return false;
+  const here=(location.pathname.split('/').pop()||'').toLowerCase();
+  if(here===MOBILE_HOME || here==='index.html' || here==='') return false;
+  const land=String(C.LANDING||'lot_route.html').split('?')[0].toLowerCase();
+  if(here!==land) return false;                          /* 로그인 직후 랜딩만 전환 */
+  location.replace(MOBILE_HOME);
+  return true;
+}
 
 /* 팝업 전용 화면 (메뉴 정의의 pop:1) — 보안상 본 화면과 분리된 별도 창으로 실행 */
 function isPop(id){ return !!(FLAT[id] && FLAT[id].it && FLAT[id].it.pop); }
@@ -1219,5 +1240,6 @@ return {CFG:C, $:$, el:el, esc:esc,
         changePassword:changePassword, loadSess:loadSess, loadMe:loadMe,
         me:()=>ME, loginError:loginError, isAdmin:isAdmin, clearCache:cacheClear, can:can, session:session, guard:guard,
         header:chrome, chrome:chrome, page:page, masters:masters, M:M, msg:msg,
-        grid:grid, csv:csv, makeUpload:makeUpload, POST:POST, cell:cell, LK:LK, emailOf:emailOf};
+        grid:grid, csv:csv, makeUpload:makeUpload, POST:POST, cell:cell, LK:LK, emailOf:emailOf,
+        isPhone:isPhone, openPop:openPop};
 })();

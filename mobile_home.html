@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#22537f" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<title>현장 홈 — GI MES</title>
+<style>
+:root{--bg:#eef2f6;--ink:#16202b;--sub:#6b7a89;--line:#dbe3ea;--blue:#2668a8;--blue-d:#1b4b7d;
+      --green:#1f8a4c;--orange:#e07b1c;--red:#c0392b}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font:15px/1.6 'Malgun Gothic','맑은 고딕',-apple-system,sans-serif;background:var(--bg);color:var(--ink);
+     padding-bottom:30px}
+.app{background:linear-gradient(135deg,#3579b8,#22537f);color:#fff;padding:14px 15px 16px;
+     position:sticky;top:0;z-index:20;box-shadow:0 2px 10px rgba(0,0,0,.14)}
+.app .r1{display:flex;align-items:center;gap:9px}
+.app .lg{font-size:19px;font-weight:900;letter-spacing:-.5px}
+.app .lg i{font-style:normal;font-size:12px;font-weight:700;opacity:.85;margin-left:3px}
+.app .out{margin-left:auto;font-size:12px;font-weight:700;background:rgba(255,255,255,.16);
+     border:1px solid rgba(255,255,255,.32);color:#fff;padding:6px 12px;border-radius:20px;cursor:pointer}
+.app .r2{margin-top:9px;font-size:13.5px;opacity:.95}
+.app .r2 b{font-weight:800}
+.wrap{max-width:640px;margin:0 auto;padding:12px}
+.sect{font-size:12.5px;font-weight:800;color:var(--sub);margin:4px 3px 9px;letter-spacing:.3px}
+
+/* 대형 카드 그리드 */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:18px}
+.tile{background:#fff;border:0;border-radius:16px;padding:17px 14px 15px;text-align:left;cursor:pointer;
+      box-shadow:0 2px 5px rgba(20,40,60,.09);position:relative;overflow:hidden;font:inherit;color:var(--ink);
+      min-height:112px;display:flex;flex-direction:column;animation:rise .3s ease both}
+.tile:active{transform:scale(.975)}
+.tile .ic{font-size:29px;line-height:1;margin-bottom:9px}
+.tile .nm{font-size:16.5px;font-weight:900;letter-spacing:-.4px;line-height:1.3}
+.tile .ds{font-size:11.5px;color:var(--sub);margin-top:4px;line-height:1.5}
+.tile::after{content:'';position:absolute;right:-26px;top:-26px;width:76px;height:76px;border-radius:50%;opacity:.1}
+.tile.b::after{background:var(--blue)} .tile.g::after{background:var(--green)}
+.tile.o::after{background:var(--orange)} .tile.r::after{background:var(--red)}
+.tile.b .ic,.tile.b .nm{color:var(--blue-d)}
+.tile.g .nm{color:var(--green)} .tile.o .nm{color:#b4650f} .tile.r .nm{color:var(--red)}
+.tile.wide{grid-column:1/-1;min-height:0;flex-direction:row;align-items:center;gap:13px;padding:15px}
+.tile.wide .ic{margin:0;font-size:26px}
+.tile.wide .tx{flex:1}
+.tile.wide .go{color:#c3ccd5;font-size:20px;font-weight:800}
+
+/* 스캔 히어로 */
+.scan{grid-column:1/-1;border:0;border-radius:18px;padding:22px 18px;cursor:pointer;font:inherit;
+      background:linear-gradient(135deg,#3579b8,#1b4b7d);color:#fff;text-align:center;
+      box-shadow:0 8px 22px rgba(27,75,125,.3);position:relative;overflow:hidden;
+      animation:pop .34s cubic-bezier(.2,.9,.3,1.2) both}
+.scan:active{transform:scale(.985)}
+.scan .ring{width:78px;height:78px;margin:0 auto 10px;border-radius:22px;border:3px solid rgba(255,255,255,.55);
+     display:flex;align-items:center;justify-content:center;font-size:36px;animation:beat 2.1s infinite}
+.scan h2{font-size:21px;font-weight:900;letter-spacing:-.5px}
+.scan p{font-size:12.5px;opacity:.92;margin-top:3px}
+.scan::after{content:'';position:absolute;left:-40px;bottom:-64px;width:170px;height:170px;
+     background:rgba(255,255,255,.08);border-radius:50%}
+
+.foot{text-align:center;font-size:12px;color:#9aa7b3;margin-top:14px;line-height:1.9}
+.foot a{color:var(--blue);font-weight:800;text-decoration:none}
+.empty{text-align:center;color:#9aa7b3;font-size:13.5px;padding:30px 10px;font-weight:700}
+@keyframes pop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+@keyframes rise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+@keyframes beat{0%{box-shadow:0 0 0 0 rgba(255,255,255,.4)}70%{box-shadow:0 0 0 16px rgba(255,255,255,0)}100%{box-shadow:0 0 0 0 rgba(255,255,255,0)}}
+@media(min-width:520px){.grid{grid-template-columns:1fr 1fr 1fr}}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<div class="app">
+  <div class="r1"><span class="lg">GI MES<i>현장</i></span>
+    <span class="out" id="btOut">로그아웃</span></div>
+  <div class="r2" id="who"></div>
+</div>
+<div class="wrap" id="wrap"><div class="empty">불러오는 중...</div></div>
+<script>
+(function(){
+const $=s=>document.querySelector(s);
+const esc=KI.esc;
+
+/* 현장에서 실제로 쓰는 화면만 — id는 ki_config.js의 메뉴 id와 동일(권한 검사용) */
+const TILES=[
+  {id:'lot-scan',    f:'lot_scan.html',      n:'QR 입출고',   ic:'📱', c:'b', pop:1,
+   d:'이동표 스캔 · 출고 · 입고'},
+  {id:'daily-check', f:'daily_check.html',   n:'일상점검',    ic:'📋', c:'g',
+   d:'상형 8 · 하형 8 점검표'},
+  {id:'wash-check',  f:'wash_check.html',    n:'세척등록',    ic:'🧽', c:'g',
+   d:'일상 · 정기세척'},
+  {id:'shot-daily',  f:'shot_daily.html',    n:'타발수 등록', ic:'🔢', c:'o',
+   d:'일별 SHOT 입력'},
+  {id:'mold-insp',   f:'mold_inspection.html',n:'정기점검',   ic:'🔧', c:'o',
+   d:'도래현황 · 점검등록'},
+  {id:'tool-due',    f:'tool_alert.html',    n:'연마·교체',   ic:'⚠️', c:'r',
+   d:'도래현황 확인'}
+];
+/* 조회 중심 화면 — 하단 가로형 카드 */
+const WIDE=[
+  {id:'plan-board', f:'plan_board.html', n:'점검 도래현황', ic:'📆', d:'금형별 점검 예정 · 지연'},
+  {id:'lot-route',  f:'lot_route.html',  n:'LOT 진행현황',  ic:'📦', d:'공정 진척 · 사내입고'},
+  {id:'env-live',   f:'env_live.html',   n:'실시간 온습도', ic:'🌡',  d:'센서 현황'}
+];
+
+function openPop(file,name){
+  const w=Math.min(screen.availWidth||480,480), h=Math.min(screen.availHeight||900,900);
+  const win=window.open(file,'kiPop_'+(name||'qr'),
+    'width='+w+',height='+h+',menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');
+  if(win){ try{ win.opener=null; win.focus(); }catch(e){} }
+  else location.href=file;   /* 팝업 차단 시 현재 창에서 열기 */
+}
+
+function card(t){
+  return '<button class="tile '+(t.c||'b')+'" data-f="'+esc(t.f)+'" data-pop="'+(t.pop?1:0)+'" data-id="'+esc(t.id)+'">'+
+    '<span class="ic">'+t.ic+'</span>'+
+    '<span class="nm">'+esc(t.n)+'</span>'+
+    '<span class="ds">'+esc(t.d||'')+'</span></button>';
+}
+function wide(t){
+  return '<button class="tile wide b" data-f="'+esc(t.f)+'" data-pop="0" data-id="'+esc(t.id)+'">'+
+    '<span class="ic">'+t.ic+'</span><span class="tx">'+
+    '<span class="nm" style="font-size:15.5px">'+esc(t.n)+'</span>'+
+    '<span class="ds" style="display:block">'+esc(t.d||'')+'</span></span>'+
+    '<span class="go">›</span></button>';
+}
+
+(async function init(){
+  if(!await KI.guard()) return;
+  const me=KI.me()||{};
+  const now=new Date();
+  const hh=now.getHours();
+  const greet = hh<11?'좋은 아침입니다':(hh<18?'오늘도 안전작업 하세요':'수고 많으셨습니다');
+  $('#who').innerHTML='<b>'+esc(me.emp_name||'')+'</b>님 · '+greet+
+    ' <span style="opacity:.8">('+(now.getMonth()+1)+'/'+now.getDate()+')</span>';
+
+  const ok = t => KI.can(t.id,'view');
+  const main = TILES.filter(ok), sub = WIDE.filter(ok);
+
+  $('#wrap').innerHTML=
+    '<button class="scan" id="btScan"><div class="ring">📷</div>'+
+      '<h2>QR 입출고</h2><p>공정이동표를 스캔해 출고 · 입고를 등록하세요</p></button>'+
+    (main.filter(t=>t.id!=='lot-scan').length
+      ? '<div class="sect">현장 등록</div><div class="grid">'+
+        main.filter(t=>t.id!=='lot-scan').map(card).join('')+'</div>' : '')+
+    (sub.length? '<div class="sect">조회</div><div class="grid">'+sub.map(wide).join('')+'</div>' : '')+
+    (main.length||sub.length?'':'<div class="empty">사용 가능한 현장 화면이 없습니다.<br>관리자에게 권한을 문의하세요.</div>')+
+    '<div class="foot">PC에서는 전체 메뉴를 사용할 수 있습니다<br>'+
+      '<a href="#" id="full">전체 메뉴로 이동 ›</a></div>';
+
+  const scan=TILES[0];
+  $('#btScan').addEventListener('click',()=>openPop(scan.f,scan.id));
+  document.querySelectorAll('.tile').forEach(b=>b.addEventListener('click',()=>{
+    const f=b.dataset.f;
+    if(b.dataset.pop==='1') openPop(f,b.dataset.id); else location.href=f;
+  }));
+  $('#full').addEventListener('click',ev=>{
+    ev.preventDefault();
+    try{ localStorage.setItem('ki_full','1'); }catch(e){}
+    location.href=KI.CFG.LANDING||'lot_route.html';
+  });
+  $('#btOut').addEventListener('click',()=>{
+    if(!confirm('로그아웃 하시겠습니까?')) return;
+    try{ localStorage.removeItem('ki_full'); }catch(e){}
+    KI.logout();
+  });
+})();
+})();
+</script>
+</body>
+</html>
