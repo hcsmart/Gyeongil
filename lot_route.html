@@ -207,6 +207,10 @@
     else { m.className='msg'; m.textContent=''; }
   });
   const pName=c=>{const p=PROC.find(x=>x.process_code===c);return p?p.process_name:''};
+  /* 물류흐름 자동 문구 — 특기사항 앞머리에 기록 */
+  const node=(mp,ven)=>[mp?(pName(mp)?mp+'·'+pName(mp):mp):'', ven||''].filter(Boolean).join(' ')||'사내';
+  const flow=(from,to,q)=>'▶ '+from+' → '+to+(q?' · '+Number(q).toLocaleString()+'EA':'');
+  const rmkJoin=(...a)=>a.filter(x=>x&&String(x).trim()).join(' | ')||null;
   const routeOf=no=>RT.find(r=>String(r.standard_process_no)===String(no));
   /* 표준공정경로(기준정보 › 외주기준)의 단계만 가공공정으로 선택 — 순차 이동 관리 */
   function fillMp(routeNo,keep){
@@ -599,7 +603,8 @@
           await KI.ins(TBL.ospOrder,[body]);
           await KI.ins(TBL.lotMove,[{part:part, osp_no:Number(from)||null, io:'출고',
             mp:mp, vendor:ven, move_date:body.sdate||TODAY, out_qty:qty||null,
-            remark:full?null:'부분출고 — 잔량 '+(remain-qty).toLocaleString()+' 유지',
+            remark:rmkJoin(flow(node(src.mp,src.vendor),node(mp,ven),qty),
+                           full?'전량 이관':'부분출고 — 잔량 '+(remain-qty).toLocaleString()+' 유지'),
             worker:(KI.me()||{}).emp_name||'', source:'수동'}]).catch(()=>{});
           if(full) await KI.upd(TBL.ospOrder,'no=eq.'+from,{idate:body.sdate||TODAY, st:'완료'});
           m.className='msg ok'; m.textContent='✓ '+(src.vendor?esc(src.vendor):'')+' → '+ven+
@@ -612,6 +617,7 @@
           await KI.ins(TBL.ospOrder,[body]);
           await KI.ins(TBL.lotMove,[{part:part, io:'출고', mp:mp, vendor:ven,
             move_date:body.sdate||TODAY, out_qty:qty||null,
+            remark:rmkJoin(flow('사내 출발',node(mp,ven),qty), first?'최초 반출':''),
             worker:(KI.me()||{}).emp_name||'', source:'수동'}]).catch(()=>{});
           m.className='msg ok'; m.textContent='✓ '+mp+' 공정으로 반출 등록되었습니다. (LOT '+lots.length+'건 · '+qty.toLocaleString()+')';
           KI.msg('✓ '+part+' → '+mp+' 반출');
@@ -657,7 +663,9 @@
       await KI.ins(TBL.lotMove,[{part:o.part||(sel?sel.part:''), osp_no:Number(no)||null, io:'입고',
         mp:o.mp||null, vendor:o.vendor||null, move_date:TODAY,
         out_qty:outQ||null, in_qty:inQ||null, short_qty:short, reason:reason||null,
-        remark:rmk||null, worker:(KI.me()||{}).emp_name||'', source:'수동'}]);
+        remark:rmkJoin(flow(node(o.mp,o.vendor),'가공완료 입고',inQ)+
+                       (short?' (출고 '+outQ.toLocaleString()+' · 부족 '+short.toLocaleString()+')':''), rmk),
+        worker:(KI.me()||{}).emp_name||'', source:'수동'}]);
       m.className='msg ok';
       m.textContent='✓ 입고 처리되었습니다.'+(short?' (부족 '+short.toLocaleString()+' · '+reason+')':'');
       KI.msg('✓ 입고 처리'+(short?' — 부족 '+short.toLocaleString():''));
@@ -683,7 +691,9 @@
         qty:inQ||null, short_qty:short, reason:reason||null,
         worker:(KI.me()||{}).emp_name||'', remark:rmk||null}]);
       await KI.ins(TBL.lotMove,[{part:c.part, io:'사내입고', move_date:TODAY,
-        in_qty:inQ||null, short_qty:short, reason:reason||null, remark:rmk||null,
+        out_qty:baseQ||null, in_qty:inQ||null, short_qty:short, reason:reason||null,
+        remark:rmkJoin(flow(node(last.mp,last.vendor),'사내입고 종결',inQ)+
+                       (short?' (반출 '+baseQ.toLocaleString()+' · 부족 '+short.toLocaleString()+')':''), rmk),
         worker:(KI.me()||{}).emp_name||'', source:'수동'}]);
       KI.msg('✓ '+c.part+' 사내입고 완료 — LOT이 종결되었습니다.');
       await load();
@@ -696,7 +706,7 @@
     const box=$('#moveBox'); box.innerHTML='';
     try{
       const mv=await KI.get(OBJ.lotMove+'?select=*&part=eq.'+encodeURIComponent(part)+
-                            '&order=created_at.desc&limit=8');
+                            '&order=move_date.desc,move_id.desc&limit=8');
       if(sel&&sel.part===part) drawFlow(sel,mv);   /* 실제 입출고 일자로 다이어그램 갱신 */
       if(!mv.length)return;
       box.innerHTML='<div class="lr-open"><h5>📝 현장 기록 — QR 입출고 · 특기사항 (최근 '+mv.length+'건)</h5>'+
