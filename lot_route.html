@@ -144,6 +144,7 @@
     '<div class="lr-mb">'+
       '<div class="lr-info" id="infoBox">'+
         '<b>JOB</b><span id="iJob"></span><b>LOT</b><span id="iPart"></span>'+
+        '<b>품번</b><span id="iMap"></span><b>금형제번</b><span id="iMold"></span>'+
         '<b>표준공정</b><span id="iStd"></span><b>진척</b><span id="iRate"></span>'+
         '<b>현재 공정</b><span id="iCur"></span><b>현재 외주처</b><span id="iVen"></span>'+
       '</div>'+
@@ -381,6 +382,10 @@
     const g1=$('#fJobGen'); if(g1) g1.style.display='none';
     $('#mTtl').textContent='진행등록 — '+(c.part||'');
     $('#iJob').textContent=c.job||'-';   $('#iPart').textContent=c.part||'-';
+    const om=ospOf(c.part).find(o2=>o2.map_part||o2.mold_no)||{};
+    const mapv=c.map_part||om.map_part||'', mo3=mapv?moldOf(mapv):null;
+    $('#iMap').textContent=mapv||'-';
+    $('#iMold').textContent=(mo3&&mo3.mold_no)||om.mold_no||'-';
     $('#iStd').textContent=c.std?c.std.standard_process_name:'(미매칭)';
     $('#iRate').innerHTML=c.done+'/'+c.total+' <b style="color:#1d568c">'+c.rate+'%</b>'+
       (c.wip?' <span class="badge" style="background:#e9f2fc;color:#1d568c">'+esc(c.wipMp)+' 반출중</span>':'');
