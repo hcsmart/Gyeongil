@@ -121,7 +121,7 @@
   const L=el('div','lr-list');
   const tb=el('div','ck-tb');
   tb.innerHTML='<span style="font-weight:700;color:#526171">검색</span>'+
-    '<input type="text" id="q" placeholder="LOT · JOB · 외주처" style="height:24px;border:1px solid #aeb9c4;padding:0 6px;width:220px">'+
+    '<input type="text" id="q" placeholder="LOT · JOB · 품번 · 외주처" style="height:24px;border:1px solid #aeb9c4;padding:0 6px;width:220px">'+
     '<span style="font-weight:700;color:#526171;margin-left:8px">상태</span>'+
     '<select id="fs"><option value="">전체</option><option>진행중</option><option>외주 반출중</option>'+
       '<option>표준완료</option><option value="사내입고 대기">사내입고 대기</option>'+
@@ -267,7 +267,7 @@
     const q=$('#q').value.trim().toLowerCase(), f=$('#fs').value;
     tbody.innerHTML='';
     const list=ROWS.map(calc).filter(c=>{
-      if(q && ![c.part,c.job,c.last.vendor].some(v=>String(v||'').toLowerCase().includes(q))) return false;
+      if(q && ![c.part,c.job,c.map_part,c.last.vendor].some(v=>String(v||'').toLowerCase().includes(q))) return false;
       const os=ospState(c.part).t;
       if(f==='외주 반출중') return os==='반출중';
       if(f==='표준완료')  return c.std && !c.rest.length;
@@ -336,8 +336,9 @@
       (st2?'<div class="s">'+st2+'</div>':'')+'</div>';
     const arrow=cls=>'<div class="fx-arrow'+(cls?' '+cls:'')+'">→</div>';
     const seq = c.sd.length ? c.sd : c.steps.map(x=>x.mp);   /* 미매칭 시 실제 경유 순서 */
-    /* 현재 위치 : 종결 > 반출중 > 마지막 완료 공정 > 사내 */
-    const doneOf=x=>!!c.steps.find(s2=>s2.mp===x)||c.seen.has(x);
+    /* 현재 위치 : 종결 > 반출중 > 마지막 완료 공정 > 사내
+       완료 판정 : 진행이력(steps) 또는 현장 기록(도착·입고) 중 하나라도 있으면 완료 */
+    const doneOf=x=>!!c.steps.find(s2=>s2.mp===x)||c.seen.has(x)||!!arr(null,x);
     const lastDone=[...seq].reverse().find(doneOf)||'';
     const closed=!!c.recv||!!inh;
     const curPos= closed?'recv' : c.wipMp?('wip:'+c.wipMp) : lastDone?('mp:'+lastDone) : 'home';
