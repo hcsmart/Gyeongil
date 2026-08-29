@@ -155,7 +155,7 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
         '<tr><th>표준공정</th><td colspan="3">'+(rt
           ? '<div style="margin-bottom:3px">'+esc(rt.standard_process_name)+' ('+steps.length+'단계 · 외주 '+
               steps.filter(x=>kindOfMp(x)!=='사내').length+' · 사내 '+steps.filter(x=>kindOfMp(x)==='사내').length+')</div>'+
-            '<div style="white-space:normal;line-height:2">'+
+            '<div class="rchain" style="white-space:normal;line-height:2">'+
             '<span class="rc home">🏭 사내</span>'+
             steps.map(x=>{const i=kindOfMp(x)==='사내';
               return '<span class="rar'+(i?' in':'')+'">'+(i?'⇢':'→')+'</span>'+

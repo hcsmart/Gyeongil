@@ -241,7 +241,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   const gw=el('div','grid-wrap'); const tbl=el('table','grid');
   tbl.innerHTML='<thead><tr>'+
     '<th style="width:110px">JOB</th><th style="width:104px">품번</th><th style="width:104px">LOT</th>'+
-    '<th style="width:120px">표준공정</th><th style="width:340px">공정 진행</th>'+
+    '<th style="width:152px">표준공정</th><th style="width:320px">공정 진행</th>'+
     '<th style="width:110px">현재 이동처</th><th style="width:92px">이동일자</th>'+
     '<th style="width:120px">진척</th>'+
     '<th style="width:64px">삭제</th></tr></thead><tbody></tbody>';
@@ -333,10 +333,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   });
   const pName=c=>{const p=PROC.find(x=>x.process_code===c);return p?p.process_name:''};
   /* 물류흐름 자동 문구 — 특기사항 앞머리에 기록 */
+  /* 표시용(구분 배지가 별도 컬럼에 있으므로 접두어 없음) */
+  const nodeP=(mp,ven)=>[mp?(pName(mp)?mp+'·'+pName(mp):mp):'', ven||''].filter(Boolean).join(' ')||'사내';
+  /* 특기사항(remark) 기록용 — 이력에 구분이 남도록 접두어 포함 */
   const node=(mp,ven,k)=>{
-    const t=[mp?(pName(mp)?mp+'·'+pName(mp):mp):'', ven||''].filter(Boolean).join(' ');
-    if(!t) return '사내';
-    return (k==='사내'?'[사내] ':'[외주] ')+t;
+    const t=nodeP(mp,ven);
+    return t==='사내'?t:(k==='사내'?'[사내] ':'[외주] ')+t;
   };
   const flow=(from,to,q)=>'▶ '+from+' → '+to+(q?' · '+Number(q).toLocaleString()+'EA':'');
   const rmkJoin=(...a)=>a.filter(x=>x&&String(x).trim()).join(' | ')||null;
@@ -975,7 +977,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       ||(Number(a.move_id)||0)-(Number(b.move_id)||0));
     const map={}; let loc='사내'; const prev={};
     asc.forEach(v=>{
-      const here=node(v.mp,v.vendor,v.move_kind);
+      const here=nodeP(v.mp,v.vendor);
       if(v.io==='출고'){        map[v.move_id]={f:loc, t:here, q:v.out_qty}; prev[here]=loc; loc=here; }
       else if(v.io==='도착'){   map[v.move_id]={f:prev[here]||'사내', t:here, q:v.in_qty}; loc=here; }
       else if(v.io==='입고'){   map[v.move_id]={f:here, t:'사내 복귀', q:v.in_qty}; loc='사내'; }
