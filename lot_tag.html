@@ -25,6 +25,23 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
 .mv td{border:1px solid #8494a4;height:30px;padding:3px 5px;font-size:11px}
 .mv td.c{text-align:center}
 .mv td.done{background:#f2f8f3;color:#15803d;font-weight:700}
+/* 이동 구분 : 외주 = 파랑 #2e77bd · 사내 = 주황 #e8862e */
+.kb{display:inline-block;padding:0 5px;border:1px solid #bcd0e4;background:#eef5fc;color:#1d568c;
+  border-radius:2px;font-size:10px;font-weight:800;white-space:nowrap}
+.kb.in{border-color:#ecd0a8;background:#fdf1e3;color:#a75f11}
+.mv tr.r-in td{background:#fffaf4}
+.mv tr.r-in td.kc{color:#a75f11;font-weight:800}
+.mv tr.r-out td.kc{color:#1d568c;font-weight:800}
+.rc{display:inline-block;padding:1px 6px;border:1px solid #bcd0e4;border-radius:3px;
+  background:#eef5fc;color:#1d568c;font-size:10.5px;font-weight:800;white-space:nowrap}
+.rc.in{border-color:#ecd0a8;background:#fdf1e3;color:#a75f11}
+.rc.home{border-color:#cfd7de;background:#eef1f4;color:#5b6b7b}
+.rar{display:inline-block;margin:0 2px;color:#9fb0c0;font-weight:800}
+.rar.in{color:#e8862e}
+.lgd{display:flex;gap:10px;align-items:center;font-size:10px;color:#5b6b7b;margin-top:5px}
+.sig{margin-top:9px;border:1px solid #8494a4;border-collapse:collapse;width:100%}
+.sig th{background:#fdf1e3;border:1px solid #b6c3cf;font-size:11px;padding:4px 6px;color:#a75f11;width:90px}
+.sig td{border:1px solid #b6c3cf;height:34px;padding:3px 6px}
 .foot{margin-top:9px;font-size:10.5px;color:#526171;line-height:1.7;border-top:1px dashed #b6c3cf;padding-top:6px}
 .bar{margin:14px auto 0;width:210mm;display:flex;gap:8px;justify-content:flex-end}
 .bar button{height:30px;padding:0 16px;border:1px solid #2e6497;background:#2e77bd;color:#fff;font-weight:700;cursor:pointer}
@@ -65,6 +82,15 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
   const rt = r.route_no ? rts.find(x=>String(x.standard_process_no)===String(r.route_no))
            : rts.find(x=>String(x.standard_process_no)===String(last.route_no||''));
   const steps = rt&&Array.isArray(rt.steps)?rt.steps:[];
+  /* 이동 구분 : 표준공정경로의 inhouse 우선 → 실제 이동건의 move_kind → 기본 외주 */
+  const INH = new Set(rt&&Array.isArray(rt.inhouse)?rt.inhouse:[]);
+  function kindOfMp(mp){
+    if(!mp) return '외주';
+    if(steps.indexOf(mp)>=0) return INH.has(mp)?'사내':'외주';
+    const o=osp.filter(x=>x.mp===mp).sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0];
+    return (o&&o.move_kind==='사내')?'사내':'외주';
+  }
+  const kb=k=>'<span class="kb'+(k==='사내'?' in':'')+'">'+(k==='사내'?'사내':'외주')+'</span>';
   const seen = new Set((Array.isArray(r.steps)?r.steps:[]).map(s=>s.mp));
   const hist = mp => (Array.isArray(r.steps)?r.steps:[]).find(s=>s.mp===mp)||{};
   const ordOf = mp => osp.filter(o=>o.mp===mp).sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0]||{};
@@ -93,17 +119,19 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
   let loc='사내'; const prevAt={};
   const flow = asc.map(v=>{
     const here=node(v.mp,v.vendor); let f='',t='',q=null;
+    const kd = v.move_kind==='사내' ? '사내' : (v.mp?kindOfMp(v.mp):'외주');
     if(v.io==='출고'){        f=loc; t=here; q=v.out_qty; prevAt[here]=loc; loc=here; }
     else if(v.io==='도착'){   f=prevAt[here]||'사내'; t=here; q=v.in_qty; loc=here; }
     else if(v.io==='입고'){   f=here; t='사내 복귀'; q=v.in_qty; loc='사내'; }
     else if(v.io==='사내입고'){f=(v.mp||v.vendor)?here:loc; t='사내입고 (종결)'; q=v.in_qty; loc='사내'; }
     else return null;
-    return {d:v.move_date||'', io:v.io, f:f, t:t, q:q, s:Number(v.short_qty)||0, rmk:v.remark||v.reason||''};
+    return {d:v.move_date||'', io:v.io, k:kd, f:f, t:t, q:q, s:Number(v.short_qty)||0, rmk:v.remark||v.reason||''};
   }).filter(Boolean);
 
-  const rows = flow.map((x,i)=>'<tr>'+
+  const rows = flow.map((x,i)=>'<tr class="'+(x.k==='사내'?'r-in':'r-out')+'">'+
     '<td class="c">'+(i+1)+'</td>'+
     '<td class="c">'+esc(x.d)+'</td>'+
+    '<td class="c kc">'+(x.io==='사내입고'?'—':kb(x.k))+'</td>'+
     '<td class="c'+(x.io==='사내입고'?' done':'')+'">'+esc(x.io)+'</td>'+
     '<td>'+esc(x.f)+'</td>'+
     '<td class="c" style="color:#7b8794">▶</td>'+
@@ -113,7 +141,7 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
     '<td></td>'+
     '<td>'+esc(x.rmk)+'</td>'+
   '</tr>').join('');
-  const blank='<tr>'+'<td class="c"></td>'.repeat(3)+'<td></td><td class="c"></td><td></td>'+
+  const blank='<tr>'+'<td class="c"></td>'.repeat(4)+'<td></td><td class="c"></td><td></td>'+
     '<td class="c"></td><td class="c"></td><td></td><td></td></tr>';
   const restN = Math.max(steps.filter(x=>!doneMp.has(x)).length*2, 2);
 
@@ -124,8 +152,19 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
       '<table class="inf"><tbody>'+
         '<tr><th>LOT 번호</th><td style="font-size:15px">'+esc(part)+'</td><th>JOB</th><td>'+esc(r.job||last.job||'')+'</td></tr>'+
         '<tr><th>품번</th><td>'+esc(last.map_part||'')+'</td><th>금형제번</th><td>'+esc(last.mold_no||'')+'</td></tr>'+
-        '<tr><th>표준공정</th><td colspan="3">'+(rt?esc(rt.standard_process_name)+' ('+steps.length+'단계) — '+
-          steps.map(x=>esc(x)+(pName(x)?'·'+esc(pName(x)):'')+(doneMp.has(x)?' ✓':'')).join(' → '):'(미매칭)')+'</td></tr>'+
+        '<tr><th>표준공정</th><td colspan="3">'+(rt
+          ? '<div style="margin-bottom:3px">'+esc(rt.standard_process_name)+' ('+steps.length+'단계 · 외주 '+
+              steps.filter(x=>kindOfMp(x)!=='사내').length+' · 사내 '+steps.filter(x=>kindOfMp(x)==='사내').length+')</div>'+
+            '<div style="white-space:normal;line-height:2">'+
+            '<span class="rc home">🏭 사내</span>'+
+            steps.map(x=>{const i=kindOfMp(x)==='사내';
+              return '<span class="rar'+(i?' in':'')+'">'+(i?'⇢':'→')+'</span>'+
+                '<span class="rc'+(i?' in':'')+'">'+(i?'🏭 ':'🚚 ')+esc(x)+
+                (pName(x)?'·'+esc(pName(x)):'')+(doneMp.has(x)?' ✓':'')+'</span>';}).join('')+
+            '<span class="rar">→</span><span class="rc home">🏭 사내입고</span></div>'+
+            '<div class="lgd"><span class="rc" style="padding:0 4px">외주</span> 협력사 반출·입고'+
+            '<span class="rc in" style="padding:0 4px">사내</span> 사내 작업장 이동</div>'
+          : '(미매칭)')+'</td></tr>'+
         '<tr><th>총수량</th><td>'+(last.qty!=null?Number(last.qty).toLocaleString():'')+'</td>'+
             '<th>사내입고</th><td>'+(rcpt[0]?esc(rcpt[0].in_date)+' · '+Number(rcpt[0].qty||0).toLocaleString():'미입고')+'</td></tr>'+
       '</tbody></table>'+
@@ -135,7 +174,8 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
     '</div>'+
     '<div class="rt"><h3>공정별 입출고 기록 (물류 흐름)</h3>'+
     '<table class="mv"><thead><tr>'+
-      '<th style="width:30px">순번</th><th style="width:66px">일자</th><th style="width:54px">구분</th>'+
+      '<th style="width:30px">순번</th><th style="width:66px">일자</th>'+
+      '<th style="width:46px">구분</th><th style="width:54px">이동</th>'+
       '<th>출고처</th><th style="width:16px"></th><th>입고처</th>'+
       '<th style="width:52px">수량</th><th style="width:42px">부족</th>'+
       '<th style="width:52px">확인(인)</th><th style="width:22%">특기사항</th>'+
@@ -145,10 +185,24 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
       '· 불량 등으로 <b>수량이 부족하게 출고되는 경우</b> 반드시 부족수량과 사유를 기록해 주십시오.<br>'+
       '· QR 사용이 불가한 경우 본 이동표에 수기 기재 후 LOT과 함께 반송해 주십시오.<br>'+
       '· 본 이동표는 <b>LOT당 1장</b>만 발행됩니다. 제품과 함께 다음 공정 · 다음 업체로 전달해 주십시오. '+
-      '<b>분실 시 발주처에 재발행을 요청</b>하시고, 기존 이동표는 폐기해 주십시오.'+
+      '<b>분실 시 발주처에 재발행을 요청</b>하시고, 기존 이동표는 폐기해 주십시오.<br>'+
+      '· <span class="kb">외주</span> 구간은 협력사 반출 · 입고, <span class="kb in">사내</span> 구간은 '+
+      '<b>사내 작업장 간 이동</b>입니다. 사내 구간은 단가 · 납기 없이 이동일 · 이동처(작업장)와 수량만 기록합니다.'+
     '</div>'+
+    /* 사내 이동 구간이 있으면 인수확인란을 함께 인쇄 */
     (function(){
-      const names=[...new Set(osp.map(o=>o.vendor).filter(Boolean))];
+      const inSteps=steps.filter(x=>kindOfMp(x)==='사내');
+      if(!inSteps.length) return '';
+      return '<table class="sig"><tbody>'+
+        '<tr><th>사내 이동 구간</th><td colspan="3">'+
+          inSteps.map(x=>'<span class="rc in">🏭 '+esc(x)+(pName(x)?'·'+esc(pName(x)):'')+'</span>').join(' ')+
+        '</td></tr>'+
+        '<tr><th>인계 (작업장)</th><td></td><th>인계자 (인)</th><td></td></tr>'+
+        '<tr><th>인수 (작업장)</th><td></td><th>인수자 (인)</th><td></td></tr>'+
+        '</tbody></table>';
+    })()+
+    (function(){
+      const names=[...new Set(osp.filter(o=>o.move_kind!=='사내').map(o=>o.vendor).filter(Boolean))];
       const hit=names.map(venOf).filter(Boolean);
       if(!hit.length) return '';
       return '<div class="foot" style="border-top:1px solid #b6c3cf">'+
