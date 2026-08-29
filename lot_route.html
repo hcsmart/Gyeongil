@@ -98,6 +98,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cn.ok{background:#eaf6ee;border-color:#a8d6ba;color:#1f7a45}
 .cn.ok em{color:#3f8f60}
+.cn.cur{background:#2f7d4d;border-color:#2f7d4d;color:#fff}
+.cn.cur em{color:#d6ecdd}
 .cn.wip{background:#2e77bd;border-color:#2e77bd;color:#fff}
 .cn.wip em{color:#dbe9f8}
 .cn.home{background:#eef1f4;border-color:#cfd7de;color:#5b6b7b}
@@ -372,10 +374,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     let html='<span class="cn home'+(c.recv?' ok':'')+'">🏭 사내</span>';
     sd.forEach((mp,i)=>{
       const done=c.seen.has(mp), wip=(c.wipMp===mp);
+      /* 현재 위치(도착 후 보유 중)는 진행등록 다이어그램과 동일하게 짙은 녹색 */
+      const cur=!wip && done && !c.recv && !c.moving && c.last.mp===mp;
       /* 앞 구간 차량 : 이 단계로 이동중이면 깜빡임 */
       html+='<span class="cv'+(wip?' go':(done?' ok':''))+'">🚚</span>';
       const v=venOf(mp);
-      html+='<span class="cn'+(done?' ok':(wip?' wip':''))+'" title="'+esc(mp+(pName(mp)?' · '+pName(mp):''))+
+      html+='<span class="cn'+(cur?' cur':(done?' ok':(wip?' wip':'')))+'" title="'+esc(mp+(pName(mp)?' · '+pName(mp):''))+
             (dateOf(mp)?' / '+esc(dateOf(mp)):'')+'">'+esc(mp)+
             (v?'<em>'+esc(v)+'</em>':'')+'</span>';
     });
