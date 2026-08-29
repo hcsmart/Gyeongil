@@ -4,7 +4,7 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'GI MES',
-  VER      : 'v13.1',
+  VER      : 'v13.2',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
@@ -230,8 +230,8 @@ const MENU = [
      (전체 복원 → mod:[], sec:[], item:[] 로 비우기)
 ============================================================ */
 const HIDE = {
-  mod : ['mold','env'],                 // 1차 모듈 : 금형관리 · 온습도관리
-  sec : ['b-prod','b-chk'],             // 2차 : 기준정보 › 생산기준 · 점검기준
+  mod : ['env'],                        // 1차 모듈 : 온습도관리만 숨김 (금형관리 사용)
+  sec : [],                             // 2차 : 숨김 없음 (생산기준 · 점검기준 사용)
   item: []
 };
 
