@@ -315,16 +315,23 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const add=(MVST[String(r.part||'')]||[])
       .filter(x=>x.mp && !base.some(s=>s.mp===x.mp));
     const st=base.concat(add).sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
+    const seen0=new Set(st.map(s=>s.mp));
     let last=st[st.length-1]||{}, moving=false;
-    /* 입고 전(반출중)이라도 현재 위치를 표시 : 미입고 외주건 중 최근 출고건 */
+    /* 입고 전(반출중)이라도 현재 위치를 표시 : 미입고 외주건 중 최근 출고건
+       단, 도착확인이 된 건은 '이동중'이 아니라 그 업체에서 '작업중' */
     const op=ospOf(r.part).filter(o=>o.sdate&&!o.idate)
                .sort((a,b)=>String(b.sdate||'').localeCompare(String(a.sdate||''))
                           ||(Number(b.no)||0)-(Number(a.no)||0))[0];
     if(op && String(op.sdate||'')>=String(last.date||'')){
-      last={mp:op.mp,vendor:op.vendor,date:op.sdate}; moving=true;
+      last={mp:op.mp,vendor:op.vendor,date:op.sdate};
+      moving=!seen0.has(op.mp);
     }
-    /* 진행등록에서 선택·저장된 표준공정이 있으면 그것을 우선, 없으면 경유이력으로 역추적 */
-    const fixed=r.route_no?RT.find(x=>String(x.standard_process_no)===String(r.route_no)):null;
+    /* 표준공정 : 진행등록에 저장된 route_no 우선 → 없으면 반출건의 route_no → 그래도 없으면 역추적
+       (진행이력 뷰에는 route_no가 없어 반출건에서 보완해야 정확) */
+    const rno = r.route_no || (ospOf(r.part).slice()
+        .sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))
+        .find(o=>o.route_no)||{}).route_no || '';
+    const fixed=rno?RT.find(x=>String(x.standard_process_no)===String(rno)):null;
     const m=fixed?{rt:fixed}:matchRoute(st.map(s=>s.mp)), sd=m?(m.rt.steps||[]):[];
     const seen=new Set(st.map(s=>s.mp));
     const hit=sd.filter(x=>seen.has(x)), total=sd.length||st.length||1;
@@ -339,7 +346,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     return {no:r.no, job:r.job, part:r.part, proc:r.proc,
       map_part:r.map_part||(ospOf(r.part).find(o2=>o2.map_part)||{}).map_part||'',
       recv:rc||null,
-      route_no:r.route_no||'', moving:moving, steps:st, last:last, std:m?m.rt:null,
+      route_no:rno||'', moving:moving, steps:st, last:last, std:m?m.rt:null,
       sd:sd, seen:seen, done:done, total:total, rest:rest, wip:wip, wipMp:wipMp,
       rate: total?Math.round(done/total*100):0,
       wipRate: total?Math.round((done+wip)/total*100):0};
@@ -405,12 +412,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         '<td>'+esc(c.last.vendor||'-')+'</td>'+
         '<td class="center">'+esc(c.last.date||'')+
           (c.moving?'<br><small style="color:#1d568c;font-weight:700">이동중</small>':'')+'</td>'+
-        '<td style="display:flex;align-items:center;gap:5px">'+
+        '<td><div style="display:flex;align-items:center;gap:5px">'+
           '<div class="lr-bar">'+
             (c.wip?'<i class="wip" style="width:'+Math.min(c.wipRate,100)+'%"></i>':'')+
             '<i class="'+(c.rate>=100?'full':'')+'" style="width:'+Math.min(c.rate,100)+'%"></i></div>'+
-          '<span style="font-size:10px;color:#7b8794">'+c.done+'/'+c.total+
-            (c.wip?' <b style="color:#2e77bd">+1</b>':'')+'</span></td>'+
+          '<span style="font-size:10px;color:#7b8794;white-space:nowrap">'+c.done+'/'+c.total+
+            (c.wip?' <b style="color:#2e77bd">+1</b>':'')+'</span></div></td>'+
         '<td class="center" style="white-space:nowrap">'+
           (CAN_D?'<button class="lr-go del" style="background:#fff;color:#a0505a;border-color:#c9a0a8">삭제</button>':'')+
         '</td>';
