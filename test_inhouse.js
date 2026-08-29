@@ -275,6 +275,143 @@ console.log('\n[lot_tag.html] 공정이동표 — 구분 표기 · 사내 인수
      'th=' + heads + ' td=' + firstRowTds);
 }
 
+/* ========== 4. lot_scan.html (사내 PC 현장) ========== */
+console.log('\n[lot_scan.html] QR 입출고(현장) — 사내 이동 대응');
+{
+  const osp = [{ no: 1001, part: 'lot801', job: 'J1', mp: 'MS', vendor: '밀링실',
+    move_kind: '사내', route_no: '2', sdate: '2026-08-20', idate: '2026-08-22',
+    qty: 100, map_part: 'P-1' }];
+  const cap = {
+    get: u => {
+      if (u.startsWith('v_lot_progress')) return [{ no: 1, job: 'J1', part: 'lot801',
+        route_no: '2', steps: [{ mp: 'MS', vendor: '밀링실', date: '2026-08-22' }] }];
+      if (u.startsWith('v_osp_order')) return osp;
+      if (u.startsWith('v_std_route')) return ROUTES;
+      if (u.startsWith('v_process')) return PROCS;
+      if (u.startsWith('v_lot_move')) return [];
+      if (u.startsWith('v_lot_receipt')) return [];
+      if (u.startsWith('v_vendor')) return [{ vendor_name: '대성열처리' }];
+      return [];
+    }, ins: [], upd: []
+  };
+  const html = fs.readFileSync('lot_scan.html', 'utf8');
+  const dom = new JSDOM(html.replace(/<script[^>]*\bsrc=[^>]*><\/script>/g, ''),
+    { url: 'https://x.test/lot_scan.html?lot=lot801', runScripts: 'outside-only',
+      pretendToBeVisual: true });
+  const win = dom.window, doc = win.document;
+  win.confirm = () => true; win.alert = () => {}; win.prompt = () => null;
+  win.KI = makeKI(win, doc, cap);
+  win.OBJ = { lotProg: 'v_lot_progress', ospOrder: 'v_osp_order', stdRoute: 'v_std_route',
+    lotReceipt: 'v_lot_receipt', lotMove: 'v_lot_move', vendor: 'v_vendor', process: 'v_process' };
+  win.TBL = { ospOrder: 'outsourcing_order_status_rows', lotMove: 'ki_lot_move',
+    lotReceipt: 'ki_lot_receipt' };
+  const clean = html.replace(/<script[^>]*\bsrc=[^>]*><\/script>/g, '');
+  const re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
+  let mm; while ((mm = re.exec(clean))) win.eval(mm[1]);
+  await wait(150);
+
+  const chain = doc.querySelector('.chain');
+  ok('체인에 사내 구간(k-in)', chain && /k-in/.test(chain.innerHTML));
+  ok('체인에 외주 구간(k-out)', chain && /k-out/.test(chain.innerHTML));
+
+  /* 출고 탭 : 다음 공정 HQ(외주) 기본 */
+  ok('출고 구분 안내 박스 존재', !!doc.querySelector('#outKind'));
+  ok('HQ(외주) → 외주처 셀렉트 노출', doc.querySelector('#outVenRow').style.display !== 'none');
+  ok('HQ(외주) → 이동처 입력 숨김', doc.querySelector('#outSiteRow').style.display === 'none');
+
+  doc.querySelector('#outMp').value = 'WS';
+  doc.querySelector('#outMp').dispatchEvent(new win.Event('change', { bubbles: true }));
+  await wait(20);
+  ok('WS(사내) → 이동처 입력 노출', doc.querySelector('#outSiteRow').style.display !== 'none');
+  ok('WS(사내) → 외주처 셀렉트 숨김', doc.querySelector('#outVenRow').style.display === 'none');
+  ok('안내 박스가 사내(kbig in)', /in/.test(doc.querySelector('#outKind').className),
+     doc.querySelector('#outKind').className);
+  ok('이동처 추천 datalist', doc.querySelector('#dlSite').children.length > 0);
+
+  doc.querySelector('#outSite').value = 'WIRE실';
+  doc.querySelector('#outQty').value = '100';
+  doc.querySelector('#btOut').dispatchEvent(new win.Event('click', { bubbles: true }));
+  await wait(80);
+  const io1 = cap.ins.find(x => x.t === 'outsourcing_order_status_rows');
+  const im1 = cap.ins.find(x => x.t === 'ki_lot_move');
+  ok('발주행 move_kind=사내', io1 && io1.rows[0].move_kind === '사내', io1 && io1.rows[0].move_kind);
+  ok('발주행 vendor=WIRE실', io1 && io1.rows[0].vendor === 'WIRE실');
+  ok('이동이력 move_kind=사내', im1 && im1.rows[0].move_kind === '사내');
+}
+
+/* ========== 5. lot_qr.html (모바일 이동표 QR) ========== */
+console.log('\n[lot_qr.html] 협력사·사내 모바일 QR — 사내 이동 대응');
+{
+  const INFO = {
+    part: 'lot801',
+    lot: { no: 1, job: 'J1', part: 'lot801',
+      steps: [{ mp: 'MS', vendor: '밀링실', date: '2026-08-22' }] },
+    osp: [{ no: 1001, job: 'J1', mp: 'MS', vendor: '밀링실', move_kind: '사내',
+      sdate: '2026-08-20', idate: '2026-08-22', qty: 100, map_part: 'P-1', route_no: '2' },
+      { no: 1002, job: 'J1', mp: 'HQ', vendor: '대성열처리', move_kind: '외주',
+      sdate: '2026-08-23', idate: null, qty: 100, map_part: 'P-1', route_no: '2' }],
+    route: { standard_process_no: 2, standard_process_name: '4공정_MHGW',
+      steps: ['MS','HQ','GS','WS'], inhouse: ['MS','WS'] },
+    moves: [{ move_id: 3, osp_no: 1002, io: '출고', move_kind: '외주', mp: 'HQ',
+      vendor: '대성열처리', move_date: '2026-08-23', out_qty: 100 }],
+    receipt: null,
+    vendors: ['대성열처리', 'BTC'],
+    sites: ['밀링실', '연삭실'],
+    procs: PROCS.map(p => ({ c: p.process_code, n: p.process_name }))
+  };
+  const calls = [];
+  const html = fs.readFileSync('lot_qr.html', 'utf8');
+  const dom = new JSDOM(html.replace(/<script[^>]*\bsrc=[^>]*><\/script>/g, ''),
+    { url: 'https://x.test/lot_qr.html?t=TOK', runScripts: 'outside-only',
+      pretendToBeVisual: true });
+  const win = dom.window, doc = win.document;
+  win.KI_CFG = { SUPABASE_URL: 'https://db.test', SUPABASE_KEY: 'k' };
+  win.confirm = () => true;
+  win.fetch = async (url, opt) => {
+    const fn = url.split('/rpc/')[1];
+    const body = JSON.parse(opt.body);
+    calls.push({ fn, body });
+    if (fn === 'ki_scan_info') return { ok: true, text: async () => JSON.stringify(INFO) };
+    return { ok: true, text: async () => JSON.stringify({ ok: true, left: 0, kind: body.p_kind }) };
+  };
+  win.localStorage.setItem('ki_qr_vendor', '대성열처리');
+  win.localStorage.setItem('ki_qr_worker', '홍길동');
+  const code = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g.exec(
+    html.replace(/<script[^>]*\bsrc=[^>]*><\/script>/g, ''))[1];
+  win.eval(code);
+  await wait(150);
+
+  const steps = doc.querySelectorAll('.stp');
+  ok('공정 4단계 렌더', steps.length === 4, 'n=' + steps.length);
+  ok('MS 는 사내(k-in)', /k-in/.test(steps[0].className));
+  ok('HQ 는 외주(k-out)', /k-out/.test(steps[1].className));
+  ok('구분 라벨 표기', /사내/.test(steps[0].textContent) && /외주/.test(steps[1].textContent));
+
+  /* 출고 탭 열기 */
+  const outTab = [...doc.querySelectorAll('.tab button')].find(b => b.dataset.t === 'out');
+  outTab.dispatchEvent(new win.Event('click', { bubbles: true }));
+  await wait(30);
+  ok('출고 구분 안내 박스 존재', !!doc.querySelector('#outKind'));
+
+  doc.querySelector('#outMp').value = 'WS';
+  doc.querySelector('#outMp').dispatchEvent(new win.Event('change', { bubbles: true }));
+  await wait(20);
+  ok('WS(사내) → 이동처 입력 노출', doc.querySelector('#outSiteRow').style.display !== 'none');
+  ok('WS(사내) → 받는 업체 숨김', doc.querySelector('#outVenRow').style.display === 'none');
+  ok('안내 박스 사내 스타일', /kbig in/.test(doc.querySelector('#outKind').className));
+  ok('사내 이동처 datalist(D.sites)', doc.querySelector('#dlSite').children.length === 2);
+
+  doc.querySelector('#outSite').value = '연삭실';
+  doc.querySelector('#outQty').value = '100';
+  doc.querySelector('#act').dispatchEvent(new win.Event('click', { bubbles: true }));
+  await wait(80);
+  const outCall = calls.filter(c => c.fn === 'ki_scan_out').pop();
+  ok('ki_scan_out 호출됨', !!outCall);
+  ok('p_kind=사내 전달', outCall && outCall.body.p_kind === '사내', outCall && outCall.body.p_kind);
+  ok('p_vendor=연삭실 전달', outCall && outCall.body.p_vendor === '연삭실');
+  ok('p_token 전달', outCall && outCall.body.p_token === 'TOK');
+}
+
 console.log('\n──────────────────────────────');
 console.log('통과 ' + pass + ' / 실패 ' + fail);
 process.exit(fail ? 1 : 0);

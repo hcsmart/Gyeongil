@@ -66,6 +66,19 @@ body{font:15px/1.6 'Malgun Gothic','맑은 고딕',-apple-system,sans-serif;back
 .stp em{display:block;font-style:normal;font-size:11px;font-weight:800;margin-top:5px;color:var(--sub)}
 .stp.done em{color:var(--green)}.stp.now em{color:var(--orange)}.stp.next em{color:var(--blue)}
 .stp small{display:block;font-size:10px;color:#9aa7b3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 이동 구분 : 외주 = 파랑 · 사내 = 주황 */
+.stp.k-in i{border-style:dashed}
+.stp .kk{display:block;font-size:9.5px;font-weight:900;margin-top:2px;letter-spacing:.3px}
+.stp.k-in  .kk{color:#c96f1a}
+.stp.k-out .kk{color:#2668a8}
+.kb{display:inline-block;padding:1px 6px;border-radius:6px;font-size:10.5px;font-weight:900;
+    border:1px solid #bcd0e4;background:#eef5fc;color:#1d568c}
+.kb.in{border-color:#f0cfa6;background:#fdf1e3;color:#a75f11}
+.kbig{display:flex;align-items:center;gap:8px;border-radius:11px;padding:10px 12px;margin-bottom:12px;
+    font-size:13px;font-weight:800;border:1.5px solid #bcd0e4;background:#eef5fc;color:#1d568c}
+.kbig.in{border-color:#f0cfa6;background:#fdf1e3;color:#a75f11}
+.kbig .ic{font-size:17px}
+.hist .tag.t-in2{background:#fdf1e3;color:#a75f11}
 
 /* 탭 */
 .tab{display:flex;gap:6px;padding:0 12px 2px;overflow-x:auto}
@@ -202,16 +215,30 @@ const remainOf = o => { const a=arrQtyOf(o.no);
                         return Math.max((a==null?num(o.qty):a)-movedOf(o.no),0); };
 const arrivedOf = o => (D.moves||[]).find(m=>(m.io==='도착'||m.io==='입고')&&String(m.osp_no||'')===String(o.no))||null;
 const pName = c => { const p=(D.procs||[]).find(x=>x.c===c); return p?p.n:''; };
+/* 이동 구분 : 표준공정경로 inhouse 우선 → 실제 이동건 → 외주 */
+const kindOfMp = mp => {
+  if(!mp) return '외주';
+  const rt=D&&D.route;
+  if(rt&&Array.isArray(rt.steps)&&rt.steps.indexOf(mp)>=0)
+    return (Array.isArray(rt.inhouse)&&rt.inhouse.indexOf(mp)>=0)?'사내':'외주';
+  const o=(D&&D.osp?D.osp:[]).filter(x=>x.mp===mp).sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0];
+  return (o&&o.move_kind==='사내')?'사내':'외주';
+};
+const kindOfRow = o => (o&&o.move_kind==='사내')?'사내':'외주';
+const kb = k => '<span class="kb'+(k==='사내'?' in':'')+'">'+(k==='사내'?'🏭 사내':'🚚 외주')+'</span>';
 
 /* ── 업체 선택 ── */
 function gate(){
   const list=(D&&D.vendors?D.vendors:[]).slice();
+  /* 사내 작업장(부서)도 선택 대상 — 사내 이동 구간을 현장에서 직접 찍을 수 있게 한다 */
+  const sites=(D&&D.sites?D.sites:[]).filter(v=>v&&list.indexOf(v)<0);
   $('#meBtn').style.display='none'; bar.style.display='none';
   wrap.innerHTML='<div class="card"><div class="bd gate">'+
-    '<h2>🏭 우리 업체는?</h2>'+
-    '<p>한 번만 고르면 이 휴대폰에 저장됩니다.<br>다음부터는 QR을 찍는 즉시 우리 업체 기준으로 열립니다.</p>'+
+    '<h2>🏭 우리 작업장 · 업체는?</h2>'+
+    '<p>한 번만 고르면 이 휴대폰에 저장됩니다.<br>다음부터는 QR을 찍는 즉시 우리 기준으로 열립니다.</p>'+
     '<div class="vl" id="vl">'+
-      list.map(v=>'<button data-v="'+esc(v)+'"'+(v===MYVEN?' class="on"':'')+'>🏢 '+esc(v)+'</button>').join('')+
+      list.map(v=>'<button data-v="'+esc(v)+'"'+(v===MYVEN?' class="on"':'')+'>🚚 '+esc(v)+'</button>').join('')+
+      sites.map(v=>'<button data-v="'+esc(v)+'"'+(v===MYVEN?' class="on"':'')+'>🏭 '+esc(v)+' <small>(사내)</small></button>').join('')+
       '<button data-v="'+esc(HOME)+'"'+(MYVEN===HOME?' class="on"':'')+'>🏠 '+esc(HOME)+'</button>'+
     '</div>'+
     '<div class="fld"><label>담당자 성함</label><input id="gWk" value="'+esc(WORKER)+'" placeholder="기록에 남습니다"></div>'+
@@ -223,7 +250,7 @@ function gate(){
   bar.style.display=''; bar.innerHTML='<button class="go in" id="gGo">✅ 저장하고 시작</button>';
   $('#gGo').addEventListener('click',()=>{
     const wk=$('#gWk').value.trim();
-    if(!pick) return toast('업체를 선택하세요.');
+    if(!pick) return toast('작업장 · 업체를 선택하세요.');
     if(!wk) return toast('담당자 성함을 입력하세요.');
     MYVEN=pick; WORKER=wk;
     try{ localStorage.setItem('ki_qr_vendor',MYVEN); localStorage.setItem('ki_qr_worker',WORKER); }catch(e){}
@@ -264,14 +291,14 @@ function draw(){
   let hero;
   if(isHome()){
     hero = doneAll
-      ? {c:'home',ic:'🏭',t:'사내입고 대기',d:'모든 외주공정이 끝났습니다. 최종 입고수량을 등록해 LOT을 종결하세요.',q:num(first.qty),u:'반출수량'}
+      ? {c:'home',ic:'🏭',t:'사내입고 대기',d:'모든 공정이 끝났습니다. 최종 입고수량을 등록해 LOT을 종결하세요.',q:num(first.qty),u:'반출수량'}
       : {c:'wait',ic:'🏠',t:'발주처 모드',d:'진행 상황을 확인하고 필요 시 기록할 수 있습니다.',q:null};
   }else if(toArr.length){
     hero = {c:'in',ic:'📥',t:'입고할 물량이 있습니다',
             d:'우리 업체로 오고 있습니다. 도착하면 수량을 확인해 등록하세요.',q:remainOf(toArr[0]),u:'입고예정'};
   }else if(toOut.length){
     hero = {c:'out',ic:'📤',t:'출고할 물량이 있습니다',
-            d:'작업이 끝나면 다음 공정 업체로 출고 등록하세요.',q:remainOf(toOut[0]),u:'보유수량'};
+            d:'작업이 끝나면 다음 공정(사내 작업장 또는 협력사)으로 출고 등록하세요.',q:remainOf(toOut[0]),u:'보유수량'};
   }else if(others.length){
     hero = {c:'wait',ic:'⏳',t:'우리 차례가 아닙니다',
             d:'이 LOT은 현재 '+esc(vendorAt(others[0]))+'에 있습니다.',q:null};
@@ -305,8 +332,10 @@ function draw(){
       const o=open.find(y=>y.mp===x)||osp.slice().reverse().find(y=>y.mp===x)||{};
       const d=SEEN.has(x), now=(!isHome()&&x===myMp)||(isHome()&&open.some(y=>y.mp===x));
       const nx=(!d&&!now&&x===rest[0]);
-      return '<div class="stp '+(now?'now':d?'done':nx?'next':'')+'">'+
+      const k=kindOfMp(x);
+      return '<div class="stp '+(now?'now':d?'done':nx?'next':'')+' '+(k==='사내'?'k-in':'k-out')+'">'+
         '<i>'+(d?'✓':(i+1))+'</i><em>'+esc(x)+'</em>'+
+        '<span class="kk">'+(k==='사내'?'사내':'외주')+'</span>'+
         '<small>'+esc(o.vendor||pName(x)||'')+'</small></div>';
     }).join('')+'</div>':'')+
   '</div>'+
@@ -318,7 +347,7 @@ function draw(){
     '<div class="pane'+(TAB==='in'?' on':'')+'" data-p="in">'+
     (function(){
       const cand = isHome()? open : (toArr.length?toArr:mine);
-      if(!cand.length) return '<div class="empty">우리 업체로 입고될 건이 없습니다.'+
+      if(!cand.length) return '<div class="empty">우리 쪽으로 입고될 건이 없습니다.'+
         (others.length?'<br>현재 보유 : '+esc(vendorAt(others[0])):'')+'</div>';
       return '<div class="fld"><label>대상 LOT · 공정</label><select id="inNo">'+
         cand.map(o=>{const rem=remainOf(o);
@@ -353,8 +382,12 @@ function draw(){
               (pName(x)?' · '+esc(pName(x)):'')+(SEEN.has(x)?' ✓완료':'')+'</option>').join('')
           : (D.procs||[]).map(p=>'<option value="'+esc(p.c)+'">'+esc(p.c)+' · '+esc(p.n)+'</option>').join(''))+
       '</select></div>'+
-      '<div class="fld"><label>받는 업체</label><select id="outVen"><option value="">선택하세요</option>'+
+      '<div id="outKind" class="kbig"><span class="ic">🚚</span><span id="outKindT">외주 반출</span></div>'+
+      '<div class="fld" id="outVenRow"><label>받는 업체</label><select id="outVen"><option value="">선택하세요</option>'+
         VEN.map(v=>'<option'+(v===MYVEN?' disabled':'')+'>'+esc(v)+'</option>').join('')+'</select></div>'+
+      '<div class="fld" id="outSiteRow" style="display:none"><label>이동처 (사내 작업장 · 부서)</label>'+
+        '<input id="outSite" list="dlSite" autocomplete="off" placeholder="예: 연삭실 · 2공장">'+
+        '<datalist id="dlSite">'+(D.sites||[]).map(v=>'<option value="'+esc(v)+'"></option>').join('')+'</datalist></div>'+
       '<div class="fld"><label>출고수량</label>'+
         '<div class="qbox"><button data-q="-1">−</button>'+
         '<input type="number" id="outQty" inputmode="numeric"><button data-q="1">+</button></div>'+
@@ -388,6 +421,7 @@ function draw(){
   '<div class="card"><h3>🕘 최근 기록</h3><div class="bd" style="padding-top:6px">'+
     (MV.length?MV.map(v=>'<div class="hist"><div class="dt">'+esc(String(v.move_date||'').slice(5))+'</div>'+
       '<div class="bd2"><span class="tag '+(v.io==='출고'?'t-out':(v.io==='기록'?'t-etc':'t-in'))+'">'+esc(v.io)+'</span>'+
+      (v.io==='사내입고'?'':' '+kb(kindOfRow(v)))+' '+
       '<b>'+esc(v.mp||'')+'</b>'+(v.vendor?' · '+esc(v.vendor):'')+
       (num(v.in_qty)?' <b>'+fmt(v.in_qty)+'</b>':(num(v.out_qty)?' <b>'+fmt(v.out_qty)+'</b>':''))+
       (num(v.short_qty)>0?' <span class="neg">부족 '+fmt(v.short_qty)+'</span>':'')+
@@ -442,7 +476,7 @@ function draw(){
   }
 
   /* 출고 */
-  let outPool=null, outSrc=null;
+  let outPool=null, outSrc=null, OUTKIND=()=>'외주', OUTDEST=()=>'';
   if($('#outQty')){
     outPool = isHome()? open : (toOut.length?toOut:mine);
     outSrc=()=>outPool.find(o=>String(o.no)===$('#outFrom').value)||null;
@@ -459,9 +493,25 @@ function draw(){
     };
     const reset=()=>{ const s=outSrc(), base=s?remainOf(s):num(last.qty);
       $('#outQty').value=base||''; chips('#outTip','#outQty',base); sync(); };
+    /* 다음 공정의 이동 구분에 따라 받는 곳 입력을 전환 */
+    const kindSync=()=>{
+      const k=kindOfMp($('#outMp').value), inh=(k==='사내');
+      const box=$('#outKind');
+      box.className='kbig'+(inh?' in':'');
+      box.querySelector('.ic').textContent=inh?'🏭':'🚚';
+      $('#outKindT').innerHTML=inh
+        ? '<b>사내 이동</b> — 사내 작업장으로 넘깁니다 (외주 반출 아님)'
+        : '<b>외주 반출</b> — 협력사로 보냅니다';
+      $('#outVenRow').style.display  = inh?'none':'';
+      $('#outSiteRow').style.display = inh?'':'none';
+    };
+    OUTKIND = ()=>kindOfMp($('#outMp').value);
+    OUTDEST = ()=>(OUTKIND()==='사내'?($('#outSite')?$('#outSite').value.trim():'')
+                                     :($('#outVen')?$('#outVen').value:''));
+    $('#outMp').addEventListener('change',kindSync);
     $('#outFrom').addEventListener('change',reset);
     $('#outQty').addEventListener('input',sync);
-    stepper('[data-p="out"]','#outQty'); reset();
+    stepper('[data-p="out"]','#outQty'); reset(); kindSync();
   }
 
   /* 사내입고 */
@@ -499,16 +549,18 @@ function draw(){
       bar.style.display='';
       bar.innerHTML='<button class="go out" id="act">📤 출고 등록</button>';
       $('#act').addEventListener('click',async()=>{
-        const b=$('#act'), s=outSrc();
-        if(!$('#outVen').value) return toast('받는 업체를 선택하세요.');
+        const b=$('#act'), s=outSrc(), kd=OUTKIND(), dest=OUTDEST();
+        if(!dest) return toast(kd==='사내'?'사내 이동처(작업장·부서)를 입력하세요.':'받는 업체를 선택하세요.');
         if(num($('#outQty').value)<=0) return toast('출고수량을 입력하세요.');
         busy(b);
         try{
           const r=await rpc('ki_scan_out',{p_from:s?Number(s.no):null, p_mp:$('#outMp').value,
-            p_vendor:$('#outVen').value, p_date:$('#outDate').value||TODAY,
+            p_vendor:dest, p_kind:kd, p_date:$('#outDate').value||TODAY,
             p_qty:num($('#outQty').value), p_remark:$('#outRmk').value, p_worker:WORKER});
-          toast(r.left>0?'✓ 부분출고 완료 — 잔량 '+fmt(r.left)+'개 보유. 이동표는 제품과 함께 보내세요.'
-                        :'✓ 출고 완료 — 이동표를 제품과 함께 다음 업체로 보내세요.',1);
+          const tail = kd==='사내' ? '이동표를 제품과 함께 사내 다음 공정으로 넘기세요.'
+                                   : '이동표를 제품과 함께 다음 업체로 보내세요.';
+          toast(r.left>0?'✓ 부분출고 완료 — 잔량 '+fmt(r.left)+'개 보유. '+tail
+                        :'✓ '+(kd==='사내'?'사내이동':'출고')+' 완료 — '+tail,1);
           TAB=''; setTimeout(load,800);
         }catch(e){ toast('❌ '+e.message); b.disabled=false; b.innerHTML='📤 출고 등록'; }
       });
