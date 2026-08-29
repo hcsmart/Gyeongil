@@ -77,19 +77,15 @@ function dest(){
     }
     return r;
   }
-  /* 폰은 모바일 첫 화면 우선 */
+  /* 폰 전용 첫 화면이 지정된 경우에만 우선 적용 */
   const phone = Math.min(screen.width||9999, window.innerWidth||9999)<=820
              && /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent||'');
   if(phone && C.MOBILE_LANDING){
     const mid=Object.keys(FLAT).find(k=>FLAT[k].it.f===C.MOBILE_LANDING);
     if(!mid || KI.can(mid,'view')) return C.MOBILE_LANDING;
   }
-  /* 기본 화면 권한이 없는 계정(협력사 등)은 접근 가능한 첫 화면으로 */
-  const home=C.LANDING||'mold_due.html';
-  const homeId=Object.keys(FLAT).find(k=>FLAT[k].it.f===home);
-  if(!homeId || KI.can(homeId,'view')) return home;
-  const ok=Object.keys(FLAT).find(k=>KI.can(k,'view'));
-  return ok?FLAT[ok].it.f:home;
+  /* 기본은 빈 홈 (메뉴 선택 대기) — 권한 검사 대상이 아니다 */
+  return C.LANDING||'home.html';
 }
 async function go(){
   const id=uid.value.trim(), p=pw.value;

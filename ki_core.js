@@ -138,7 +138,7 @@ async function guard(menuId){
   if(!ME) await loadMe();                 /* ② 캐시 없을 때만 조회 */
   else setTimeout(()=>{ loadMe().catch(()=>{}); },0);   /* ③ 백그라운드 갱신 */
   if(!ME){ await signOut(); toLogin(); return false; }
-  if(mobileLanding(menuId)) return false;  /* 폰 : 첫 화면 · 숨김메뉴 → MOBILE_LANDING */
+  if(mobileLanding()) return false;       /* 폰 전용 첫 화면이 지정된 경우만 */
   if(menuId&&!can(menuId,'view')){
     alert('이 화면에 대한 조회 권한이 없습니다.\n관리자에게 문의하세요.');
     location.href=C.LANDING; return false;
@@ -177,15 +177,9 @@ function isPhone(){
   return Math.min(screen.width||9999, window.innerWidth||9999) <= 820
       && /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent||'');
 }
-/* 폰 첫 화면 : MOBILE_LANDING 으로 유도
-   ① 기본 랜딩(LANDING)에 들어왔을 때
-   ② 메뉴에서 숨긴 모듈(HIDE)의 화면에 들어왔을 때 — 폰에서는 되돌아갈 메뉴가 없음 */
-function visibleMenu(id){
-  const src=(typeof MENU_V!=='undefined')?MENU_V:null;
-  if(!src) return true;
-  return src.some(m1=>m1.second.some(m2=>m2.groups.some(g=>g.items.some(x=>x.id===id))));
-}
-function mobileLanding(curId){
+/* 폰 전용 첫 화면(MOBILE_LANDING)이 지정된 경우에만 전환.
+   비워두면 PC·모바일 모두 LANDING(빈 홈)을 그대로 사용한다. */
+function mobileLanding(){
   const f=C.MOBILE_LANDING;
   if(!f || !isPhone()) return false;
   if(/^kiPop_/.test(window.name||'')) return false;
@@ -193,8 +187,7 @@ function mobileLanding(curId){
   const tgt=String(f).split('?')[0].toLowerCase();
   if(here===tgt) return false;
   const land=String(C.LANDING||'').split('?')[0].toLowerCase();
-  const hidden = curId && !visibleMenu(curId);      /* 메뉴에 없는 화면 */
-  if(here!==land && !hidden) return false;
+  if(here!==land) return false;
   const id=Object.keys(FLAT).find(k=>String(FLAT[k].it.f).split('?')[0].toLowerCase()===tgt);
   if(id && !can(id,'view')) return false;
   location.replace(f);

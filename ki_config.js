@@ -4,12 +4,12 @@
 ============================================================ */
 const KI_CFG = {
   APP_NAME : 'GI MES',
-  VER      : 'v13.2',
+  VER      : 'v13.3',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
   DB_PREFIX    : 'ki_',
-  LANDING      : 'lot_route.html',    // 로그인 후 기본 화면 (PC)
-  MOBILE_LANDING:'vendor_stock.html', // 폰 접속 시 첫 화면 (권한 없으면 LANDING)
+  LANDING      : 'home.html',         // 로그인 후 첫 화면 (빈 홈 — 메뉴 선택 대기)
+  MOBILE_LANDING:'',                  // 폰 전용 첫 화면 (비우면 LANDING 사용)
   NAV_MODE     : 'drop',            // 'drop': 상단 메뉴 클릭 → 드롭다운 / 'top': 상단 가로바 / 'left': 좌측 트리
   SLIM_HEAD    : true,              // true: 화면제목·버튼을 상단바로 이동 + 안내문 숨김 (그리드 영역 최대)
   ACT_IN_MENU  : false,             // true: 실행버튼을 드롭다운 우측에 표시 / false: 상단바 우측 별도 버튼
@@ -274,7 +274,11 @@ const ACTS = {
 };
 
 /* 화면 id → {item, 모듈, 2차, 경로} 색인 (숨김 포함 — 직접 URL 접근 대응) */
-const FLAT = {};
+const FLAT = {
+  /* 로그인 후 첫 화면 — 메뉴에는 표시하지 않는다 */
+  home:{ it:{id:'home', f:'home.html', n:'홈', d:'메뉴를 선택하세요'},
+         mod:'', sec:'', modName:'', secName:'', path:'홈' }
+};
 MENU.forEach(m1=>m1.second.forEach(m2=>m2.groups.forEach(g=>g.items.forEach(it=>{
   FLAT[it.id] = {it:it, mod:m1.key, sec:m2.key, modName:m1.name, secName:m2.name,
                  path:m1.name+' › '+m2.name+' › '+it.n};
