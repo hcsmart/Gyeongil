@@ -218,7 +218,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   tbl.innerHTML='<thead><tr>'+
     '<th style="width:110px">JOB</th><th style="width:104px">품번</th><th style="width:104px">LOT</th>'+
     '<th style="width:120px">표준공정</th><th style="width:340px">공정 진행</th>'+
-    '<th style="width:110px">현재 외주처</th><th style="width:92px">이동일자</th>'+
+    '<th style="width:126px">현재 위치(보유처)</th><th style="width:92px">이동일자</th>'+
     '<th style="width:120px">진척</th>'+
     '<th style="width:64px">삭제</th></tr></thead><tbody></tbody>';
   gw.appendChild(tbl); L.appendChild(tb); L.appendChild(gw); ui.pg.appendChild(L);
@@ -234,7 +234,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         '<b>JOB</b><span id="iJob"></span><b>LOT</b><span id="iPart"></span>'+
         '<b>품번</b><span id="iMap"></span><b>금형제번</b><span id="iMold"></span>'+
         '<b>표준공정</b><span id="iStd"></span><b>진척</b><span id="iRate"></span>'+
-        '<b>현재 공정</b><span id="iCur"></span><b>현재 외주처</b><span id="iVen"></span>'+
+        '<b>현재 공정</b><span id="iCur"></span><b>현재 위치</b><span id="iVen"></span>'+
       '</div>'+
       '<div class="lr-chain" id="iChain"></div>'+
       '<div id="openBox"></div>'+
@@ -380,6 +380,20 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   const wipMpOf = c => { const o=openOsp(c); return o?(o.mp||''):''; };
   /* 제품의 현재 물리적 위치 : recv 종결 / wip 외주 보유 / home 사내 보유 */
   const posOf = c => c.recv ? 'recv' : (wipMpOf(c) ? 'wip' : 'home');
+  /* 목록 · CSV 의 [현재 외주처] : 사내로 입고되면 직전 외주처가 아니라 경일FB */
+  const holderOf = c => {
+    const p=posOf(c);
+    if(p==='recv') return '경일FB (사내입고 완료)';
+    if(p==='wip'){ const o=openOsp(c); return (o&&o.vendor)||c.last.vendor||'-'; }
+    return '경일FB (사내 보유)';
+  };
+  /* 현재 상태 문구 */
+  const stateOf = c => {
+    const p=posOf(c);
+    if(p==='recv') return '사내입고 완료';
+    if(p==='wip')  return c.seen.has(wipMpOf(c))?'외주 작업중':'이동중';
+    return c.std&&!c.rest.length?'사내입고 대기':'사내 보유';
+  };
   function ospState(part){
     const o=ospOf(part).filter(x=>x.sdate&&!x.idate);
     if(o.length) return {t:'반출중', n:o.length, rows:o};
@@ -443,9 +457,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         '<td style="font-weight:800;color:#22537f">'+esc(c.part||'')+'</td>'+
         '<td>'+(c.std?esc(c.std.standard_process_name):'<span style="color:#96a2ad">(미매칭)</span>')+'</td>'+
         '<td class="mini-chain">'+chainCell(c)+'</td>'+
-        '<td>'+esc(c.last.vendor||'-')+'</td>'+
+        '<td>'+(posOf(c)==='wip'
+            ? esc(holderOf(c))
+            : '<span style="color:#1d5a35;font-weight:700">'+esc(holderOf(c))+'</span>')+'</td>'+
         '<td class="center">'+esc(c.last.date||'')+
-          (c.moving?'<br><small style="color:#1d568c;font-weight:700">이동중</small>':'')+'</td>'+
+          '<br><small style="color:'+(posOf(c)==='wip'?'#1d568c':'#1d5a35')+
+          ';font-weight:700">'+esc(stateOf(c))+'</small></td>'+
         '<td><div style="display:flex;align-items:center;gap:5px">'+
           '<div class="lr-bar">'+
             (c.wip?'<i class="wip" style="width:'+Math.min(c.wipRate,100)+'%"></i>':'')+
@@ -557,7 +574,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           (c.seen.has(wmp)?'외주 작업중':'반출중')+'</span>'
       : '🏭 사내 보유'+(c.done?' <span class="badge" style="background:#eef7f0;color:#1d5a35">'+
           esc(c.last.mp||'')+' 완료 후 복귀</span>':' <span class="badge">출발 대기</span>');
-    $('#iVen').textContent = pos==='wip' ? (c.last.vendor||'-') : '사내 보유';
+    $('#iVen').textContent = holderOf(c);
     /* 공정 경로 */
     drawFlow(c,null);
     /* 미입고 건 */
@@ -971,7 +988,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   $('#mInh').addEventListener('click',()=>{ if(sel) inhouse(sel); });
 
   function csv(){
-    const head=['JOB','품번','LOT','표준공정','공정진행','현재공정','현재외주처','이동일자','상태','완료','전체','진척률'];
+    const head=['JOB','품번','LOT','표준공정','공정진행','현재공정','현재 위치(보유처)','이동일자','상태','완료','전체','진척률'];
     const chainTxt=c=>{
       if(!c.std) return '(미매칭)';
       const venOf=mp=>{const o=ospOf(c.part).filter(x=>x.mp===mp)
@@ -981,8 +998,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       })).concat(['사내'+(c.recv?'✓':'')]).join(' → ');
     };
     const body=ROWS.map(calc).map(c=>[c.job,c.map_part,c.part,c.std?c.std.standard_process_name:'(미매칭)',
-      chainTxt(c),c.last.mp,c.last.vendor,c.last.date,
-      (c.recv?'사내입고 완료':(c.moving?'이동중':(c.std&&!c.rest.length?'표준완료':'진행중'))),
+      chainTxt(c),c.last.mp,holderOf(c),c.last.date,stateOf(c),
       c.done,c.total,c.rate+'%']
       .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
     const a=el('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
