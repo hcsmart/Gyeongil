@@ -253,7 +253,9 @@ try{
       /* ── 출고 : 신규 반출 또는 미결 반출건에서 이관(부분출고 지원) ── */
       '<div class="pane" data-p="out"><div class="bd">'+
         '<div class="row"><label>출발</label><select id="outFrom">'+
-          '<option value="">신규 출고 (사내 출발)</option>'+
+          /* 제품이 외주처에 있으면(미결 반출건 존재) 사내 출발 출고는 성립하지 않는다 */
+          '<option value=""'+(open.length?' disabled':'')+'>신규 출고 (사내 출발)'+
+            (open.length?' — 사내 보유분 없음':'')+'</option>'+
           open.map(o=>{const rem=remainOf(o);
             return '<option value="'+o.no+'"'+(rem<=0?' disabled':'')+'>'+esc(o.mp)+' · '+esc(o.vendor||'')+
               ' 보유분 (잔량 '+rem.toLocaleString()+')'+(rem<=0?' — 출고 불가':'')+'</option>';}).join('')+'</select></div>'+
@@ -397,6 +399,12 @@ try{
          → 신규 출고(사내 출발)만 외주처로 반출 */
       const isHomeDest=()=>!!srcOf();
       function syncDest(){
+        /* 미결 반출건이 있는데 [사내 출발] 이 선택되면 보유분으로 되돌린다 */
+        if(!srcOf() && open.length){
+          const f=open.find(o=>remainOf(o)>0)||open[0];
+          $('#outFrom').value=String(f.no);
+          $('#outQty').value=remainOf(f)||'';
+        }
         const src=srcOf(), sel=$('#outDest');
         $('#outDestRow').style.display = src?'':'none';
         sel.value = src?'home':'ven';
@@ -420,7 +428,9 @@ try{
         const src=srcOf(), home=isHomeDest(), q=num($('#outQty').value);
         const rem=src?remainOf(src):0;
         let why='';
-        if(src && rem<=0)      why='이 보유분은 <b>잔량이 없습니다</b> — 이미 전량 이관·복귀되었습니다.';
+        if(!src && open.length) why='제품이 <b>외주처에 있습니다</b> — 사내 출발 출고는 등록할 수 없습니다. '+
+                                    '위 [출발]에서 보유분을 선택하세요.';
+        else if(src && rem<=0)  why='이 보유분은 <b>잔량이 없습니다</b> — 이미 전량 이관·복귀되었습니다.';
         else if(!q)            why='수량을 입력하세요.';
         else if(src && q>rem)  why='잔량(<b>'+rem.toLocaleString()+'</b>)보다 많이 '+(home?'입고':'출고')+'할 수 없습니다.';
         else if(!home && !$('#outMp').value)  why='다음 공정을 선택하세요.';
@@ -506,6 +516,7 @@ try{
           return;
         }
         if(src) return msg('외주처 보유분은 경일FB 사내입고로만 출고할 수 있습니다.');
+        if(open.length) return msg('제품이 외주처에 있어 사내 출발 출고를 등록할 수 없습니다.');
         const mp=$('#outMp').value, ven=$('#outVen').value;
         if(!mp) return msg('가공공정을 선택하세요.');
         if(!ven) return msg('받는 외주처를 선택하세요.');
