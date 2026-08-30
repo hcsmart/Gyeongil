@@ -270,8 +270,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       '</div></div></div>'+
     '</div>'+
     '<div class="lr-mf"><span class="msg" id="mMsg" style="font-weight:700"></span>'+
-      '<button class="btn" id="mTag" style="margin-left:auto">🖨 이동표(QR)</button>'+
-      '<button class="btn" id="mInh" style="display:none;background:#e8862e;border-color:#c96f1a;color:#fff;font-weight:700">🏭 사내입고</button>'+
+      '<button class="btn" id="mRf" style="margin-left:auto">🔄 새로고침</button>'+
+      '<button class="btn" id="mTag">🖨 이동표(QR)</button>'+
+      '<button class="btn" id="mInh" style="display:none;background:#e8862e;border-color:#c96f1a;color:#fff;font-weight:700">🏭 사내입고(종결)</button>'+
       '<button class="btn" id="mC">닫기</button>'+
       '<button class="btn" id="mEC" style="display:none">↩ 수정취소</button>'+
       '<button class="btn primary" id="mS">📤 반출 등록</button></div>';
@@ -627,9 +628,22 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     lotBody.innerHTML='';
     (base&&base.length?base:[{lot:c.part||'',qty:''}]).forEach(x=>lotRow(x.lot||c.part||'',x.qty));
     $('#mMsg').textContent=''; $('#mMsg').className='msg';
-    $('#mS').style.display=(CAN_S||CAN_E)?'':'none';
+    /* 이미 사내입고 종결된 LOT : 사내입고 · 반출 등록 모두 잠근다 */
+    const closed=!!c.recv;
+    const rq=closed?Number(c.recv.qty)||0:0, rs2=closed?Number(c.recv.short_qty)||0:0;
+    $('#mS').style.display=((CAN_S||CAN_E)&&!closed)?'':'none';
     $('#mTag').style.display='';
-    $('#mInh').style.display=((CAN_S||CAN_E)&&c.std&&!c.rest.length&&!c.wip&&!c.moving&&!c.recv)?'':'none';
+    $('#mRf').style.display='';
+    $('#mInh').style.display=((CAN_S||CAN_E)&&c.std&&!c.rest.length&&!c.wip&&!c.moving&&!closed)?'':'none';
+    $('#mInh').disabled=false;
+    if(closed){
+      $('#mMsg').className='msg';
+      $('#mMsg').innerHTML='<span style="color:#1d5a35">✅ 사내입고 완료 · '+esc(c.recv.in_date||'')+
+        ' · '+rq.toLocaleString()+(rs2?' (부족 '+rs2.toLocaleString()+')':'')+
+        ' — 종결된 LOT이라 추가 반출·입고를 할 수 없습니다.</span>';
+      setOutFold(false);
+    }
+    { const fh=$('#outFold'); if(fh) fh.style.display=closed?'none':''; }
     loadMoves(c.part);
     dim.classList.add('on'); mo.style.display='';
   }
@@ -672,6 +686,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     $('#mMsg').textContent=''; $('#mMsg').className='msg';
     $('#mS').style.display='';
     $('#mTag').style.display='none'; $('#mInh').style.display='none'; $('#moveBox').innerHTML='';
+    { const rf=$('#mRf'); if(rf) rf.style.display='none'; }
     dim.classList.add('on'); mo.style.display='';
     if(window.openOutForm) window.openOutForm();   /* 신규등록은 입력폼을 바로 펼침 */
     $('#fJob').focus();
@@ -770,6 +785,11 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   async function save(){
     const m=$('#mMsg');
     if(!sel && !NEW && !editNo) return;
+    if(sel && sel.recv && !editNo){
+      m.className='msg err';
+      m.textContent='❌ 이미 사내입고 종결된 LOT입니다. 추가 반출을 등록할 수 없습니다.';
+      return;
+    }
     /* 접혀 있으면 먼저 펼쳐 입력 내용을 보여준다 */
     const fd=$('#outFold');
     if(fd && !fd.classList.contains('open')){
@@ -889,6 +909,15 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   /* ── 사내 최종입고 (LOT 종결) ── */
   async function inhouse(c){
     if(!(CAN_S||CAN_E)) return KI.msg('❌ 등록 권한이 없습니다.');
+    const B=$('#mInh'); if(B&&B.disabled) return;
+    /* 이미 종결된 LOT은 중복 등록하지 않는다 (화면이 오래되어 버튼이 남아 있는 경우 방어) */
+    if(c.recv){
+      if(B){ B.disabled=true; B.style.display='none'; }
+      return alert('이미 사내입고 종결된 LOT입니다.\n입고일 '+(c.recv.in_date||'')+
+                   ' · 수량 '+(Number(c.recv.qty)||0).toLocaleString());
+    }
+    if(c.rest.length) return alert('아직 남은 공정이 있습니다 ('+c.rest.join(' · ')+').');
+    if(c.wip||c.moving) return alert('외주 반출중인 건이 있어 종결할 수 없습니다. 먼저 입고 처리하세요.');
     const last=ospOf(c.part).slice().sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0]||{};
     const baseQ=Number(last.qty)||0;
     const inS=prompt('['+c.part+'] 사내입고 수량을 입력하세요'+(baseQ?' (최종 반출 '+baseQ.toLocaleString()+')':''), String(baseQ||''));
@@ -898,6 +927,11 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     let reason='';
     if(short>0){ reason=prompt('부족 '+short.toLocaleString()+' — 사유를 입력하세요 (불량 등)','불량')||''; }
     const rmk=prompt('특기사항 (없으면 비워두세요)','')||'';
+    if(!confirm('['+c.part+'] 사내입고로 LOT을 종결하시겠습니까?\n\n'+
+        '입고수량 : '+inQ.toLocaleString()+(short?'  (부족 '+short.toLocaleString()+')':'')+'\n'+
+        '입고일 : '+TODAY+'\n\n'+
+        '※ 종결 후에는 반출·입고를 등록할 수 없습니다.')) return;
+    if(B){ B.disabled=true; B.textContent='⏳ 등록중...'; }
     try{
       await KI.upsert(TBL.lotReceipt+'?on_conflict=part',[{part:c.part, job:c.job||null, in_date:TODAY,
         qty:inQ||null, short_qty:short, reason:reason||null,
@@ -910,7 +944,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       KI.msg('✓ '+c.part+' 사내입고 완료 — LOT이 종결되었습니다.');
       await load();
       const c2=ROWS.map(calc).find(x=>x.part===c.part); if(sel&&c2) open(c2);
-    }catch(e){ alert('❌ '+e.message); }
+      if(B) B.textContent='🏭 사내입고(종결)';
+    }catch(e){ alert('❌ '+e.message);
+      if(B){ B.disabled=false; B.textContent='🏭 사내입고(종결)'; } }
   }
 
   /* ── 현장 기록 (QR 입출고 · 특기사항) ── */
@@ -986,6 +1022,26 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   $('#mS').addEventListener('click',save);
   $('#mTag').addEventListener('click',()=>{ if(sel) window.open('lot_tag.html?lot='+encodeURIComponent(sel.part),'_blank'); });
   $('#mInh').addEventListener('click',()=>{ if(sel) inhouse(sel); });
+  /* 팝업 안에서 최신 상태 다시 읽기 — 다른 사람이 QR로 처리한 내용을 바로 반영 */
+  $('#mRf').addEventListener('click',async()=>{
+    const b=$('#mRf'); if(b.disabled) return;
+    const keep=sel?sel.part:null, lb=b.textContent;
+    b.disabled=true; b.textContent='⏳ 갱신중...';
+    try{
+      await load();
+      if(keep){
+        const c2=ROWS.map(calc).find(x=>x.part===keep);
+        if(c2){
+          open(c2);
+          if(!c2.recv){ const m=$('#mMsg'); m.className='msg';
+            m.textContent='↻ 최신 상태로 갱신되었습니다. ('+new Date().toLocaleTimeString('ko-KR',{hour12:false})+')'; }
+        }else{
+          close(); KI.msg('해당 LOT을 목록에서 찾을 수 없습니다.');
+        }
+      }
+    }catch(e){ const m=$('#mMsg'); m.className='msg err'; m.textContent='❌ '+e.message; }
+    b.disabled=false; b.textContent=lb;
+  });
 
   function csv(){
     const head=['JOB','품번','LOT','표준공정','공정진행','현재공정','현재 위치(보유처)','이동일자','상태','완료','전체','진척률'];
