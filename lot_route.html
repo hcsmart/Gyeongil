@@ -510,10 +510,19 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     /* 완료 공정은 '사내 복귀'를 뜻하므로 현재 위치가 되지 않는다 */
     const curPos= closed?'recv' : wipMp2?('wip:'+wipMp2) : 'home';
     const nDone = seq.filter(doneOf).length;
-    let html=node('st-home', curPos==='home', '🏭 사내',
-      curPos==='home'&&nDone?'보유중':'출발',
-      curPos!=='home' ? '반출 완료'
-        : nDone ? '현재 위치 · '+nDone+'/'+seq.length+' 완료 · 다음 반출 대기'
+    const allDone = seq.length && seq.every(doneOf);
+    const rIn=c.recv?c.recv.in_date:(inh?inh.move_date:'');
+    const rQty=c.recv?Number(c.recv.qty)||0:(inh?Number(inh.in_qty)||0:0);
+    const rShort=c.recv?Number(c.recv.short_qty)||0:(inh?Number(inh.short_qty)||0:0);
+    /* 외주는 공정마다 이 '사내'로 되돌아오므로 사내 노드는 하나만 둔다
+       (출발 · 공정 간 복귀 · 최종 사내입고 종결을 모두 이 노드가 표시) */
+    let html=node(closed?'st-done':'st-home', closed||curPos==='home', '🏭 사내',
+      closed ? '종결' : (curPos==='home'&&nDone?'보유중':'출발'),
+      closed ? ('✓ 사내입고 '+md(rIn)+' · '+rQty.toLocaleString()+
+                (rShort?' <span style="color:#ffd9d9">(부족 '+rShort+')</span>':''))
+      : curPos!=='home' ? '반출 완료'
+      : allDone ? '현재 위치 · 전공정 완료 · 사내입고 대기'
+      : nDone   ? '현재 위치 · '+nDone+'/'+seq.length+' 완료 · 다음 반출 대기'
                 : '현재 위치 · 출발 대기');
     seq.forEach((x,i)=>{
       const info=c.steps.find(s2=>s2.mp===x);
@@ -534,19 +543,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
               : '<span class="truck">🚚</span> '+esc(c.last.vendor||'')+' 반출중'+(wDate?' · '+md(wDate):''))
         :nx?'다음 공정':'대기');
     });
-    const allDone = seq.length && seq.every(doneOf);
-    const rIn=c.recv?c.recv.in_date:(inh?inh.move_date:'');
-    const rQty=c.recv?Number(c.recv.qty)||0:(inh?Number(inh.in_qty)||0:0);
-    const rShort=c.recv?Number(c.recv.short_qty)||0:(inh?Number(inh.short_qty)||0:0);
-    html+=arrow(closed?'a-done':'');
-    html+=node(closed?'st-done':allDone?'st-next':'st-rest', curPos==='recv',
-      '🏭 사내입고','종결',
-      closed?('✓ '+md(rIn)+' · '+rQty.toLocaleString()+
-              (rShort?' <span style="color:#ffd9d9">(부족 '+rShort+')</span>':''))
-            :allDone?'입고 대기':'대기');
     $('#iChain').innerHTML='<div class="fx">'+html+'</div>'+
       '<div class="fx-lg">'+
-      '<span><i class="g1"></i>현재 위치(제품 보유)</span>'+
+      '<span><i class="g1"></i>현재 위치(사내 보유 · 출발/복귀 지점)</span>'+
       '<span><i class="g2"></i>공정 완료 · 사내복귀</span>'+
       '<span><i class="g3"></i>반출중(외주 보유)</span>'+
       '<span><i class="g4"></i>다음 공정</span></div>';
