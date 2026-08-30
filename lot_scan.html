@@ -21,16 +21,6 @@ body{font:14px/1.6 'Malgun Gothic','맑은 고딕',sans-serif;background:#eef1f4
 .chain span{padding:2px 8px;border-radius:2px;background:#eef1f4;color:#7b8794;white-space:nowrap}
 .chain .done{background:#2f7d4d;color:#fff;font-weight:700}
 .chain .nx{background:#2e77bd;color:#fff;font-weight:700}
-/* 이동 구분 : 외주 = 파랑 · 사내 = 주황 */
-.chain span.k-out{border-left:4px solid #2e77bd}
-.chain span.k-in {border-left:4px solid #e8862e}
-.chain .nx.k-in{background:#e8862e}
-.kb{display:inline-block;padding:0 6px;border-radius:3px;font-size:10.5px;font-weight:800;
-  border:1px solid #bcd0e4;background:#eef5fc;color:#1d568c}
-.kb.in{border-color:#f0cfa6;background:#fdf1e3;color:#a75f11}
-.kbig{display:flex;align-items:center;gap:7px;border-radius:6px;padding:7px 10px;margin:0 0 9px 100px;
-  font-size:12px;font-weight:800;border:1px solid #bcd0e4;background:#eef5fc;color:#1d568c}
-.kbig.in{border-color:#f0cfa6;background:#fdf1e3;color:#a75f11}
 .row{display:grid;grid-template-columns:92px 1fr;gap:8px;align-items:center;margin-bottom:8px}
 .row label{font-size:12px;font-weight:700;color:#526171}
 input,select,textarea{width:100%;border:1px solid #aeb9c4;padding:8px;font:inherit;font-size:14px}
@@ -51,6 +41,10 @@ textarea{min-height:64px}
 .pk{border:1px solid #d6dde4;border-left:4px solid #2e77bd;padding:9px 11px;margin-bottom:8px;background:#fbfcfd;cursor:pointer}
 .pk:active{background:#eef5fc}
 .pk b{color:#22537f;font-size:15px}
+.dnote{margin:-2px 0 9px 100px;padding:8px 10px;border-radius:4px;font-size:12.5px;font-weight:700;line-height:1.5}
+.dnote.home{background:#eef7f0;border:1px solid #a8d6ba;color:#1d5a35}
+.dnote.ven{background:#e9f2fc;border:1px solid #b6d3ee;color:#1d568c}
+@media(max-width:520px){.dnote{margin-left:0}}
 .pk small{display:block;color:#526171;margin-top:2px}
 </style>
 <script src="ki_config.js"></script>
@@ -189,19 +183,6 @@ try{
     draw();
   }
   const pName=c=>{const p=PROC.find(x=>x.process_code===c);return p?p.process_name:''};
-  /* 이동 구분 : 표준공정경로 inhouse 우선 → 실제 이동건 → 외주 */
-  const INH=()=>new Set(RT&&Array.isArray(RT.inhouse)?RT.inhouse:[]);
-  function kindOfMp(mp){
-    if(!mp) return '외주';
-    if(STEPS.indexOf(mp)>=0) return INH().has(mp)?'사내':'외주';
-    const o=OSP.filter(x=>x.mp===mp).sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0];
-    return (o&&o.move_kind==='사내')?'사내':'외주';
-  }
-  const kindOfRow=o=>(o&&o.move_kind==='사내')?'사내':'외주';
-  const kb=k=>'<span class="kb'+(k==='사내'?' in':'')+'">'+(k==='사내'?'🏭 사내':'🚚 외주')+'</span>';
-  /* 사내 이동처(작업장) 추천 : 과거 사용값 + 기본 제안 */
-  const SITES=()=>[...new Set(OSP.filter(o=>kindOfRow(o)==='사내').map(o=>o.vendor).filter(Boolean)
-    .concat(['1공장','2공장','밀링실','연삭실','방전실','WIRE실','열처리실','조립실','검사실','자재창고']))];
 
   function draw(){
     const open=OSP.filter(o=>o.sdate&&!o.idate);
@@ -220,9 +201,7 @@ try{
       '<b>사내입고</b><span>'+(RCPT?'✅ '+esc(RCPT.in_date)+' · '+num(RCPT.qty).toLocaleString():'미입고')+'</span></div>'+
       (STEPS.length?'<div class="chain">'+STEPS.map(x=>{
         const d=SEEN.has(x), w=open.some(o=>o.mp===x), n=(!d&&!w&&x===rest[0]);
-        const k=kindOfMp(x);
-        return '<span class="'+(d?'done':w?'nx':n?'nx':'')+' '+(k==='사내'?'k-in':'k-out')+
-               '" title="'+esc(k+' 이동')+'">'+esc(x)+(pName(x)?' '+esc(pName(x)):'')+
+        return '<span class="'+(d?'done':w?'nx':n?'nx':'')+'">'+esc(x)+(pName(x)?' '+esc(pName(x)):'')+
                (d?' ✓':w?' (진행중)':'')+'</span>';
       }).join(' → ')+'</div>':'')+
     '</div></div>'+
@@ -237,7 +216,7 @@ try{
       '<div class="pane on" data-p="in"><div class="bd">'+
       (open.length? '<div class="row"><label>대상 반출건</label><select id="inNo">'+
           open.map(o=>{const rem=remainOf(o), arr=arrivedOf(o);
-            return '<option value="'+o.no+'">['+kindOfRow(o)+'] '+esc(o.mp)+' · '+esc(o.vendor||'')+' ('+esc(o.sdate)+' 출고 '+
+            return '<option value="'+o.no+'">'+esc(o.mp)+' · '+esc(o.vendor||'')+' ('+esc(o.sdate)+' 출고 '+
               num(o.qty).toLocaleString()+(rem<num(o.qty)?' · 잔량 '+rem.toLocaleString():'')+')'+
               (arr?' — 도착✓':'')+'</option>';}).join('')+'</select></div>'+
         '<div class="row"><label>확인 업체</label><select id="inVen">'+
@@ -258,24 +237,28 @@ try{
         '<div class="row"><label>출발</label><select id="outFrom">'+
           '<option value="">신규 출고 (사내 출발)</option>'+
           open.map(o=>{const rem=remainOf(o);
-            return '<option value="'+o.no+'">이관 : ['+kindOfRow(o)+'] '+esc(o.mp)+' · '+esc(o.vendor||'')+
-              ' (잔량 '+rem.toLocaleString()+')</option>';}).join('')+'</select></div>'+
-        '<div class="row"><label>다음 공정</label><select id="outMp">'+
+            return '<option value="'+o.no+'">'+esc(o.mp)+' · '+esc(o.vendor||'')+
+              ' 보유분 (잔량 '+rem.toLocaleString()+')</option>';}).join('')+'</select></div>'+
+        /* 작업 완료품은 대부분 경일FB로 복귀 → 기본값을 사내입고로 둔다 */
+        '<div class="row" id="outDestRow"><label>보내는 곳</label><select id="outDest">'+
+          '<option value="home">🏭 경일FB 사내입고 (검사 후 다음 공정)</option>'+
+          '<option value="ven">🚚 다음 외주처로 직송</option></select></div>'+
+        '<div class="dnote" id="outDNote"></div>'+
+        '<div class="row" id="outMpRow"><label>다음 공정</label><select id="outMp">'+
           (STEPS.length
             ? STEPS.map(x=>'<option value="'+esc(x)+'"'+(x===rest[0]?' selected':'')+'>'+esc(x)+
                 (pName(x)?' · '+esc(pName(x)):'')+(SEEN.has(x)?' ✓완료':'')+'</option>').join('')
             : PROC.map(p=>'<option value="'+esc(p.process_code)+'">'+esc(p.process_code)+' · '+esc(p.process_name)+'</option>').join(''))+
         '</select></div>'+
-        '<div class="kbig" id="outKind"><span class="ic">🚚</span><span id="outKindT"></span></div>'+
         '<div class="row" id="outVenRow"><label>받는 외주처</label><select id="outVen"><option value="">선택</option>'+
           VEN.map(v=>'<option>'+esc(v.vendor_name)+'</option>').join('')+'</select></div>'+
-        '<div class="row" id="outSiteRow" style="display:none"><label>이동처</label>'+
-          '<input id="outSite" list="dlSite" autocomplete="off" placeholder="사내 작업장 · 담당부서">'+
-          '<datalist id="dlSite">'+SITES().map(v=>'<option value="'+esc(v)+'"></option>').join('')+'</datalist></div>'+
-        '<div class="row"><label>출고일</label><input type="date" id="outDate" value="'+TODAY+'"></div>'+
-        '<div class="row"><label>출고수량</label><input type="number" id="outQty" inputmode="numeric"></div>'+
+        '<div class="row"><label id="outDateL">출고일</label><input type="date" id="outDate" value="'+TODAY+'"></div>'+
+        '<div class="row"><label id="outQtyL">출고수량</label><input type="number" id="outQty" inputmode="numeric"></div>'+
         '<div id="outInfo" style="margin:-4px 0 8px 100px;font-size:12px"></div>'+
-        '<div class="row"><label>특기사항</label><textarea id="outRmk" placeholder="부분출고 사유 · 불량 등 (선택)"></textarea></div>'+
+        '<div class="row" id="outCloseRow" style="display:none"><label>마감</label>'+
+          '<label style="font-weight:400;font-size:13px"><input type="checkbox" id="outClose" '+
+          'style="width:auto;margin-right:6px">잔여 없음 — 부족으로 반출건 마감</label></div>'+
+        '<div class="row"><label>특기사항</label><textarea id="outRmk" placeholder="부분출고 · 부족 사유 등 (선택)"></textarea></div>'+
         '<button class="bt out" id="btOut">📤 출고(반출) 등록</button>'+
       '</div></div>'+
 
@@ -302,7 +285,7 @@ try{
       (MOVES.length?'<table class="hist" style="width:100%;border-collapse:collapse">'+
         MOVES.map(v=>'<tr><td style="width:76px">'+esc(v.move_date||'')+'</td>'+
           '<td style="width:66px"><span class="badge '+(v.io==='입고'||v.io==='사내입고'||v.io==='도착'?'b-in':v.io==='출고'?'b-out':'b-etc')+'">'+esc(v.io)+'</span></td>'+
-          '<td>'+(v.io==='사내입고'?'':kb(kindOfRow(v))+' ')+esc(v.mp||'')+(v.vendor?' · '+esc(v.vendor):'')+
+          '<td>'+esc(v.mp||'')+(v.vendor?' · '+esc(v.vendor):'')+
           (num(v.short_qty)>0?' <span class="short">부족 '+num(v.short_qty).toLocaleString()+'</span>':'')+
           (v.remark?'<br><small style="color:#526171">'+esc(v.remark)+'</small>':'')+'</td></tr>').join('')+'</table>'
       :'<span style="color:#8894a0">기록이 없습니다.</span>')+
@@ -337,7 +320,7 @@ try{
         const sh=Math.max(base-inQ,0), closeIt=$('#inClose').checked;
         try{
           if(closeIt) await KI.upd(TBL.ospOrder,'no=eq.'+o.no,{idate:$('#inDate').value||TODAY, st:'완료'});
-          await KI.ins(TBL.lotMove,[{part:PART, osp_no:Number(o.no)||null, move_kind:kindOfRow(o),
+          await KI.ins(TBL.lotMove,[{part:PART, osp_no:Number(o.no)||null,
             io:closeIt?'입고':'도착',
             mp:o.mp||null, vendor:$('#inVen').value||o.vendor||null, move_date:$('#inDate').value||TODAY,
             out_qty:base||null, in_qty:inQ||null, short_qty:sh,
@@ -354,8 +337,39 @@ try{
     /* ── 출고 : 신규 또는 미결 반출건에서 이관 — 부분출고 시 잔량 미결 유지 ── */
     (function(){
       const srcOf=()=>open.find(o=>String(o.no)===$('#outFrom').value)||null;
+      /* 보내는 곳 : home = 경일FB 사내 복귀(반출건 마감) / ven = 다음 외주처 직송
+         · 신규 출고(사내 출발)는 사내 복귀가 성립하지 않으므로 외주처 고정 */
+      const isHomeDest=()=>!!srcOf() && $('#outDest').value==='home';
+      function syncDest(){
+        const src=srcOf(), sel=$('#outDest');
+        $('#outDestRow').style.display = src?'':'none';
+        if(!src) sel.value='ven';
+        const home=isHomeDest();
+        $('#outMpRow').style.display = home?'none':'';
+        $('#outVenRow').style.display = home?'none':'';
+        $('#outDNote').className='dnote '+(home?'home':'ven');
+        $('#outDNote').innerHTML = home
+          ? '🏭 <b>경일FB로 입고</b>합니다 — 반출건이 마감되고, 사내 검사 후 다음 공정으로 다시 반출합니다.'
+          : (src?'🚚 <b>외주 직송</b> — 경일FB를 거치지 않고 다음 협력사로 바로 보냅니다.'
+                :'🚚 <b>외주 반출</b> — 협력사로 보냅니다.');
+        $('#outDateL').textContent = home?'입고일':'출고일';
+        $('#outQtyL').textContent  = home?'입고수량':'출고수량';
+        $('#btOut').textContent    = home?'🏭 경일FB 사내입고 등록':'📤 출고(반출) 등록';
+        sync();
+      }
       const sync=()=>{
-        const src=srcOf();
+        const src=srcOf(), home=isHomeDest();
+        if(src && home){
+          const rem=remainOf(src), q=num($('#outQty').value), left=Math.max(rem-q,0);
+          $('#outCloseRow').style.display = left>0?'':'none';
+          $('#outInfo').innerHTML = q>rem
+            ? '<span class="short">⚠ 잔량('+rem.toLocaleString()+')보다 많습니다</span>'
+            : (left>0
+               ? '<span class="part">잔량 '+left.toLocaleString()+' 미결 유지 — 전부 회수했다면 아래 [잔여 없음]을 체크하세요</span>'
+               : '<span style="color:#15803d;font-weight:700">전량 사내 복귀 — 반출건이 마감됩니다</span>');
+          return;
+        }
+        $('#outCloseRow').style.display='none';
         if(src){
           const rem=remainOf(src), q=num($('#outQty').value);
           if(!$('#outQty').value) $('#outQty').value=rem||'';
@@ -370,53 +384,66 @@ try{
           $('#outInfo').innerHTML = sh>0?'<span class="short">직전 수량 대비 부족 '+sh.toLocaleString()+' (특기사항에 사유 기록 권장)</span>':'';
         }
       };
-      /* 다음 공정의 이동 구분에 따라 받는 곳 입력 전환 */
-      const kindSync=()=>{
-        const k=kindOfMp($('#outMp').value), inh=(k==='사내'), box=$('#outKind');
-        box.className='kbig'+(inh?' in':'');
-        box.querySelector('.ic').textContent=inh?'🏭':'🚚';
-        $('#outKindT').innerHTML=inh
-          ? '<b>사내 이동</b> — 사내 작업장으로 넘깁니다 (외주 반출 아님)'
-          : '<b>외주 반출</b> — 협력사로 보냅니다';
-        $('#outVenRow').style.display  = inh?'none':'';
-        $('#outSiteRow').style.display = inh?'':'none';
-      };
-      const outKind=()=>kindOfMp($('#outMp').value);
-      const outDest=()=>(outKind()==='사내'?($('#outSite')?$('#outSite').value.trim():'')
-                                           :($('#outVen')?$('#outVen').value:''));
-      $('#outMp').addEventListener('change',kindSync);
       $('#outFrom').addEventListener('change',()=>{ const s2=srcOf();
-        $('#outQty').value=s2?(remainOf(s2)||''):(num(last.qty)||''); sync(); });
+        $('#outQty').value=s2?(remainOf(s2)||''):(num(last.qty)||''); syncDest(); });
+      $('#outDest').addEventListener('change',syncDest);
       $('#outQty').addEventListener('input',sync);
-      $('#outQty').value=num(last.qty)||''; sync(); kindSync();
+      /* 미결 반출건이 있으면 [그 보유분 → 경일FB 사내입고] 를 기본값으로 */
+      if(open.length){ $('#outFrom').value=String(open[0].no); $('#outQty').value=remainOf(open[0])||''; }
+      else $('#outQty').value=num(last.qty)||'';
+      syncDest();
       $('#btOut').addEventListener('click',async()=>{
-        const mp=$('#outMp').value, kind=outKind(), ven=outDest(), q=num($('#outQty').value);
-        if(!mp) return msg('가공공정을 선택하세요.');
-        if(!ven) return msg(kind==='사내'?'사내 이동처(작업장·부서)를 입력하세요.':'받는 외주처를 선택하세요.');
-        if(!q)  return msg('출고수량을 입력하세요.');
+        const q=num($('#outQty').value);
         const src=srcOf();
+        /* ── 경일FB 사내 복귀 : 발주 생성 없이 반출건만 마감 ── */
+        if(src && isHomeDest()){
+          const rem=remainOf(src), left=Math.max(rem-q,0);
+          if(!q) return msg('입고수량을 입력하세요.');
+          if(q>rem) return msg('잔량('+rem.toLocaleString()+')보다 많이 입고할 수 없습니다.');
+          const closeIt = left<=0 || $('#outClose').checked;
+          const sh = closeIt?left:0;
+          try{
+            if(closeIt) await KI.upd(TBL.ospOrder,'no=eq.'+src.no,
+              {idate:$('#outDate').value||TODAY, st:'완료'});
+            await KI.ins(TBL.lotMove,[{part:PART, osp_no:Number(src.no)||null, io:'입고',
+              mp:src.mp||null, vendor:src.vendor||null, move_date:$('#outDate').value||TODAY,
+              out_qty:rem||null, in_qty:q||null, short_qty:sh,
+              remark:(closeIt?'':'부분 복귀 — 잔량 '+left.toLocaleString()+' 유지. ')+
+                '경일FB 사내입고. '+($('#outRmk').value.trim()||''),
+              worker:me.emp_name||'', source:'QR'}]);
+            msg(closeIt
+              ? '✓ 경일FB 사내입고 — 반출건 마감'+(sh?' (부족 '+sh.toLocaleString()+')':'')+
+                '. 검사 후 [출고]에서 다음 공정으로 반출하세요.'
+              : '✓ 부분 사내입고 — 잔량 '+left.toLocaleString()+' 은 업체에 남아 있습니다.',1);
+            setTimeout(load,700);
+          }catch(e){ msg('❌ '+e.message); }
+          return;
+        }
+        const mp=$('#outMp').value, ven=$('#outVen').value;
+        if(!mp) return msg('가공공정을 선택하세요.');
+        if(!ven) return msg('받는 외주처를 선택하세요.');
+        if(!q)  return msg('출고수량을 입력하세요.');
         try{
           await KI.ins(TBL.ospOrder,[{part:PART, job:(PROG||{}).job||last.job||null, mp:mp, vendor:ven,
             map_part:last.map_part||null, mold_no:last.mold_no||null,
-            route_no:(PROG||{}).route_no||last.route_no||null, move_kind:kind,
+            route_no:(PROG||{}).route_no||last.route_no||null,
             lot:PART, qty:q, lots:[{lot:PART,qty:q}],
             sdate:$('#outDate').value||TODAY, edate:null, quote:null, st:'진행', odate:null}]);
           if(src){
             const rem=remainOf(src), left=Math.max(rem-q,0);
             await KI.ins(TBL.lotMove,[{part:PART, osp_no:Number(src.no)||null, io:'출고',
-              move_kind:kind, mp:mp, vendor:ven, move_date:$('#outDate').value||TODAY, out_qty:q,
+              mp:mp, vendor:ven, move_date:$('#outDate').value||TODAY, out_qty:q,
               short_qty:0, remark:(left>0?'부분출고 — 잔량 '+left.toLocaleString()+' 유지. ':'')+
-                '['+kind+'] '+($('#outRmk').value.trim()||''), worker:me.emp_name||'', source:'QR'}]);
+                ($('#outRmk').value.trim()||''), worker:me.emp_name||'', source:'QR'}]);
             if(left<=0) await KI.upd(TBL.ospOrder,'no=eq.'+src.no,
               {idate:$('#outDate').value||TODAY, st:'완료'});
-            msg(left>0?'✓ 부분출고 등록 — 잔량 '+left.toLocaleString()+' 미결 유지. 다음 화면에 자동 표시됩니다.'
-                      :'✓ 전량 이관 등록 ['+kind+'] — 이동건 마감. 다음 화면에 자동 표시됩니다.',1);
+            msg(left>0?'✓ 부분출고 등록 — 잔량 '+left.toLocaleString()+' 미결 유지. 다음 업체 화면에 자동 표시됩니다.'
+                      :'✓ 전량 이관 등록 — 반출건 마감. 다음 업체 화면에 자동 표시됩니다.',1);
           }else{
-            await KI.ins(TBL.lotMove,[{part:PART, io:'출고', move_kind:kind, mp:mp, vendor:ven,
+            await KI.ins(TBL.lotMove,[{part:PART, io:'출고', mp:mp, vendor:ven,
               move_date:$('#outDate').value||TODAY, out_qty:q,
-              remark:'['+kind+'] '+($('#outRmk').value.trim()||'')||null,
-              worker:me.emp_name||'', source:'QR'}]);
-            msg('✓ '+mp+' 공정으로 '+(kind==='사내'?'사내이동':'출고')+' 등록되었습니다.',1);
+              remark:$('#outRmk').value.trim()||null, worker:me.emp_name||'', source:'QR'}]);
+            msg('✓ '+mp+' 공정으로 출고 등록되었습니다. 다음 업체 화면에 자동 표시됩니다.',1);
           }
           setTimeout(load,700);
         }catch(e){ msg('❌ '+e.message); }
@@ -437,8 +464,7 @@ try{
             in_date:$('#hDate').value||TODAY, qty:q||null, short_qty:sh,
             reason:($('#hRsn')&&$('#hRsn').value.trim())||null,
             worker:me.emp_name||'', remark:$('#hRmk').value.trim()||null}]);
-          await KI.ins(TBL.lotMove,[{part:PART, io:'사내입고', move_kind:kindOfRow(last),
-            move_date:$('#hDate').value||TODAY,
+          await KI.ins(TBL.lotMove,[{part:PART, io:'사내입고', move_date:$('#hDate').value||TODAY,
             in_qty:q||null, short_qty:sh, reason:($('#hRsn')&&$('#hRsn').value.trim())||null,
             remark:$('#hRmk').value.trim()||null, worker:me.emp_name||'', source:'QR'}]);
           msg('✓ 사내입고 완료 — LOT이 종결되었습니다.',1);
@@ -452,7 +478,7 @@ try{
       const t=$('#mRmk').value.trim();
       if(!t) return msg('특기사항을 입력하세요.');
       try{
-        await KI.ins(TBL.lotMove,[{part:PART, io:'기록', move_kind:kindOfMp((last||{}).mp), move_date:TODAY,
+        await KI.ins(TBL.lotMove,[{part:PART, io:'기록', move_date:TODAY,
           remark:t, worker:me.emp_name||'', source:'QR'}]);
         msg('✓ 특기사항이 기록되었습니다.',1);
         setTimeout(load,700);
