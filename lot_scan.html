@@ -57,6 +57,8 @@ textarea{min-height:64px}
 .dnote{margin:-2px 0 9px 100px;padding:8px 10px;border-radius:4px;font-size:12.5px;font-weight:700;line-height:1.5}
 .dnote.home{background:#eef7f0;border:1px solid #a8d6ba;color:#1d5a35}
 .dnote.ven{background:#e9f2fc;border:1px solid #b6d3ee;color:#1d568c}
+.dnote.dup{background:#fdf3e7;border:1px solid #e6c48f;color:#8a5a12}
+.bt[disabled]{opacity:.55;cursor:not-allowed}
 @media(max-width:520px){.dnote{margin-left:0}}
 .pk small{display:block;color:#526171;margin-top:2px}
 </style>
@@ -241,6 +243,7 @@ try{
         '<div class="row"><label>특기사항</label><textarea id="inRmk" placeholder="현장 특기사항을 기록하세요"></textarea></div>'+
         '<div class="row"><label>사내 복귀</label><label style="font-weight:400;font-size:13px">'+
           '<input type="checkbox" id="inClose" style="width:auto;margin-right:6px">사내로 복귀한 입고 (반출건 마감)</label></div>'+
+        '<div class="dnote dup" id="inDup" style="display:none"></div>'+
         '<button class="bt in" id="btIn">📥 도착확인 등록</button>'
         :'<div style="color:#8894a0;padding:8px 0">도착확인 대기 중인 반출건이 없습니다.</div>')+
       '</div></div>'+
@@ -316,6 +319,11 @@ try{
     }));
 
     const msg=(t,ok)=>{ const m=$('#msg'); m.className='msg '+(ok?'ok':'err'); m.textContent=t; };
+    /* 등록 버튼 중복 클릭 방지 : 저장 시작 시 잠그고, 실패했을 때만 되돌린다
+       (성공하면 잠금 상태로 두고 load() 로 화면을 새로 그린다) */
+    const lockBtn=b=>{ if(!b)return; b.dataset.lbl=b.textContent; b.disabled=true; b.textContent='⏳ 등록중...'; };
+    const freeBtn=b=>{ if(!b)return; b.disabled=false; if(b.dataset.lbl) b.textContent=b.dataset.lbl; };
+    const fmtN=v=>Number(v||0).toLocaleString();
 
     /* ── 입고 : 부족수량 자동계산 (사유는 선택) ── */
     if(open.length){
@@ -330,9 +338,36 @@ try{
       /* 확인 업체 기본값 = 반출건의 외주처 */
       const syncVen=()=>{ const o=cur(); if(o&&o.vendor) $('#inVen').value=o.vendor; };
       $('#inNo').addEventListener('change',syncVen); syncVen();
+      /* 이미 도착확인된 반출건은 버튼을 잠근다 (두 번 눌러 중복 등록되는 것 방지)
+         · 단, [사내 복귀] 체크 시에는 별개 처리이므로 허용 */
+      const syncArr=()=>{
+        const o=cur(), a=arrivedOf(o), b=$('#btIn'), closeIt=$('#inClose').checked;
+        const dup=!!a && !closeIt;
+        b.disabled=dup;
+        b.textContent=dup?'✅ 이미 도착확인됨':'📥 도착확인 등록';
+        const box=$('#inDup');
+        box.style.display=(a?'':'none');
+        box.innerHTML = a
+          ? (dup ? '⚠ 이 반출건은 <b>'+esc(a.move_date||'')+'</b> 에 이미 도착확인되었습니다. 중복 등록할 수 없습니다.'
+                 : '↩ 이미 도착확인된 건입니다 — <b>사내 복귀 입고</b>로 등록됩니다.')
+          : '';
+      };
+      $('#inNo').addEventListener('change',syncArr);
+      $('#inClose').addEventListener('change',syncArr);
+      syncArr();
       $('#btIn').addEventListener('click',async()=>{
+        const B=$('#btIn'); if(B.disabled) return;
         const o=cur(), base=remainOf(o), inQ=num($('#inQty').value);
         const sh=Math.max(base-inQ,0), closeIt=$('#inClose').checked;
+        if(!inQ) return msg('입고수량을 입력하세요.');
+        if(arrivedOf(o) && !closeIt) return msg('이미 도착확인된 반출건입니다.');
+        if(!confirm((closeIt?'[사내 복귀 입고]':'[도착확인]')+' 등록하시겠습니까?\n\n'+
+            'LOT : '+PART+'\n'+
+            '공정 : '+(o.mp||'')+' · '+($('#inVen').value||o.vendor||'')+'\n'+
+            '수량 : '+fmtN(inQ)+(sh>0?'  (부족 '+fmtN(sh)+')':'')+'\n'+
+            '일자 : '+($('#inDate').value||TODAY)+'\n\n'+
+            '※ 등록 후에는 버튼이 잠기며 중복 등록되지 않습니다.')) return;
+        lockBtn(B);
         try{
           if(closeIt) await KI.upd(TBL.ospOrder,'no=eq.'+o.no,{idate:$('#inDate').value||TODAY, st:'완료'});
           await KI.ins(TBL.lotMove,[{part:PART, osp_no:Number(o.no)||null,
@@ -345,7 +380,7 @@ try{
                      :'✓ 도착확인 등록 — 작업 완료 후 [📤 출고]에서 다음 공정으로 이관하세요.'+
                       (sh?' (부족 '+sh.toLocaleString()+')':''),1);
           setTimeout(load,700);
-        }catch(e){ msg('❌ '+e.message); }
+        }catch(e){ msg('❌ '+e.message); freeBtn(B); }
       });
     }
 
@@ -408,6 +443,7 @@ try{
       else $('#outQty').value=num(last.qty)||'';
       syncDest();
       $('#btOut').addEventListener('click',async()=>{
+        const B=$('#btOut'); if(B.disabled) return;
         const q=num($('#outQty').value);
         const src=srcOf();
         /* ── 경일FB 사내 복귀 : 발주 생성 없이 반출건만 마감 ── */
@@ -417,6 +453,13 @@ try{
           if(q>rem) return msg('잔량('+rem.toLocaleString()+')보다 많이 입고할 수 없습니다.');
           const closeIt = left<=0 || $('#outClose').checked;
           const sh = closeIt?left:0;
+          if(!confirm('[경일FB 사내입고] 등록하시겠습니까?\n\n'+
+              'LOT : '+PART+'\n'+
+              '보유처 : '+(src.mp||'')+' · '+(src.vendor||'')+'\n'+
+              '입고수량 : '+fmtN(q)+(sh>0?'  (부족 '+fmtN(sh)+')':'')+'\n'+
+              (closeIt?'반출건 마감':'부분 복귀 — 잔량 '+fmtN(left)+' 유지')+'\n\n'+
+              '※ 등록 후에는 버튼이 잠기며 중복 등록되지 않습니다.')) return;
+          lockBtn(B);
           try{
             if(closeIt) await KI.upd(TBL.ospOrder,'no=eq.'+src.no,
               {idate:$('#outDate').value||TODAY, st:'완료'});
@@ -431,13 +474,21 @@ try{
                 '. 검사 후 [출고]에서 다음 공정으로 반출하세요.'
               : '✓ 부분 사내입고 — 잔량 '+left.toLocaleString()+' 은 업체에 남아 있습니다.',1);
             setTimeout(load,700);
-          }catch(e){ msg('❌ '+e.message); }
+          }catch(e){ msg('❌ '+e.message); freeBtn(B); }
           return;
         }
         const mp=$('#outMp').value, ven=$('#outVen').value;
         if(!mp) return msg('가공공정을 선택하세요.');
         if(!ven) return msg('받는 외주처를 선택하세요.');
         if(!q)  return msg('출고수량을 입력하세요.');
+        if(!confirm('[출고(반출)] 등록하시겠습니까?\n\n'+
+            'LOT : '+PART+'\n'+
+            '다음 공정 : '+mp+'\n'+
+            '받는 외주처 : '+ven+'\n'+
+            '출고수량 : '+fmtN(q)+'\n'+
+            '출고일 : '+($('#outDate').value||TODAY)+'\n\n'+
+            '※ 등록 후에는 버튼이 잠기며 중복 등록되지 않습니다.')) return;
+        lockBtn(B);
         try{
           await KI.ins(TBL.ospOrder,[{part:PART, job:(PROG||{}).job||last.job||null, mp:mp, vendor:ven,
             map_part:last.map_part||null, mold_no:last.mold_no||null,
@@ -461,7 +512,7 @@ try{
             msg('✓ '+mp+' 공정으로 출고 등록되었습니다. 다음 업체 화면에 자동 표시됩니다.',1);
           }
           setTimeout(load,700);
-        }catch(e){ msg('❌ '+e.message); }
+        }catch(e){ msg('❌ '+e.message); freeBtn(B); }
       });
     })();
 
@@ -473,7 +524,15 @@ try{
         $('#hRsnRow').style.display=sh>0?'':'none'; };
       $('#hQty').addEventListener('input',sync); sync();
       $('#btHome').addEventListener('click',async()=>{
+        const B=$('#btHome'); if(B.disabled) return;
         const q=num($('#hQty').value), sh=base?Math.max(base-q,0):0;
+        if(!q) return msg('입고수량을 입력하세요.');
+        if(!confirm('[사내입고 — LOT 종결] 등록하시겠습니까?\n\n'+
+            'LOT : '+PART+'\n'+
+            '입고수량 : '+fmtN(q)+(sh>0?'  (부족 '+fmtN(sh)+')':'')+'\n'+
+            '입고일 : '+($('#hDate').value||TODAY)+'\n\n'+
+            '※ 종결하면 이 이동표 QR은 더 이상 사용할 수 없습니다.')) return;
+        lockBtn(B);
         try{
           await KI.ins(TBL.lotReceipt,[{part:PART, job:(PROG||{}).job||last.job||null,
             in_date:$('#hDate').value||TODAY, qty:q||null, short_qty:sh,
@@ -484,20 +543,22 @@ try{
             remark:$('#hRmk').value.trim()||null, worker:me.emp_name||'', source:'QR'}]);
           msg('✓ 사내입고 완료 — LOT이 종결되었습니다.',1);
           setTimeout(load,700);
-        }catch(e){ msg('❌ '+e.message); }
+        }catch(e){ msg('❌ '+e.message); freeBtn(B); }
       });
     }
 
     /* ── 특기사항만 기록 ── */
     $('#btMemo').addEventListener('click',async()=>{
+      const B=$('#btMemo'); if(B.disabled) return;
       const t=$('#mRmk').value.trim();
       if(!t) return msg('특기사항을 입력하세요.');
+      lockBtn(B);
       try{
         await KI.ins(TBL.lotMove,[{part:PART, io:'기록', move_date:TODAY,
           remark:t, worker:me.emp_name||'', source:'QR'}]);
         msg('✓ 특기사항이 기록되었습니다.',1);
         setTimeout(load,700);
-      }catch(e){ msg('❌ '+e.message); }
+      }catch(e){ msg('❌ '+e.message); freeBtn(B); }
     });
   }
 
