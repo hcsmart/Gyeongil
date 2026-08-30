@@ -411,9 +411,18 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         .sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0]; return o?(o.vendor||''):''; };
     const dateOf = mp => (c.steps.find(x=>x.mp===mp)||{}).date||'';
     const pos=posOf(c), wip2=(pos==='wip')?wipMpOf(c):'';
-    /* 공정을 마치면 제품은 사내로 복귀 → 현재 위치는 사내 */
-    let html='<span class="cn home'+(pos==='home'?' cur':'')+'" title="'+
-      (pos==='home'?'현재 위치 · 사내 보유':'사내 출발')+'">🏭 사내</span>';
+    /* 외주 공정은 끝날 때마다 이 '사내'로 되돌아오므로 사내 노드는 하나만 둔다
+       (출발 · 공정 간 복귀 · 최종 사내입고를 모두 이 노드가 표시) */
+    const cls = pos==='recv' ? ' ok cur' : (pos==='home' ? ' cur' : '');
+    const tip = pos==='recv'
+        ? '사내입고 완료 '+esc((c.recv&&c.recv.in_date)||'')+
+          (Number(c.recv&&c.recv.short_qty)>0?' · 부족 '+Number(c.recv.short_qty).toLocaleString():'')
+      : pos==='home'
+        ? (c.std&&!c.rest.length?'현재 위치 · 사내 보유 (사내입고 대기)':'현재 위치 · 사내 보유')
+        : '사내 출발 · 복귀 지점';
+    let html='<span class="cn home'+cls+'" title="'+tip+'">'+
+      (pos==='recv'?'✓ ':'')+'🏭 사내'+
+      (pos==='recv'?'<em>'+esc((c.recv&&c.recv.in_date)||'')+'</em>':'')+'</span>';
     sd.forEach((mp,i)=>{
       const wip=(mp===wip2), done=(c.seen.has(mp)&&!wip);
       const cur=false;
@@ -424,14 +433,6 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
             (dateOf(mp)?' / '+esc(dateOf(mp)):'')+'">'+(done?'✓ ':'')+esc(mp)+
             (v?'<em>'+esc(v)+'</em>':'')+'</span>';
     });
-    /* 마지막 구간 : 모든 공정 완료 후 사내 복귀 — 사내입고 종결 시 짙은 녹색 */
-    const backing = c.std && !c.rest.length && !c.wip && !c.recv;
-    html+='<span class="cv'+(backing?' go':(c.recv?' ok':''))+'">🚚</span>'+
-          '<span class="cn home'+(c.recv?' cur':'')+'" title="'+
-            (c.recv?'사내입고 '+esc(c.recv.in_date||'')+
-              (Number(c.recv.short_qty)>0?' · 부족 '+Number(c.recv.short_qty).toLocaleString():''):'사내입고 대기')+'">'+
-          (c.recv?'✓ ':'')+'🏭 사내'+
-          (c.recv?'<em>'+esc(c.recv.in_date||'')+'</em>':'')+'</span>';
     return html;
   }
 
@@ -993,9 +994,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       if(!c.std) return '(미매칭)';
       const venOf=mp=>{const o=ospOf(c.part).filter(x=>x.mp===mp)
           .sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0]; return o?(o.vendor||''):''; };
-      return ['사내'].concat((c.std.steps||[]).map(mp=>{
+      return ['사내'+(c.recv?'✓':'')].concat((c.std.steps||[]).map(mp=>{
         const v=venOf(mp); return mp+(v?'('+v+')':'')+(c.seen.has(mp)?'✓':(c.wipMp===mp?'▶':''));
-      })).concat(['사내'+(c.recv?'✓':'')]).join(' → ');
+      })).join(' → ');
     };
     const body=ROWS.map(calc).map(c=>[c.job,c.map_part,c.part,c.std?c.std.standard_process_name:'(미매칭)',
       chainTxt(c),c.last.mp,holderOf(c),c.last.date,stateOf(c),
