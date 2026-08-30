@@ -23,13 +23,25 @@ body{font:14px/1.6 'Malgun Gothic','맑은 고딕',sans-serif;background:#eef1f4
 .chain .nx{background:#2e77bd;color:#fff;font-weight:700}
 .row{display:grid;grid-template-columns:92px 1fr;gap:8px;align-items:center;margin-bottom:8px}
 .row label{font-size:12px;font-weight:700;color:#526171}
+@media(max-width:420px){.row{grid-template-columns:1fr;gap:3px;margin-bottom:10px}
+  .row label{font-size:12.5px}}
 input,select,textarea{width:100%;border:1px solid #aeb9c4;padding:8px;font:inherit;font-size:14px}
 textarea{min-height:64px}
 .bt{width:100%;height:44px;border:0;font-size:15px;font-weight:800;color:#fff;cursor:pointer;margin-top:4px}
 .bt.in{background:#2f7d4d}.bt.out{background:#2e77bd}.bt.home{background:#7b3fa0}.bt.memo{background:#526171}
-.tab{display:flex;border-bottom:2px solid #2e6497;background:#fff}
-.tab button{flex:1;height:40px;border:0;background:#f0f4f8;font-weight:700;color:#526171;cursor:pointer;font-size:13px}
-.tab button.on{background:#2e6497;color:#fff}
+/* 탭 : 폭을 균등 분할하고 카드 밖으로 넘치지 않게 (모바일 터치 44px 이상) */
+.tab{display:flex;width:100%;background:#eef2f6;border-bottom:2px solid #2e6497;overflow:hidden}
+.tab button{flex:1 1 0;min-width:0;height:46px;padding:0 2px;border:0;border-right:1px solid #dde4ea;
+  background:#eef2f6;color:#526171;font-weight:700;font-size:13px;line-height:1.2;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-tap-highlight-color:transparent}
+.tab button:last-child{border-right:0}
+.tab button:active{background:#dde6ee}
+.tab button.on{background:#2e6497;color:#fff;box-shadow:inset 0 -3px 0 #1b4670}
+.tab button i{font-style:normal;font-size:14px;flex:none}
+.tab button span{overflow:hidden;text-overflow:ellipsis}
+@media(max-width:400px){.tab button{font-size:12px;gap:2px}.tab button i{font-size:13px}}
+@media(max-width:340px){.tab button i{display:none}}
 .pane{display:none}.pane.on{display:block}
 .short{color:#b23030;font-weight:800;font-size:12px}
 .part{color:#1d568c;font-weight:800;font-size:12px}
@@ -207,10 +219,10 @@ try{
     '</div></div>'+
 
     '<div class="card"><div class="tab">'+
-      '<button data-t="in" class="on">📥 도착확인</button>'+
-      '<button data-t="out">📤 출고</button>'+
-      (doneAll&&!RCPT?'<button data-t="home">🏭 사내입고</button>':'')+
-      '<button data-t="memo">📝 특기사항</button></div>'+
+      '<button data-t="in" class="on"><i>📥</i><span>도착확인</span></button>'+
+      '<button data-t="out"><i>📤</i><span>출고</span></button>'+
+      (doneAll&&!RCPT?'<button data-t="home"><i>🏭</i><span>사내입고</span></button>':'')+
+      '<button data-t="memo"><i>📝</i><span>특기사항</span></button></div>'+
 
       /* ── 도착확인 : 외주업체가 LOT 수령 시 리딩 — 업체 · 수량 확인 기록 ── */
       '<div class="pane on" data-p="in"><div class="bd">'+
@@ -241,8 +253,8 @@ try{
               ' 보유분 (잔량 '+rem.toLocaleString()+')</option>';}).join('')+'</select></div>'+
         /* 작업 완료품은 대부분 경일FB로 복귀 → 기본값을 사내입고로 둔다 */
         '<div class="row" id="outDestRow"><label>보내는 곳</label><select id="outDest">'+
-          '<option value="home">🏭 경일FB 사내입고 (검사 후 다음 공정)</option>'+
-          '<option value="ven">🚚 다음 외주처로 직송</option></select></div>'+
+          '<option value="home">🏭 경일FB 사내입고</option>'+
+          '<option value="ven">🚚 다음 외주처 직송</option></select></div>'+
         '<div class="dnote" id="outDNote"></div>'+
         '<div class="row" id="outMpRow"><label>다음 공정</label><select id="outMp">'+
           (STEPS.length
@@ -295,9 +307,11 @@ try{
     if(ol) ol.addEventListener('click',()=>{ try{ localStorage.removeItem('ki_scan_lot'); }catch(e){} });
 
     /* 탭 */
-    wrap.querySelectorAll('.tab button').forEach(b=>b.addEventListener('click',()=>{
+    wrap.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',e=>{
+      const b=e.target.closest('button[data-t]'); if(!b) return;
       wrap.querySelectorAll('.tab button').forEach(x=>x.classList.toggle('on',x===b));
       wrap.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.dataset.p===b.dataset.t));
+      try{ b.scrollIntoView({block:'nearest'}); }catch(_){}
     }));
 
     const msg=(t,ok)=>{ const m=$('#msg'); m.className='msg '+(ok?'ok':'err'); m.textContent=t; };
