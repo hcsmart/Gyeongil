@@ -30,25 +30,26 @@ textarea{min-height:64px}
 .bt{width:100%;height:44px;border:0;font-size:15px;font-weight:800;color:#fff;cursor:pointer;margin-top:4px}
 .bt.in{background:#2f7d4d}.bt.out{background:#2e77bd}.bt.home{background:#7b3fa0}.bt.memo{background:#526171}
 /* 탭 : 폭을 균등 분할하고 카드 밖으로 넘치지 않게 (모바일 터치 44px 이상) */
-.tab{display:flex;width:100%;background:#eef2f6;border-bottom:2px solid #2e6497;overflow:hidden}
-.tab button{flex:1 1 0;min-width:0;height:46px;padding:0 2px;border:0;border-right:1px solid #dde4ea;
+.qtab{display:flex;width:100%;height:auto;padding:0;margin:0;background:#eef2f6;
+  border:0;border-bottom:2px solid #2e6497;overflow:hidden}
+.qtab button{flex:1 1 0;min-width:0;height:46px;padding:0 2px;border:0;border-right:1px solid #dde4ea;
   background:#eef2f6;color:#526171;font-weight:700;font-size:13px;line-height:1.2;cursor:pointer;
   display:flex;align-items:center;justify-content:center;gap:3px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-tap-highlight-color:transparent}
-.tab button:last-child{border-right:0}
-.tab button:active{background:#dde6ee}
-.tab button.on{background:#2e6497;color:#fff;box-shadow:inset 0 -3px 0 #1b4670}
-.tab button i{font-style:normal;font-size:14px;flex:none}
-.tab button span{overflow:hidden;text-overflow:ellipsis}
-@media(max-width:400px){.tab button{font-size:12px;gap:2px}.tab button i{font-size:13px}}
-@media(max-width:340px){.tab button i{display:none}}
+.qtab button:last-child{border-right:0}
+.qtab button:active{background:#dde6ee}
+.qtab button.on{background:#2e6497;color:#fff;box-shadow:inset 0 -3px 0 #1b4670}
+.qtab button i{font-style:normal;font-size:14px;flex:none}
+.qtab button span{overflow:hidden;text-overflow:ellipsis}
+@media(max-width:400px){.qtab button{font-size:12px;gap:2px}.qtab button i{font-size:13px}}
+@media(max-width:340px){.qtab button i{display:none}}
 .pane{display:none}.pane.on{display:block}
 .short{color:#b23030;font-weight:800;font-size:12px}
 .part{color:#1d568c;font-weight:800;font-size:12px}
 .msg{padding:9px 12px;font-weight:700;font-size:13px}
 .msg.ok{color:#15803d}.msg.err{color:#b23030}
 .hist td{border-bottom:1px solid #eef1f4;padding:5px 4px;font-size:12px}
-.badge{display:inline-block;padding:1px 7px;border-radius:2px;font-size:11px;font-weight:700}
+.badge{display:inline-block;padding:1px 7px;border:0;border-radius:2px;font-size:11px;font-weight:700}
 .b-in{background:#e2f0e6;color:#15803d}.b-out{background:#e9f2fc;color:#1d568c}.b-etc{background:#f1f3f5;color:#526171}
 .pk{border:1px solid #d6dde4;border-left:4px solid #2e77bd;padding:9px 11px;margin-bottom:8px;background:#fbfcfd;cursor:pointer}
 .pk:active{background:#eef5fc}
@@ -218,7 +219,7 @@ try{
       }).join(' → ')+'</div>':'')+
     '</div></div>'+
 
-    '<div class="card"><div class="tab">'+
+    '<div class="card"><div class="qtab">'+
       '<button data-t="in" class="on"><i>📥</i><span>도착확인</span></button>'+
       '<button data-t="out"><i>📤</i><span>출고</span></button>'+
       (doneAll&&!RCPT?'<button data-t="home"><i>🏭</i><span>사내입고</span></button>':'')+
@@ -307,9 +308,9 @@ try{
     if(ol) ol.addEventListener('click',()=>{ try{ localStorage.removeItem('ki_scan_lot'); }catch(e){} });
 
     /* 탭 */
-    wrap.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',e=>{
+    wrap.querySelectorAll('.qtab').forEach(t=>t.addEventListener('click',e=>{
       const b=e.target.closest('button[data-t]'); if(!b) return;
-      wrap.querySelectorAll('.tab button').forEach(x=>x.classList.toggle('on',x===b));
+      wrap.querySelectorAll('.qtab button').forEach(x=>x.classList.toggle('on',x===b));
       wrap.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.dataset.p===b.dataset.t));
       try{ b.scrollIntoView({block:'nearest'}); }catch(_){}
     }));
