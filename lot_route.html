@@ -672,6 +672,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     if(!(CAN_S||CAN_E)) return KI.msg('❌ 등록 권한이 없습니다.');
     sel=null; NEW=true; mode('ins');
     $('#mTtl').textContent='진행등록 — 신규';
+    /* 종결 LOT을 보고 난 뒤에도 입력폼이 숨겨진 채 열리지 않도록 복원 */
+    { const fh=$('#outFold'); if(fh) fh.style.display=''; }
+    $('#mMsg').textContent=''; $('#mMsg').className='msg';
     setOutFold(true);                      /* 신규는 입력폼이 본문이므로 펼침 */
     $('#infoBox').style.display='none'; $('#iChain').style.display='none';
     $('#openBox').innerHTML='';
@@ -683,7 +686,6 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     $('#fQuote').value=''; $('#fMap').value=''; syncMap();
     $('#fFrom').innerHTML='<option value="">사내 → 외주 (신규 반출)</option>'; showFrom(false); fromNote();
     lotBody.innerHTML=''; lotRow('','');
-    $('#mMsg').textContent=''; $('#mMsg').className='msg';
     $('#mS').style.display='';
     $('#mTag').style.display='none'; $('#mInh').style.display='none'; $('#moveBox').innerHTML='';
     { const rf=$('#mRf'); if(rf) rf.style.display='none'; }
