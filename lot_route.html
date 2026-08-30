@@ -62,6 +62,14 @@
 .fx-node.st-home:not(.st-cur){background:#eef1f4;border-color:#c4cfd9}
 .fx-node.st-home:not(.st-cur) .t{color:#526171}
 .fx-node.st-home:not(.st-cur) .n,.fx-node.st-home:not(.st-cur) .s{color:#8b98a5}
+.fx-node.st-home{max-width:168px}
+.fx-lg{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;font-size:10.5px;color:#7b8794}
+.fx-lg i{font-style:normal;display:inline-block;width:9px;height:9px;border-radius:2px;
+  margin-right:4px;vertical-align:-1px;border:1px solid #c4cfd9}
+.fx-lg .g1{background:#33465a;border-color:#26374a}
+.fx-lg .g2{background:#eef7f0;border-color:#2f7d4d}
+.fx-lg .g3{background:#2e77bd;border-color:#1d568c}
+.fx-lg .g4{background:#fff;border-style:dashed;border-color:#2e77bd}
 .fx-arrow{align-self:center;padding:0 6px;color:#b6c2cd;font-weight:800;font-size:14px;white-space:nowrap}
 .fx-arrow.a-done{color:#2f7d4d}
 .fx-arrow.a-wip{color:#2e77bd;animation:fxPulse 1.6s ease-in-out infinite}
@@ -355,6 +363,13 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       rate: total?Math.round(done/total*100):0,
       wipRate: total?Math.round((done+wip)/total*100):0};
   }
+  /* ── 제품의 현재 물리적 위치 ───────────────────────────────
+     외주는 [사내 → 1공정 → 사내복귀 → 2공정 → 사내복귀 …] 로 왕복하므로
+     공정을 마친 시점의 위치는 그 공정이 아니라 <b>사내</b>다.
+       'recv' 사내입고 종결 / 'wip' 외주 보유(반출중) / 'home' 사내 보유
+     · wipMp2 : 반출중인 공정 (이미 완료한 공정으로 재반출한 경우 포함) */
+  const wipMpOf = c => c.wipMp || (c.moving ? (c.last.mp||'') : '');
+  const posOf   = c => c.recv ? 'recv' : (wipMpOf(c) ? 'wip' : 'home');
   const ospOf = part => OSP.filter(o=>String(o.part||'')===String(part) ||
     (Array.isArray(o.lots)&&o.lots.some(x=>String(x.lot||'')===String(part))));
   function ospState(part){
@@ -373,11 +388,13 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const venOf = mp => { const o=ospOf(c.part).filter(x=>x.mp===mp)
         .sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0]; return o?(o.vendor||''):''; };
     const dateOf = mp => (c.steps.find(x=>x.mp===mp)||{}).date||'';
-    let html='<span class="cn home">🏭 사내</span>';
+    const pos=posOf(c), wip2=(pos==='wip')?wipMpOf(c):'';
+    /* 공정을 마치면 제품은 사내로 복귀 → 현재 위치는 사내 */
+    let html='<span class="cn home'+(pos==='home'?' cur':'')+'" title="'+
+      (pos==='home'?'현재 위치 · 사내 보유':'사내 출발')+'">🏭 사내</span>';
     sd.forEach((mp,i)=>{
-      const done=c.seen.has(mp), wip=(c.wipMp===mp);
-      /* 현재 위치(도착 후 보유 중)는 진행등록 다이어그램과 동일하게 짙은 녹색 */
-      const cur=!wip && done && !c.recv && !c.moving && c.last.mp===mp;
+      const wip=(mp===wip2), done=(c.seen.has(mp)&&!wip);
+      const cur=false;
       /* 앞 구간 차량 : 이 단계로 이동중이면 깜빡임 */
       html+='<span class="cv'+(wip?' go':(done?' ok':''))+'">🚚</span>';
       const v=venOf(mp);
@@ -462,25 +479,30 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     /* 현재 위치 : 종결 > 반출중 > 마지막 완료 공정 > 사내
        완료 판정 : 진행이력(steps) 또는 현장 기록(도착·입고) 중 하나라도 있으면 완료 */
     const doneOf=x=>!!c.steps.find(s2=>s2.mp===x)||c.seen.has(x)||!!arr(null,x);
-    const lastDone=[...seq].reverse().find(doneOf)||'';
     const closed=!!c.recv||!!inh;
-    const curPos= closed?'recv' : c.wipMp?('wip:'+c.wipMp) : lastDone?('mp:'+lastDone) : 'home';
-    let html=node('st-home', curPos==='home', '🏭 사내','출발',
-      c.steps.length||c.moving?'반출 완료':'현재 위치');
+    const wipMp2=closed?'':wipMpOf(c);
+    /* 완료 공정은 '사내 복귀'를 뜻하므로 현재 위치가 되지 않는다 */
+    const curPos= closed?'recv' : wipMp2?('wip:'+wipMp2) : 'home';
+    const nDone = seq.filter(doneOf).length;
+    let html=node('st-home', curPos==='home', '🏭 사내',
+      curPos==='home'&&nDone?'보유중':'출발',
+      curPos!=='home' ? '반출 완료'
+        : nDone ? '현재 위치 · '+nDone+'/'+seq.length+' 완료 · 다음 반출 대기'
+                : '현재 위치 · 출발 대기');
     seq.forEach((x,i)=>{
       const info=c.steps.find(s2=>s2.mp===x);
-      const done=doneOf(x);
-      const wip=(!done && x===c.wipMp), nx=(!done && !wip && x===c.rest[0]);
+      const wip=(x===wipMp2), done=(doneOf(x)&&!wip);
+      const nx=(!done && !wip && x===c.rest[0]);
       const a2=arr(null,x), o2=outOf(x);
       const dDate=(a2&&a2.move_date)||(info&&info.date)||'';      /* 실제 도착·입고일 우선 */
       const dVen =(a2&&a2.vendor)||(info&&info.vendor)||'';
       const wDate=(o2&&o2.move_date)||c.last.date||'';
-      const prevDone = i===0 ? (c.steps.length>0||c.moving) : doneOf(seq[i-1])||seq[i-1]===c.wipMp;
+      const prevDone = i===0 ? (c.steps.length>0||c.moving) : doneOf(seq[i-1])||seq[i-1]===wipMp2;
       html+=arrow(done?'a-done':(wip&&prevDone)?'a-wip':'');
       html+=node(done?'st-done':wip?'st-wip':nx?'st-next':'st-rest',
-        curPos==='mp:'+x||curPos==='wip:'+x,
+        curPos==='wip:'+x,
         esc(x), esc(pName(x)||''),
-        done?'✓ '+esc(dVen)+(dDate?' · '+md(dDate):'')
+        done?'✓ 완료 · 사내복귀'+(dVen?' · '+esc(dVen):'')+(dDate?' · '+md(dDate):'')
         :wip?'<span class="truck">🚚</span> '+esc(c.last.vendor||'')+' 반출중'+(wDate?' · '+md(wDate):'')
         :nx?'다음 공정':'대기');
     });
@@ -494,7 +516,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       closed?('✓ '+md(rIn)+' · '+rQty.toLocaleString()+
               (rShort?' <span style="color:#ffd9d9">(부족 '+rShort+')</span>':''))
             :allDone?'입고 대기':'대기');
-    $('#iChain').innerHTML='<div class="fx">'+html+'</div>';
+    $('#iChain').innerHTML='<div class="fx">'+html+'</div>'+
+      '<div class="fx-lg">'+
+      '<span><i class="g1"></i>현재 위치(제품 보유)</span>'+
+      '<span><i class="g2"></i>공정 완료 · 사내복귀</span>'+
+      '<span><i class="g3"></i>반출중(외주 보유)</span>'+
+      '<span><i class="g4"></i>다음 공정</span></div>';
   }
 
   function open(c){
@@ -512,9 +539,14 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     $('#iStd').textContent=c.std?c.std.standard_process_name:'(미매칭)';
     $('#iRate').innerHTML=c.done+'/'+c.total+' <b style="color:#1d568c">'+c.rate+'%</b>'+
       (c.wip?' <span class="badge" style="background:#e9f2fc;color:#1d568c">'+esc(c.wipMp)+' 반출중</span>':'');
-    $('#iCur').innerHTML=esc(c.last.mp||'-')+(pName(c.last.mp)?' · '+esc(pName(c.last.mp)):'')+
-      (c.moving?' <span class="badge" style="background:#e9f2fc;color:#1d568c">반출중</span>':'');
-    $('#iVen').textContent=c.last.vendor||'-';
+    const pos=posOf(c), wmp=wipMpOf(c);
+    $('#iCur').innerHTML =
+      pos==='recv' ? '🏭 사내입고 · 종결'
+      : pos==='wip' ? esc(wmp||'-')+(pName(wmp)?' · '+esc(pName(wmp)):'')+
+          ' <span class="badge" style="background:#e9f2fc;color:#1d568c">반출중</span>'
+      : '🏭 사내 보유'+(c.done?' <span class="badge" style="background:#eef7f0;color:#1d5a35">'+
+          esc(c.last.mp||'')+' 완료 후 복귀</span>':' <span class="badge">출발 대기</span>');
+    $('#iVen').textContent = pos==='wip' ? (c.last.vendor||'-') : '사내 보유';
     /* 공정 경로 */
     drawFlow(c,null);
     /* 미입고 건 */
