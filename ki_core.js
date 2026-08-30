@@ -305,9 +305,11 @@ function chrome(curId){
   const okMod  = m1 => m1.second.some(okSec);
   function drawMod(){
     $('#kiMod').innerHTML = NAV.filter(okMod).map(m=>
-      '<button class="module'+((!NAVDROP&&m.key===curMod)?' on':'')+'" data-k="'+m.key+'">'+
+      '<button class="module'+((!NAVDROP&&m.key===curMod)?' on':'')+(m.off?' off':'')+
+      '" data-k="'+m.key+'"'+(m.off?' disabled title="준비중 — 현재 사용할 수 없습니다"':'')+'>'+
       esc(m.name)+'</button>').join('');
     $('#kiMod').querySelectorAll('button').forEach(b=>{
+      if(b.disabled) return;              /* 비활성 모듈 : 클릭 · 드롭다운 없음 */
       if(NAVDROP){
         b.addEventListener('click',e=>{ e.stopPropagation();
           const m1=NAV.find(m=>m.key===b.dataset.k);
@@ -521,6 +523,11 @@ function mobileNav(curId,cur){
           esc(x.n)+(x.pop?'<em>새 창</em>':'')+'</a>').join('');
     });
     if(!inner) return;
+    if(m1.off){                          /* 비활성 모듈 : 회색 표시 · 펼침 불가 */
+      html+='<div class="mob-mod off">'+
+        '<button class="mob-m1" type="button" disabled>'+esc(m1.name)+'<span>준비중</span></button></div>';
+      return;
+    }
     html+='<div class="mob-mod'+(openM?' open':'')+'">'+
       '<button class="mob-m1" type="button">'+esc(m1.name)+'<span>▾</span></button>'+
       '<div class="mob-body">'+inner+'</div></div>';

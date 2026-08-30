@@ -235,9 +235,21 @@ const HIDE = {
   item: []
 };
 
-/* 실제 화면에 표시되는 메뉴 (숨김 제외) */
+/* 상단 1차 메뉴 표시 순서 (여기 없는 key 는 뒤에 원래 순서대로 붙습니다) */
+const MENU_ORDER = ['osp','mold','base','sys','guide'];
+
+/* 비활성(회색 · 클릭 불가) 1차 모듈 — 메뉴는 보이지만 사용할 수 없습니다.
+   다시 사용하려면 아래 배열에서 해당 key 를 지우세요. */
+const DIM_MOD = ['mold'];
+
+/* 실제 화면에 표시되는 메뉴 (숨김 제외 · 순서 적용 · 비활성 표시) */
 const MENU_V = MENU
   .filter(m1=>!HIDE.mod.includes(m1.key))
+  .slice().sort((a,b)=>{
+    const ia=MENU_ORDER.indexOf(a.key), ib=MENU_ORDER.indexOf(b.key);
+    return (ia<0?99:ia)-(ib<0?99:ib);
+  })
+  .map(m1=>Object.assign({},m1,{ off:DIM_MOD.includes(m1.key) }))
   .map(m1=>Object.assign({},m1,{ second:m1.second
       .filter(m2=>!HIDE.sec.includes(m2.key))
       .map(m2=>Object.assign({},m2,{ groups:m2.groups
