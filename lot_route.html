@@ -192,6 +192,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
 
   const ui=KI.page(cur,[
     ['신규등록','',()=>openNew()],
+    ['새로고침','',()=>load()],
     ['엑셀다운로드','',()=>csv()],
     ['인쇄','',()=>window.print()]
   ]);
@@ -368,10 +369,17 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
      공정을 마친 시점의 위치는 그 공정이 아니라 <b>사내</b>다.
        'recv' 사내입고 종결 / 'wip' 외주 보유(반출중) / 'home' 사내 보유
      · wipMp2 : 반출중인 공정 (이미 완료한 공정으로 재반출한 경우 포함) */
-  const wipMpOf = c => c.wipMp || (c.moving ? (c.last.mp||'') : '');
-  const posOf   = c => c.recv ? 'recv' : (wipMpOf(c) ? 'wip' : 'home');
   const ospOf = part => OSP.filter(o=>String(o.part||'')===String(part) ||
     (Array.isArray(o.lots)&&o.lots.some(x=>String(x.lot||'')===String(part))));
+  /* 미입고(입고일 없는) 외주건 = 제품이 아직 그 업체에 있다
+     · 도착확인 전  → 이동중(반출중)
+     · 도착확인 후  → 그 업체에서 작업중  (둘 다 사내에는 없다) */
+  const openOsp = c => ospOf(c.part).filter(o=>o.sdate&&!o.idate)
+      .sort((a,b)=>String(b.sdate||'').localeCompare(String(a.sdate||''))
+                 ||(Number(b.no)||0)-(Number(a.no)||0))[0]||null;
+  const wipMpOf = c => { const o=openOsp(c); return o?(o.mp||''):''; };
+  /* 제품의 현재 물리적 위치 : recv 종결 / wip 외주 보유 / home 사내 보유 */
+  const posOf = c => c.recv ? 'recv' : (wipMpOf(c) ? 'wip' : 'home');
   function ospState(part){
     const o=ospOf(part).filter(x=>x.sdate&&!x.idate);
     if(o.length) return {t:'반출중', n:o.length, rows:o};
@@ -503,7 +511,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         curPos==='wip:'+x,
         esc(x), esc(pName(x)||''),
         done?'✓ 완료 · 사내복귀'+(dVen?' · '+esc(dVen):'')+(dDate?' · '+md(dDate):'')
-        :wip?'<span class="truck">🚚</span> '+esc(c.last.vendor||'')+' 반출중'+(wDate?' · '+md(wDate):'')
+        :wip?((arr(null,x)||c.seen.has(x))
+              ? '🏭 '+esc((a2&&a2.vendor)||c.last.vendor||'')+' 작업중'+(dDate?' · 도착 '+md(dDate):'')
+              : '<span class="truck">🚚</span> '+esc(c.last.vendor||'')+' 반출중'+(wDate?' · '+md(wDate):''))
         :nx?'다음 공정':'대기');
     });
     const allDone = seq.length && seq.every(doneOf);
@@ -543,7 +553,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     $('#iCur').innerHTML =
       pos==='recv' ? '🏭 사내입고 · 종결'
       : pos==='wip' ? esc(wmp||'-')+(pName(wmp)?' · '+esc(pName(wmp)):'')+
-          ' <span class="badge" style="background:#e9f2fc;color:#1d568c">반출중</span>'
+          ' <span class="badge" style="background:#e9f2fc;color:#1d568c">'+
+          (c.seen.has(wmp)?'외주 작업중':'반출중')+'</span>'
       : '🏭 사내 보유'+(c.done?' <span class="badge" style="background:#eef7f0;color:#1d5a35">'+
           esc(c.last.mp||'')+' 완료 후 복귀</span>':' <span class="badge">출발 대기</span>');
     $('#iVen').textContent = pos==='wip' ? (c.last.vendor||'-') : '사내 보유';
