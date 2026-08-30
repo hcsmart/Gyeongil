@@ -33,6 +33,7 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
 .fl b.home{background:#33465a;border-color:#26374a;color:#fff}
 .fl b.done{background:#eef7f0;border-color:#2f7d4d;color:#1d5a35}
 .fl b.wip{background:#e9f2fc;border-color:#2e77bd;color:#1d568c}
+.fl b.inw{background:#fdf1e4;border-color:#e8862e;color:#8a5a12}
 .fl b.next{background:#fff;border-style:dashed;border-color:#2e77bd;color:#1d568c}
 .fl b.close{background:#2f7d4d;border-color:#1d5a35;color:#fff}
 .fl s{text-decoration:none;font-size:10px;color:#526171;margin-left:6px;font-weight:400}
@@ -100,32 +101,39 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
     ||(Number(a.move_id)||0)-(Number(b.move_id)||0));
   /* 공정 완료 = 그 공정을 마치고 경일FB(사내)로 입고된 상태
      · 미입고 반출건(sdate 있고 idate 없음)이 있으면 제품은 아직 그 외주처에 있다 */
-  const openO = osp.filter(o=>o.sdate&&!o.idate)
+  const openAll = osp.filter(o=>o.sdate&&!o.idate)
       .sort((a,b)=>String(b.sdate||'').localeCompare(String(a.sdate||''))
-                 ||(Number(b.no)||0)-(Number(a.no)||0))[0]||null;
+                 ||(Number(b.no)||0)-(Number(a.no)||0));
+  const isIn  = o => String(o&&o.move_kind||'외주')==='사내';
+  const openO = openAll.find(o=>!isIn(o))||null;      /* 외주 보유 */
+  const openI = openAll.find(isIn)||null;             /* 사내 작업장 이동 */
   const wipMp = openO?(openO.mp||''):'';
+  const inMp  = openI?(openI.mp||''):'';
   const doneMp = new Set();
   osp.filter(o=>o.idate&&o.mp).forEach(o=>doneMp.add(o.mp));
   asc.filter(m=>m.mp&&m.io==='입고').forEach(m=>doneMp.add(m.mp));
   (Array.isArray(r.steps)?r.steps:[]).forEach(s=>{ if(s.mp) doneMp.add(s.mp); });
   if(wipMp) doneMp.delete(wipMp);
+  if(inMp)  doneMp.delete(inMp);
   /* 제품의 현재 위치 : recv 종결 / wip 외주 보유 / home 사내 보유 */
   const pos = rcpt[0] ? 'recv' : (wipMp ? 'wip' : 'home');
-  const restMp = steps.filter(x=>!doneMp.has(x)&&x!==wipMp);
+  const restMp = steps.filter(x=>!doneMp.has(x)&&x!==wipMp&&x!==inMp);
 
   /* 이동경로 : 외주는 공정마다 사내로 되돌아오므로 사내 노드는 앞의 하나만 둔다 */
   const routeFlow = () => {
     if(!rt) return '(미매칭)';
     const chip=(cls,t,sub)=>'<b class="'+cls+'">'+t+(sub?'<s>'+sub+'</s>':'')+'</b>';
     const homeSub = pos==='recv' ? '✓ 종결 '+esc(rcpt[0].in_date||'')
-      : pos==='home' ? (restMp.length?'현재 위치 · 다음 반출 대기':'현재 위치 · 사내입고 대기')
-      : '출발 · 복귀 지점';
+      : pos!=='home' ? '출발 · 복귀 지점'
+      : openI ? '현재 위치 · 사내 '+esc(openI.vendor||'작업장')+' 작업중'
+      : (restMp.length?'현재 위치 · 다음 반출 대기':'현재 위치 · 사내입고 대기');
     let h=chip(pos==='recv'?'close':(pos==='home'?'home':''), '🏭 사내', homeSub);
     steps.forEach(x=>{
       const nm=esc(x)+(pName(x)?'·'+esc(pName(x)):'');
       const ven=(ordOf(x).vendor)||'';
       h+='<i>→</i>';
       h+= x===wipMp     ? chip('wip', nm, (ven?ven+' ':'')+'진행중')
+        : x===inMp      ? chip('inw', nm, (openI&&openI.vendor?openI.vendor+' ':'')+'사내 작업중')
         : doneMp.has(x) ? chip('done', nm, (ven?ven+' ':'')+'✓ 완료')
         : x===restMp[0] ? chip('next', nm, '다음 공정')
         : chip('', nm, '');
