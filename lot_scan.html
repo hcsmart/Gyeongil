@@ -20,7 +20,8 @@ body{font:14px/1.6 'Malgun Gothic','맑은 고딕',sans-serif;background:#eef1f4
 .chain{margin-top:8px;line-height:2.1;font-size:12px}
 .chain span{padding:2px 8px;border-radius:2px;background:#eef1f4;color:#7b8794;white-space:nowrap}
 .chain .done{background:#2f7d4d;color:#fff;font-weight:700}
-.chain .nx{background:#2e77bd;color:#fff;font-weight:700}
+.chain .wip{background:#2e77bd;color:#fff;font-weight:700}
+.chain .next{background:#fff;border:1px dashed #2e77bd;color:#1d568c;font-weight:700}
 .row{display:grid;grid-template-columns:92px 1fr;gap:8px;align-items:center;margin-bottom:8px}
 .row label{font-size:12px;font-weight:700;color:#526171}
 @media(max-width:420px){.row{grid-template-columns:1fr;gap:3px;margin-bottom:10px}
@@ -215,9 +216,10 @@ try{
       '<b>총수량</b><span>'+(last.qty!=null?num(last.qty).toLocaleString():'-')+'</span>'+
       '<b>사내입고</b><span>'+(RCPT?'✅ '+esc(RCPT.in_date)+' · '+num(RCPT.qty).toLocaleString():'미입고')+'</span></div>'+
       (STEPS.length?'<div class="chain">'+STEPS.map(x=>{
-        const d=SEEN.has(x), w=open.some(o=>o.mp===x), n=(!d&&!w&&x===rest[0]);
-        return '<span class="'+(d?'done':w?'nx':n?'nx':'')+'">'+esc(x)+(pName(x)?' '+esc(pName(x)):'')+
-               (d?' ✓':w?' (진행중)':'')+'</span>';
+        /* 진행중(외주 보유) 이 완료보다 우선 — 도착확인만 된 공정은 아직 진행중이다 */
+        const w=open.some(o=>o.mp===x), d=(SEEN.has(x)&&!w), n=(!d&&!w&&x===rest[0]);
+        return '<span class="'+(d?'done':w?'wip':n?'next':'')+'">'+esc(x)+(pName(x)?' '+esc(pName(x)):'')+
+               (d?' ✓':w?' (진행중)':n?' (다음)':'')+'</span>';
       }).join(' → ')+'</div>':'')+
     '</div></div>'+
 
