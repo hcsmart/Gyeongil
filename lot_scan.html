@@ -253,8 +253,8 @@ try{
         '<div class="row"><label>출발</label><select id="outFrom">'+
           '<option value="">신규 출고 (사내 출발)</option>'+
           open.map(o=>{const rem=remainOf(o);
-            return '<option value="'+o.no+'">'+esc(o.mp)+' · '+esc(o.vendor||'')+
-              ' 보유분 (잔량 '+rem.toLocaleString()+')</option>';}).join('')+'</select></div>'+
+            return '<option value="'+o.no+'"'+(rem<=0?' disabled':'')+'>'+esc(o.mp)+' · '+esc(o.vendor||'')+
+              ' 보유분 (잔량 '+rem.toLocaleString()+')'+(rem<=0?' — 출고 불가':'')+'</option>';}).join('')+'</select></div>'+
         /* 작업 완료품은 대부분 경일FB로 복귀 → 기본값을 사내입고로 둔다 */
         '<div class="row" id="outDestRow"><label>보내는 곳</label><select id="outDest">'+
           '<option value="home">🏭 경일FB 사내입고</option>'+
@@ -275,6 +275,7 @@ try{
           '<label style="font-weight:400;font-size:13px"><input type="checkbox" id="outClose" '+
           'style="width:auto;margin-right:6px">잔여 없음 — 부족으로 반출건 마감</label></div>'+
         '<div class="row"><label>특기사항</label><textarea id="outRmk" placeholder="부분출고 · 부족 사유 등 (선택)"></textarea></div>'+
+        '<div class="dnote dup" id="outWhy" style="display:none"></div>'+
         '<button class="bt out" id="btOut">📤 출고(반출) 등록</button>'+
       '</div></div>'+
 
@@ -407,8 +408,25 @@ try{
         $('#btOut').textContent    = home?'🏭 경일FB 사내입고 등록':'📤 출고(반출) 등록';
         sync();
       }
+      /* 출고 가능 여부 : 잔량 없음 · 수량 오류 · 필수 미선택이면 등록 버튼을 잠근다 */
+      function syncBtn(){
+        const B=$('#btOut'); if(!B || B.dataset.lbl) return;   /* 등록중이면 건드리지 않음 */
+        const src=srcOf(), home=isHomeDest(), q=num($('#outQty').value);
+        const rem=src?remainOf(src):0;
+        let why='';
+        if(src && rem<=0)      why='이 보유분은 <b>잔량이 없습니다</b> — 이미 전량 이관·복귀되었습니다.';
+        else if(!q)            why='수량을 입력하세요.';
+        else if(src && q>rem)  why='잔량(<b>'+rem.toLocaleString()+'</b>)보다 많이 '+(home?'입고':'출고')+'할 수 없습니다.';
+        else if(!home && !$('#outMp').value)  why='다음 공정을 선택하세요.';
+        else if(!home && !$('#outVen').value) why='<b>받는 외주처</b>를 선택하세요.';
+        B.disabled=!!why;
+        const w=$('#outWhy');
+        w.innerHTML = why?('⛔ '+why):'';
+        w.style.display = why?'':'none';
+      }
       const sync=()=>{
         const src=srcOf(), home=isHomeDest();
+        setTimeout(syncBtn,0);
         if(src && home){
           const rem=remainOf(src), q=num($('#outQty').value), left=Math.max(rem-q,0);
           $('#outCloseRow').style.display = left>0?'':'none';
@@ -438,8 +456,11 @@ try{
         $('#outQty').value=s2?(remainOf(s2)||''):(num(last.qty)||''); syncDest(); });
       $('#outDest').addEventListener('change',syncDest);
       $('#outQty').addEventListener('input',sync);
+      ['#outMp','#outVen','#outClose'].forEach(k=>{ const e2=$(k);
+        if(e2) e2.addEventListener('change',syncBtn); });
       /* 미결 반출건이 있으면 [그 보유분 → 경일FB 사내입고] 를 기본값으로 */
-      if(open.length){ $('#outFrom').value=String(open[0].no); $('#outQty').value=remainOf(open[0])||''; }
+      const first=open.find(o=>remainOf(o)>0)||open[0];
+      if(first){ $('#outFrom').value=String(first.no); $('#outQty').value=remainOf(first)||''; }
       else $('#outQty').value=num(last.qty)||'';
       syncDest();
       $('#btOut').addEventListener('click',async()=>{
@@ -481,6 +502,11 @@ try{
         if(!mp) return msg('가공공정을 선택하세요.');
         if(!ven) return msg('받는 외주처를 선택하세요.');
         if(!q)  return msg('출고수량을 입력하세요.');
+        if(src){
+          const rem=remainOf(src);
+          if(rem<=0) return msg('이 보유분은 잔량이 없어 출고할 수 없습니다.');
+          if(q>rem)  return msg('잔량('+rem.toLocaleString()+')보다 많이 출고할 수 없습니다.');
+        }
         if(!confirm('[출고(반출)] 등록하시겠습니까?\n\n'+
             'LOT : '+PART+'\n'+
             '다음 공정 : '+mp+'\n'+
