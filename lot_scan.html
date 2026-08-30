@@ -256,9 +256,9 @@ try{
             return '<option value="'+o.no+'"'+(rem<=0?' disabled':'')+'>'+esc(o.mp)+' · '+esc(o.vendor||'')+
               ' 보유분 (잔량 '+rem.toLocaleString()+')'+(rem<=0?' — 출고 불가':'')+'</option>';}).join('')+'</select></div>'+
         /* 작업 완료품은 대부분 경일FB로 복귀 → 기본값을 사내입고로 둔다 */
-        '<div class="row" id="outDestRow"><label>보내는 곳</label><select id="outDest">'+
-          '<option value="home">🏭 경일FB 사내입고</option>'+
-          '<option value="ven">🚚 다음 외주처 직송</option></select></div>'+
+        '<div class="row" id="outDestRow"><label>보내는 곳</label><select id="outDest" disabled>'+
+          '<option value="home">🏭 경일FB 사내입고 (고정)</option>'+
+          '<option value="ven" disabled>🚚 다음 외주처 직송 (사용 안 함)</option></select></div>'+
         '<div class="dnote" id="outDNote"></div>'+
         '<div class="row" id="outMpRow"><label>다음 공정</label><select id="outMp">'+
           (STEPS.length
@@ -390,19 +390,23 @@ try{
       const srcOf=()=>open.find(o=>String(o.no)===$('#outFrom').value)||null;
       /* 보내는 곳 : home = 경일FB 사내 복귀(반출건 마감) / ven = 다음 외주처 직송
          · 신규 출고(사내 출발)는 사내 복귀가 성립하지 않으므로 외주처 고정 */
-      const isHomeDest=()=>!!srcOf() && $('#outDest').value==='home';
+      /* 외주 공정을 마친 제품은 반드시 경일FB로 복귀해 검사 후 다음 공정으로 반출한다
+         → 외주처 보유분 출고는 [경일FB 사내입고] 고정 (외주처 간 직송 금지)
+         → 신규 출고(사내 출발)만 외주처로 반출 */
+      const isHomeDest=()=>!!srcOf();
       function syncDest(){
         const src=srcOf(), sel=$('#outDest');
         $('#outDestRow').style.display = src?'':'none';
-        if(!src) sel.value='ven';
+        sel.value = src?'home':'ven';
+        sel.disabled = true;                       /* 선택 불가 — 규칙 고정 */
         const home=isHomeDest();
         $('#outMpRow').style.display = home?'none':'';
         $('#outVenRow').style.display = home?'none':'';
         $('#outDNote').className='dnote '+(home?'home':'ven');
         $('#outDNote').innerHTML = home
-          ? '🏭 <b>경일FB로 입고</b>합니다 — 반출건이 마감되고, 사내 검사 후 다음 공정으로 다시 반출합니다.'
-          : (src?'🚚 <b>외주 직송</b> — 경일FB를 거치지 않고 다음 협력사로 바로 보냅니다.'
-                :'🚚 <b>외주 반출</b> — 협력사로 보냅니다.');
+          ? '🏭 <b>경일FB로 입고</b>합니다 — 외주 공정이 끝난 제품은 <b>반드시 경일FB로 복귀</b>해 '+
+            '검사 후 다음 공정으로 반출합니다. (외주처 간 직송 불가)'
+          : '🚚 <b>외주 반출</b> — 협력사로 보냅니다.';
         $('#outDateL').textContent = home?'입고일':'출고일';
         $('#outQtyL').textContent  = home?'입고수량':'출고수량';
         $('#btOut').textContent    = home?'🏭 경일FB 사내입고 등록':'📤 출고(반출) 등록';
@@ -419,6 +423,7 @@ try{
         else if(src && q>rem)  why='잔량(<b>'+rem.toLocaleString()+'</b>)보다 많이 '+(home?'입고':'출고')+'할 수 없습니다.';
         else if(!home && !$('#outMp').value)  why='다음 공정을 선택하세요.';
         else if(!home && !$('#outVen').value) why='<b>받는 외주처</b>를 선택하세요.';
+        else if(!home && src)                 why='외주처 보유분은 <b>경일FB 사내입고</b>로만 출고할 수 있습니다.';
         B.disabled=!!why;
         const w=$('#outWhy');
         w.innerHTML = why?('⛔ '+why):'';
@@ -498,6 +503,7 @@ try{
           }catch(e){ msg('❌ '+e.message); freeBtn(B); }
           return;
         }
+        if(src) return msg('외주처 보유분은 경일FB 사내입고로만 출고할 수 있습니다.');
         const mp=$('#outMp').value, ven=$('#outVen').value;
         if(!mp) return msg('가공공정을 선택하세요.');
         if(!ven) return msg('받는 외주처를 선택하세요.');
