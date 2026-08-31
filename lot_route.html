@@ -59,6 +59,11 @@
 .fx-node .qbar{display:block;height:4px;background:#eadfc8;border-radius:2px;margin:3px 0 2px}
 .fx-node .qbar b{display:block;height:100%;background:#2f7d4d;border-radius:2px}
 .fx-node .qsub{display:block;font-size:9.5px;font-weight:700;color:#a4702a;opacity:.9}
+/* 외주처 보유재고 배지 — 그 업체가 이 품번을 지금 몇 개 들고 있는지 */
+.fx-node .vst{display:block;margin-top:3px;padding:1px 4px;border-radius:3px;cursor:help;
+  font-size:9.5px;font-weight:800;color:#1d568c;background:#e9f2fc;border:1px solid #cfe0f2}
+.fx-node .vst b{color:#8a5a12;font-weight:800}
+.fx-node.st-home .vst{color:#cfe0f2;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25)}
 .fx-node.st-done .qsub{color:#3f8f60}
 .fx-node.st-rest{background:#f2f4f6;border-color:#d5dce2}
 .fx-node.st-rest .t{color:#96a2ad}.fx-node.st-rest .s{color:#a8b3bd}
@@ -223,6 +228,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         CAN_D=KI.can('lot-route','delete');
   const TODAY=new Date().toISOString().slice(0,10);
   let ROWS=[], OSP=[], VEN=[], PROC=[], RT=[], MOLDS=[], RCPT=[], MVIN=[], MVST={}, MVQ={}, sel=null, NEW=false, editNo=null;
+  /* 외주처 재고 : 미결 반출건 기준으로 협력사가 지금 들고 있는 물량
+     VSK  '업체|품번'  → 그 업체가 보유중인 해당 품번 (다른 LOT 포함)
+     VSM  '품번|공정'  → 그 공정에 나가 있는 해당 품번 (업체 미확정 노드용) */
+  let VSK={}, VSM={};
 
   const ui=KI.page(cur,[
     ['신규등록','',()=>openNew()],
@@ -721,6 +730,30 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   }
   /* ── 사내 → 외주 → 사내 흐름 다이어그램 ──
      mv(현장 기록)가 있으면 도착·입고 실제 일자를 우선 사용하고, 현재 위치를 짙은 색으로 강조 */
+  /* ── 외주처 보유재고 배지 ────────────────────────────────
+     업체가 확정된 공정은 [그 업체가 보유중인 이 품번] 을,
+     아직 업체가 정해지지 않은 공정은 [그 공정에 나가 있는 이 품번] 을 보여준다.
+     다른 LOT 물량까지 합산하므로 '지금 그 업체에 이 품번이 얼마나 있나'를 바로 알 수 있다. */
+  const stkOf=(mapPart,vendor,mp)=>{
+    if(!mapPart) return null;
+    const s=vendor?VSK[vendor+'|'+mapPart]:VSM[mapPart+'|'+(mp||'')];
+    return (s&&s.qty>0)?s:null;
+  };
+  function stkHtml(mapPart,vendor,mp,self){
+    const s=stkOf(mapPart,vendor,mp); if(!s) return '';
+    const rows=s.rows.slice().sort((a,b)=>b.qty-a.qty);
+    const mine=rows.some(r=>String(r.part||'')===String(self||''));
+    const tip=(vendor?vendor:'이 공정')+' 보유 · 품번 '+mapPart+'\n'+
+      '합계 '+nf(s.qty)+'EA · '+rows.length+'건\n──────────\n'+
+      rows.slice(0,12).map(r=>'· '+(vendor?'':r.vendor+' · ')+(r.part||'')+
+        (r.mp?' · '+r.mp:'')+' · '+nf(r.qty)+'EA'+(r.date?' · 반출 '+r.date:'')+
+        (r.due&&r.due!=='정상'&&r.due!=='-'?' ['+r.due+']':'')+
+        (String(r.part||'')===String(self||'')?'  ← 이 LOT':'')).join('\n')+
+      (rows.length>12?'\n… 외 '+(rows.length-12)+'건':'');
+    return '<span class="vst" title="'+esc(tip)+'">📦 재고 '+nf(s.qty)+
+      (rows.length>1?' · '+rows.length+'건':'')+(mine?'':' <b>타LOT</b>')+'</span>';
+  }
+
   function drawFlow(c,mv){
     mv=mv||[];
     const md=d=>d?String(d).slice(5).replace('-','/'):'';
@@ -786,6 +819,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       const dVen =(a2&&a2.vendor)||(info&&info.vendor)||'';
       const wDate=(o2&&o2.move_date)||c.last.date||'';
       const prevDone = i===0 ? (c.steps.length>0||c.moving) : doneOf(seq[i-1])||seq[i-1]===wipMp2;
+      /* 이 공정의 외주처 (반출건 → 현장기록 순으로 확정) · 사내 작업장은 재고 대상이 아니다 */
+      const nVen = kindOf(x)==='사내' ? '' :
+        ((o2&&o2.vendor)||dVen||
+         ((ospOf(c.part).filter(v2=>v2.mp===x)
+            .sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0]||{}).vendor)||'');
+      const vst = stkHtml(c.map_part||'', nVen, x, c.part);
       html+=arrow(done?'a-done':part?'a-part':((wip||inw)&&prevDone)?'a-wip':'',
                   (done||part)&&!inw);
       /* 차수(납품 회차) 상세는 노드 title 로 (B안) */
@@ -794,7 +833,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           (rt2?'" title="'+esc(rt2):''),
         curPos==='wip:'+x,
         esc(x), esc(pName(x)||''),
-        part?('◐ 부분완료 '+nf(q.in)+'/'+nf(q.out)+
+        (part?('◐ 부분완료 '+nf(q.in)+'/'+nf(q.out)+
               '<i class="qbar"><b style="width:'+Math.min(q.rate,100)+'%"></b></i>'+
               '<span class="qsub">미회수 '+nf(q.open)+
               (q.rounds.length>1?' · '+q.rounds.length+'차 분할':'')+'</span>')
@@ -805,7 +844,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         :wip?((arr(null,x)||c.seen.has(x))
               ? '🏭 '+esc((a2&&a2.vendor)||c.last.vendor||'')+' 작업중'+(dDate?' · 도착 '+md(dDate):'')
               : '<span class="truck">🚚</span> '+esc(c.last.vendor||'')+' 반출중'+(wDate?' · '+md(wDate):''))
-        :nx?'다음 공정':'대기');
+        :nx?'다음 공정':'대기')+vst);
     });
     $('#iChain').innerHTML='<div class="fx">'+html+'</div>'+
       '<div class="fx-lg">'+
@@ -815,7 +854,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       '<span><i class="g6"></i>부분완료(분할 · 순차납품)</span>'+
       '<span style="color:#8b98a5">🚚 → 반출(사내→외주) · ← 🚚 복귀(외주→사내)</span>'+
       '<span><i class="g5"></i>사내 작업장 이동</span>'+
-      '<span><i class="g4"></i>다음 공정</span></div>';
+      '<span><i class="g4"></i>다음 공정</span>'+
+      '<span style="color:#1d568c">📦 그 외주처가 보유중인 이 품번 재고(다른 LOT 포함) — 올려두면 상세</span></div>';
   }
 
   function open(c){
@@ -1460,10 +1500,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         const on=fd.classList.toggle('open');
         h5.querySelector('.cnt').textContent=
           mv.length+'건'+(short?' · 부족 '+short+'건':'')+(on?'':' · 클릭하여 펼치기');
-        try{ localStorage.setItem('ki_mv_fold',on?'1':'0'); }catch(e){}
       });
-      let keep=false; try{ keep=localStorage.getItem('ki_mv_fold')==='1'; }catch(e){}
-      if(keep) h5.click();
+      /* 진행등록을 열 때는 <b>항상 접힌 상태</b>로 시작한다 (요약을 먼저 보고 필요할 때만 펼침) */
     }catch(e){}
   }
   /* 반출등록 섹션 접기/펼치기 (항상 접힌 상태로 시작) */
@@ -1524,7 +1562,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   }
 
   async function load(){
-    const [rows,osp,ven,proc,rt,molds,rcpt,mvin,mvst]=await Promise.all([
+    const [rows,osp,ven,proc,rt,molds,rcpt,mvin,mvst,vstk]=await Promise.all([
       KI.get(OBJ.lotProg+'?select=*&order=no.asc'),
       KI.get(OBJ.ospOrder+'?select=*&order=no.desc'),
       KI.get(OBJ.vendor+'?select=vendor_name&order=vendor_name.asc'),
@@ -1534,7 +1572,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       KI.get(OBJ.lotReceipt+'?select=part,in_date,qty,short_qty').catch(()=>[]),
       KI.get(OBJ.lotMove+'?select=part,move_date,in_qty,short_qty&io=eq.'+encodeURIComponent('사내입고')).catch(()=>[]),
       KI.get(OBJ.lotMove+'?select=part,io,mp,vendor,move_date,osp_no,out_qty,in_qty,short_qty&io=in.('+
-        encodeURIComponent('"도착","입고"')+')&order=move_date.asc,move_id.asc').catch(()=>[])
+        encodeURIComponent('"도착","입고"')+')&order=move_date.asc,move_id.asc').catch(()=>[]),
+      KI.get(OBJ.venStock+'?select=vendor,part,job,mp,map_part,stock_qty,out_date,due_status'+
+             '&order=vendor.asc,out_date.asc').catch(()=>[])
     ]);
     ROWS=rows; OSP=osp; VEN=ven; PROC=proc; RT=rt; MOLDS=molds; RCPT=rcpt;
     MVIN=(mvin||[]).map(v=>({part:v.part,in_date:v.move_date,qty:v.in_qty,short_qty:v.short_qty}));
@@ -1543,6 +1583,24 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       (MVQ[k]=MVQ[k]||[]).push(v);                       /* 수량 집계용 원본 */
       if(!v.mp) return;
       (MVST[k]=MVST[k]||[]).push({mp:v.mp, vendor:v.vendor||'', date:v.move_date||''}); });
+    /* ── 외주처 재고 인덱스 ──
+       · 사내 작업장(move_kind='사내')은 협력사 재고가 아니므로 제외한다
+       · 품번(map_part)이 비어 있는 건은 반출건에서 보완 */
+    const SITE=new Set(OSP.filter(o=>String(o.move_kind||'')==='사내')
+      .map(o=>String(o.vendor||'').trim()).filter(Boolean));
+    const mapOf=p=>{ const o=OSP.find(x=>String(x.part||'')===String(p)&&x.map_part);
+      return o?String(o.map_part):''; };
+    VSK={}; VSM={};
+    (vstk||[]).forEach(v=>{
+      const ven=String(v.vendor||'').trim(); if(!ven||SITE.has(ven)) return;
+      const q=Number(v.stock_qty)||0; if(q<=0) return;
+      const mpn=String(v.map_part||'')||mapOf(v.part); if(!mpn) return;
+      const row={vendor:ven, part:v.part, job:v.job, mp:v.mp||'', qty:q,
+                 date:v.out_date||'', due:v.due_status||''};
+      const k1=ven+'|'+mpn, k2=mpn+'|'+(v.mp||'');
+      (VSK[k1]=VSK[k1]||{qty:0,rows:[]}); VSK[k1].qty+=q; VSK[k1].rows.push(row);
+      (VSM[k2]=VSM[k2]||{qty:0,rows:[]}); VSM[k2].qty+=q; VSM[k2].rows.push(row);
+    });
     /* 진행이력이 아직 없는 반출건(입고 전)도 목록에 노출 */
     const have=new Set(ROWS.map(r=>String(r.part||'')));
     OSP.forEach(o=>{ const k=String(o.part||'');
