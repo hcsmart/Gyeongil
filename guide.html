@@ -33,7 +33,9 @@
 (async function(){
   const sec=new URLSearchParams(location.search).get('sec')||'';
   if(!await KI.guard(null))return;          /* 로그인만 확인 — 안내는 전 사용자 열람 */
-  const cur=KI.chrome(FLAT['guide']?'guide':('guide-'+(sec||'start')));
+  /* ?sec= 로 들어오면 그 주제 메뉴를, 없으면 전체 안내를 현재 화면으로 표시 */
+  const curId=(sec && FLAT['guide-'+sec]) ? 'guide-'+sec : 'guide';
+  const cur=KI.chrome(curId);
   const el=KI.el, esc=KI.esc;
   const ui=KI.page(cur,[['인쇄','',()=>window.print()]]);
   const box=el('div','gd'); ui.pg.appendChild(box);
@@ -136,7 +138,8 @@
   '<table><thead><tr><th style="width:150px">표시</th><th>의미</th></tr></thead><tbody>'+
   '<tr><td class="mn">🏭 사내 (짙은색)</td><td>제품이 <b>경일FB에 있음</b> — 출발 전이거나 공정을 마치고 복귀한 상태</td></tr>'+
   '<tr><td class="mn">공정 (파랑)</td><td>그 공정 외주처가 <b>보유 중</b> — 이동중 또는 도착 후 작업중</td></tr>'+
-  '<tr><td class="mn">공정 ✓ (초록)</td><td>그 공정을 마치고 <b>경일FB로 입고 완료</b></td></tr>'+
+  '<tr><td class="mn">공정 ✓ (초록)</td><td>그 공정을 마치고 <b>경일FB로 입고 완료</b> — '+
+  '외주는 <b>사내복귀</b>, 사내 이동은 <b>사내작업</b>으로 표시됩니다</td></tr>'+
   '<tr><td class="mn">공정 (오렌지)</td><td>사내 작업장으로 이동 — 제품은 <b>경일FB 안</b>에 있음</td></tr>'+
   '<tr><td class="mn">공정 (점선)</td><td>다음에 반출할 공정</td></tr>'+
   '</tbody></table>'+
@@ -151,7 +154,10 @@
   '<li>제품이 경일FB 안에 있으므로 <b>QR 화면에는 나타나지 않습니다.</b> '+
   '작업이 끝나면 진행등록의 미결 목록에서 <b>[📦 입고]</b>로 마감합니다.</li>'+
   '<li>화면 표시는 <b>오렌지</b>(외주는 파랑) — 현재 위치는 계속 <b>경일FB</b>로 유지되고 '+
-  '보유처는 <b>경일FB · ○○ 작업장</b>으로 표시됩니다.</li></ul>'+
+  '보유처는 <b>경일FB · ○○ 작업장</b>으로 표시됩니다.</li>'+
+  '<li>제품이 공장을 벗어나지 않으므로 <b>사내 이동에는 "복귀"라는 단계가 없습니다.</b> '+
+  '작업 중에도 현재 위치는 사내이며, 완료 후 흐름도 문구는 <b>✓ 완료 · 사내작업</b>입니다 '+
+  '(외주는 <b>✓ 완료 · 사내복귀</b>).</li></ul>'+
 
   '<h3>5. 이동표가 없을 때</h3>'+
   '<ul><li>'+P('LOT관리 › QR 입출고(현장)')+'에서 <b>LOT · JOB 번호 검색</b> 또는 미결 목록에서 선택</li>'+
@@ -161,9 +167,9 @@
   '<h3>6. 종결 · 조회</h3>'+
   '<ul><li>마지막 공정까지 사내입고가 끝나면 진행등록 팝업의 <b>[🏭 사내입고(종결)]</b>로 LOT을 닫습니다. '+
   '종결 시 <b>QR 토큰이 자동 폐기</b>되고, 이후 반출 · 입고 버튼은 모두 잠깁니다.</li>'+
-  '<li>'+P('QR 입출고 이력')+' — 도착/출고/입고 · 부족 · 특기사항 · 기록자</li>'+
-  '<li>'+P('협력사 재고현황')+' — 업체별 현재 보유수량 · 체류일 · 납기. <b>도착대기로 체류일이 길면 QR 확인 누락</b></li>'+
-  '<li>'+P('공정이동표 발행이력')+' — 토큰 유효/폐기 · 사용횟수 · '+P('LOT 이동이력')+' — 경유 이력</li></ul>';
+  '<li>'+P('LOT 추적(통합조회)')+' — 반출 · QR · 입고 · 사내입고 · 이동표 발행을 <b>한 화면에서</b> 조건 검색</li>'+
+  '<li>'+P('LOT 이동이력')+' — LOT별 경유단계 · 전공정 · 다음공정 요약</li>'+
+  '<li>'+P('협력사 재고현황')+' — 업체별 현재 보유수량 · 체류일 · 납기. <b>도착대기로 체류일이 길면 QR 확인 누락</b></li></ul>';
 
   /* ── 타발수 · 등급 ── */
   C.shot=
@@ -180,6 +186,73 @@
   '<li>총점 20 이하 A · 21~38 B · 39 이상 C · A/S/단종은 F</li>'+
   '<li>등급 반영 시 점검주기가 [점검주기 기준]에 따라 재배정되고 연간 계획에 반영됩니다</li>'+
   '<li>'+P('월별 타발수')+' 화면의 [등급 자동 산정]으로 대장 전체 일괄 산정도 가능합니다</li></ol>';
+
+  /* ── LOT 추적 (통합조회) ── */
+  C.track=
+  '<h2>🔎 LOT 추적 — 통합조회 사용법</h2>'+
+  '<p>'+P('LOT관리 › LOT 추적(통합조회)')+'는 흩어져 있던 기록을 <b>한 줄씩 시간순으로</b> 합쳐 보여줍니다. '+
+  '"이 LOT이 언제 어디에 얼마나 있었는지"를 되짚을 때 쓰는 화면입니다.</p>'+
+  '<div class="flow">기간 좁히기 <i>→</i> LOT · 업체 등으로 조건 추가 <i>→</i> 이벤트 선택 '+
+  '<i>→</i> 요약 숫자 확인 <i>→</i> 제목행 정렬 <i>→</i> 엑셀다운로드</div>'+
+
+  '<h3>이벤트 종류</h3>'+
+  '<p>조건줄 아래 <b>칩</b>을 눌러 켜고 끕니다. 기본은 이동표 발행만 꺼져 있습니다.</p>'+
+  '<table><thead><tr><th style="width:130px">칩</th><th>무엇이 기록되나</th></tr></thead><tbody>'+
+  '<tr><td class="mn">반출등록</td><td>진행등록에서 반출을 저장한 시점 — 납기 · 입고 여부가 함께 표시</td></tr>'+
+  '<tr><td class="mn">QR 도착</td><td>협력사가 수령 후 도착확인한 시점 (수량 · 부족 포함)</td></tr>'+
+  '<tr><td class="mn">QR 출고</td><td>사내 출발 또는 협력사 작업 완료 후 내보낸 시점</td></tr>'+
+  '<tr><td class="mn">가공입고</td><td>그 공정을 마치고 경일FB로 들어온 시점 — 반출~입고 <b>체류일</b> 계산</td></tr>'+
+  '<tr><td class="mn">사내입고</td><td>모든 공정을 끝내고 LOT을 <b>종결</b>한 시점</td></tr>'+
+  '<tr><td class="mn">특기사항</td><td>불량 · 지연 등 자유 기록만</td></tr>'+
+  '<tr><td class="mn">이동표 발행</td><td>QR 토큰 발행 — 상태(유효 · 만료 · 폐기) · 만료일 · 사용횟수</td></tr>'+
+  '</tbody></table>'+
+
+  '<h3>검색 조건</h3>'+
+  '<table><thead><tr><th style="width:130px">조건</th><th>쓰는 상황</th></tr></thead><tbody>'+
+  '<tr><td class="mn">LOT · JOB · 품번</td><td>포함 검색. 일부만 쳐도 됩니다. 결과 행을 클릭하면 그 LOT으로 바로 좁혀집니다</td></tr>'+
+  '<tr><td class="mn">이동처</td><td>특정 협력사 · 사내 작업장이 다룬 물량만 — <b>업체별 사고 조사</b>에 사용</td></tr>'+
+  '<tr><td class="mn">가공공정 · 표준공정</td><td>공정 단위로 문제를 좁힐 때 (예: 열처리 건만)</td></tr>'+
+  '<tr><td class="mn">기간</td><td>최근 7 · 30 · 90일 · 1년 · 전체 또는 직접 지정. <b>먼저 기간부터</b> 좁히는 것이 빠릅니다</td></tr>'+
+  '<tr><td class="mn">이동구분</td><td>외주(공장 밖) · 사내(경일FB 안) 구분</td></tr>'+
+  '<tr><td class="mn">수량</td><td>최소 ~ 최대. 소량 시험품이나 대량 건만 골라 볼 때</td></tr>'+
+  '<tr><td class="mn">부족</td><td><b>부족 발생분만</b> — 어느 공정 · 업체에서 손실이 났는지 한 번에 확인</td></tr>'+
+  '<tr><td class="mn">체류</td><td>반출 후 경과일. 7 · 14 · 30일 이상으로 <b>오래 묶인 물량</b>을 걸러냅니다</td></tr>'+
+  '<tr><td class="mn">특기사항</td><td>사유 · 비고 본문 검색 (예: "크랙", "치수")</td></tr>'+
+  '</tbody></table>'+
+
+  '<h3>자주 쓰는 조합</h3>'+
+  '<ul><li><b>이 LOT 어디까지 갔나</b> — 기간 전체 + LOT 입력. 위에서부터 최근 순으로 읽습니다.</li>'+
+  '<li><b>이번 달 손실 정리</b> — 기간 30일 + 부족 [부족 발생분만] → 엑셀다운로드</li>'+
+  '<li><b>안 돌아오는 물량 찾기</b> — 이벤트 [반출등록]만 켜고 체류 [14일 이상]</li>'+
+  '<li><b>업체 평가 자료</b> — 이동처 선택 + 기간 90일 → 부족합계 · 체류일 확인</li>'+
+  '<li><b>QR 토큰 점검</b> — 이벤트 [이동표 발행]만 켜기 → 폐기 · 만료 상태 확인</li></ul>'+
+  '<div class="tip">💡 상단 <b>요약 숫자</b>(이벤트 · LOT · 이동처 · 반출수량 · 가공입고 · 부족합계)는 '+
+  '조건을 바꿀 때마다 다시 계산됩니다. 숫자만 보고도 범위가 맞는지 판단할 수 있습니다.</div>'+
+  '<div class="warn">⚠ 같은 LOT에 <b>반출등록</b>과 <b>QR 출고</b>가 나란히 보이는 것은 정상입니다. '+
+  '앞은 사내에서 지시한 기록, 뒤는 현장에서 실제로 내보낸 기록으로 서로 다른 시점입니다.</div>';
+
+  /* ── 화면 공통 조작 ── */
+  C.common=
+  '<h2>🖱 화면 공통 조작</h2>'+
+  '<h3>표 제목행 정렬</h3>'+
+  '<ul><li>제목을 누를 때마다 <b>오름차순 ▲ → 내림차순 ▼ → 등록순 ↕</b>로 바뀝니다.</li>'+
+  '<li>수량 · 부족 · 체류일 같은 <b>숫자 열은 크기 순</b>, 나머지는 가나다 순입니다. '+
+  'LOT 번호처럼 숫자가 섞인 값도 자릿수를 인식합니다 (Lot-99 < Lot-1222).</li>'+
+  '<li>빈 값은 방향과 상관없이 <b>항상 뒤로</b> 갑니다. 값이 같으면 원래 등록순을 유지합니다.</li>'+
+  '<li>정렬은 화면에서만 바뀌며 저장된 데이터는 그대로입니다. <b>엑셀다운로드도 보이는 순서 그대로</b> 받습니다.</li></ul>'+
+  '<h3>조회 · 초기화 · 엑셀</h3>'+
+  '<ul><li><b>[조회]</b>를 누르면 버튼이 회색으로 바뀌며 <b>조회중...</b>이 표시되고, 그동안 다시 눌러도 중복 조회되지 않습니다.</li>'+
+  '<li><b>[초기화]</b>는 검색조건과 정렬을 모두 처음 상태로 되돌립니다. 조건이 꼬였을 때 다시 좁히는 편이 빠릅니다.</li>'+
+  '<li><b>[엑셀다운로드]</b>는 <b>현재 조건 · 정렬 그대로</b> CSV로 받습니다. 결과가 없으면 파일을 만들지 않습니다.</li></ul>'+
+  '<h3>등록예제 안내</h3>'+
+  '<ul><li>등록 화면 상단의 <b>[🎬 등록예제 안내]</b>는 입력란을 한 칸씩 채우며 무엇을 왜 적는지 설명합니다. '+
+  '<b>저장은 하지 않으므로</b> 교육 · 시연에 그대로 쓸 수 있습니다.</li>'+
+  '<li>조회 화면(LOT 추적)에서는 <b>검색조건을 좁혀가는 순서</b>를 보여줍니다.</li>'+
+  '<li>하단 조작바에서 <b>이전 · 다음 · 일시정지 · 속도 · 한번에</b>를 쓸 수 있고, <b>ESC</b>로 언제든 중지합니다.</li>'+
+  '<li>안내가 채운 값은 예시일 뿐입니다. <b>실제 값으로 고친 뒤</b> 저장하세요.</li></ul>'+
+  '<h3>모바일</h3>'+
+  '<ul><li>협력사 QR 스캔은 휴대폰 카메라로 동작하며 <b>로그인이 필요 없습니다.</b></li>'+
+  '<li>좁은 화면에서는 표가 <b>가로로 스크롤</b>됩니다. 제목행은 위에 고정되어 열 이름을 계속 볼 수 있습니다.</li></ul>';
 
   /* ── 전체 메뉴 설명 (config 에서 자동 생성) ── */
   C.menu=(function(){
@@ -200,11 +273,25 @@
   })();
 
   /* 통합 표시 : ?sec= 지정 시 해당 섹션만, 없으면 전체(숨김 모듈 제외) */
-  if(sec && C[sec]) box.innerHTML=C[sec];
+  if(sec && C[sec]){
+    const NAMES={start:'처음 시작하기',mold:'금형 점검',tool:'연마 · 교체',lot:'LOT 외주 진행',
+                 track:'LOT 추적 사용법',shot:'타발수 · 등급',common:'화면 공통 조작',menu:'전체 메뉴'};
+    const hideMold2=(typeof HIDE!=='undefined'&&HIDE.mod&&HIDE.mod.indexOf('mold')>=0)
+                 || (typeof DIM_MOD!=='undefined'&&DIM_MOD.indexOf('mold')>=0);
+    const keys=(hideMold2?['start','lot','track','common','menu']
+                         :['start','mold','tool','lot','track','shot','common','menu'])
+               .filter(k=>C[k]);
+    box.innerHTML=C[sec]+
+      '<div class="tip" style="margin-top:22px">📖 다른 주제 — '+
+      keys.filter(k=>k!==sec).map(k=>'<a href="guide.html?sec='+k+'" '+
+        'style="color:#1d568c;font-weight:700;margin-right:10px">'+esc(NAMES[k]||k)+'</a>').join('')+
+      '<a href="guide.html" style="color:#41556a;font-weight:700">전체 보기</a></div>';
+  }
   else{
     const hideMold = (typeof HIDE!=='undefined' && HIDE.mod && HIDE.mod.indexOf('mold')>=0)
                   || (typeof DIM_MOD!=='undefined' && DIM_MOD.indexOf('mold')>=0);
-    const order = hideMold ? ['start','lot','menu'] : ['start','mold','tool','lot','shot','menu'];
+    const order = hideMold ? ['start','lot','track','common','menu']
+                           : ['start','mold','tool','lot','track','shot','common','menu'];
     box.innerHTML = order.map(k=>C[k]||'').join('<hr style="margin:26px 0;border:0;border-top:2px solid #d5dde4">');
   }
   KI.msg(cur.path);

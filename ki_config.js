@@ -218,8 +218,18 @@ const MENU = [
   ]},
 { key:'guide', name:'사용안내', second:[
     { key:'g-main', name:'사용안내', icon:'📖', groups:[
-      { name:'사용안내', items:[
+      { name:'전체', items:[
         {id:'guide', f:'guide.html', n:'사용안내', d:'업무 흐름 · 전체 메뉴 설명'}
+      ]},
+      { name:'주제별', items:[
+        {id:'guide-start',  f:'guide.html?sec=start',  n:'처음 시작하기',
+         d:'초기 설정 순서 — 사용자 · 기준정보 · 알림'},
+        {id:'guide-lot',    f:'guide.html?sec=lot',    n:'LOT 외주 진행',
+         d:'반출 · 이동표(QR) · 도착확인 · 사내입고'},
+        {id:'guide-track',  f:'guide.html?sec=track',  n:'LOT 추적 사용법',
+         d:'통합조회 검색조건 · 이벤트 · 활용 조합'},
+        {id:'guide-common', f:'guide.html?sec=common', n:'화면 공통 조작',
+         d:'제목행 정렬 · 조회 · 엑셀 · 등록예제 안내'}
       ]}
     ]}
   ]}
