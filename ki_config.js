@@ -36,7 +36,7 @@ const TBL = {                      /* 편집 대상 원천 테이블 */
   toolRule:'ki_tool_rule', moldTool:'ki_mold_tool',
   toolAlert:'ki_tool_alert', notifyCfg:'ki_notify_config',
   moldType:'ki_mold_type', material:'ki_material',
-  vendorT:'ki_vendor', stdRouteT:'machining_standard_routes',
+  vendorT:'ki_vendor', stdRouteT:'machining_standard_routes', processT:'processes',
   /* 외주 LOT (원천 테이블) */
   lotReceipt:'ki_lot_receipt', lotMove:'ki_lot_move',
   ospOrder:'outsourcing_order_status_rows',
@@ -185,8 +185,9 @@ const MENU = [
     ]},
     { key:'b-osp', name:'외주기준', icon:'↔', groups:[
       { name:'외주 기준정보', items:[
+        {id:'process',   f:'process.html',   n:'공정코드',      d:'가공 · 조립 · 설계 공정 코드 · 명칭'},
         {id:'vendor',    f:'vendor.html',    n:'협력사 정보',   d:'외주 가공 · 연락처 · 담당공정'},
-        {id:'std-route', f:'std_route.html', n:'표준 공정경로', d:'표준공정 가공순서'}
+        {id:'std-route', f:'std_route.html', n:'표준 공정경로', d:'가공순서 · 사내/외주 구분'}
       ]}
     ]},
     { key:'b-chk', name:'점검기준', icon:'🔧', groups:[
@@ -424,15 +425,45 @@ const VIEWS = {
 },
 'std-route':{
   table:OBJ.stdRoute, order:'standard_process_no.asc', post:'std',
+  note:'LOT이 따라갈 <b>표준 가공순서</b>입니다. 이 순서가 진척률의 분모이자 반출 시 '+
+       '<b>다음 공정 자동 제안</b>의 근거가 됩니다.<br>'+
+       '<b>사내 수행 공정</b>에 적은 단계는 경일FB 안에서 처리하는 공정으로, 반출 시 '+
+       '이동 구분이 <b>🏭 사내</b>로 자동 지정되고 화면에 오렌지색으로 표시됩니다. '+
+       '비워 두면 전 단계가 외주(🚚)입니다.',
   edit:{ table:TBL.stdRouteT, pk:'standard_process_no', fields:[
     ['standard_process_no','표준공정번호','num',null,'req'],
     ['standard_process_name','표준공정명','text',null,'req'],
-    ['steps','가공공정 순서','list',null,'req']
+    ['steps','가공공정 순서','list',null,'req'],
+    ['inhouse','사내 수행 공정','list']
   ]},
   search:[['표준공정명','text','standard_process_name']],
   cols:[['No',46,'center','row_no'],['표준공정번호',100,'center','standard_process_no'],
         ['표준공정명',160,'','standard_process_name'],['단계수',60,'num','_cnt'],
+        ['사내',52,'center','_in'],
         ['가공공정 순서',0,'','_steps','chain']]
+},
+'process':{
+  table:OBJ.process, order:'sort_order.asc,process_code.asc', post:'proc',
+  note:'가공 · 조립 · 설계 <b>공정코드 기준정보</b>입니다. 여기 등록된 코드가 '+
+       '<b>표준 공정경로</b>의 단계와 LOT 반출의 가공공정 선택 목록이 됩니다.<br>'+
+       '이미 사용 중인 코드는 <b>변경하지 말고</b> 새 코드를 추가하세요 — 과거 이력이 코드로 묶여 있습니다.',
+  edit:{ table:TBL.processT, pk:'process_code', fields:[
+    ['process_code','공정코드','text',null,'req'],
+    ['process_name','공정명','text',null,'req'],
+    ['process_group','공정그룹','sel',['가공','조립','설계','기타']],
+    ['sort_order','정렬순서','num'],
+    ['completion_progress','완료 진척률(%)','num'],
+    ['use_progress','진척 사용','bool',{def:true}],
+    ['use_plan','계획 사용','bool',{def:false}],
+    ['remark','비고','text']
+  ]},
+  search:[['공정코드','text','process_code'],['공정명','text','process_name'],
+          ['공정그룹','sel','process_group',['전체','가공','조립','설계','기타']]],
+  cols:[['No',46,'center','_i'],['공정코드',90,'center','process_code'],
+        ['공정명',180,'','process_name'],['공정그룹',80,'center','process_group'],
+        ['정렬순서',70,'num','sort_order'],['완료 진척률',90,'num','completion_progress'],
+        ['진척 사용',72,'center','_up'],['계획 사용',72,'center','_pl'],
+        ['비고',0,'','remark']]
 },
 'vendor':{
   table:OBJ.vendor, order:'sort_order.asc,vendor_name.asc',

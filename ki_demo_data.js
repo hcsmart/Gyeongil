@@ -84,8 +84,42 @@ function stdRoute(){
     {t:'fill', el:'#e_steps', value:'MA → MF → GM', label:'가공공정 순서',
      tip:'실제 가공 순서를 <b>코드로</b>, 화살표로 구분해 입력합니다. 이 순서가 곧 진척 분모(3단계)가 되고 '+
          '반출 시 <b>다음 공정</b>을 자동으로 제안합니다.'},
+    {t:'fill', el:'#e_inhouse', value:'MA → MF', label:'사내 수행 공정',
+     tip:'위 순서 중 <b>경일FB 안에서 하는 공정</b>만 적습니다. 여기 적힌 단계는 반출할 때 '+
+         '이동 구분이 <b>🏭 사내</b>로 자동 지정되고 화면에 오렌지색으로 표시됩니다.<br>'+
+         '전부 외주로 보낸다면 <b>비워 두세요.</b>'},
     wait('저장은 직접',
          '순서를 다시 확인한 뒤 <b>[저장]</b>을 누르세요. 순서를 잘못 넣으면 진척률이 실제와 어긋납니다.', '#eSave')
+  ];
+}
+
+/* ------------------------------------------------------------
+   6. 기준정보 › 외주기준 › 공정코드  (폼형 · 그리드 모달)
+------------------------------------------------------------ */
+function process(){
+  const code = uniq('MG', colValues(2));      /* 공정코드 열 */
+  const nos  = colValues(5).map(v=>Number(String(v).replace(/[^0-9]/g,''))).filter(n=>!isNaN(n));
+  const next = (nos.length?Math.max.apply(null,nos):0)+1;
+  return [
+    {t:'click', el:()=>K.actBtn('등록'), label:'등록',
+     tip:'공정코드는 <b>표준 공정경로</b>의 단계와 LOT 반출의 가공공정 목록이 되는 <b>최상위 기준정보</b>입니다.'},
+    {t:'fill', el:'#e_process_code', value:code, wait:3000, label:'공정코드',
+     tip:'현장에서 부르는 약어를 <b>대문자 2~3자</b>로. 한 번 쓰기 시작하면 과거 이력이 이 코드로 묶이므로 '+
+         '<b>나중에 바꾸지 마세요.</b> 바꿔야 한다면 새 코드를 만들고 예전 코드는 미사용 처리합니다.'},
+    {t:'fill', el:'#e_process_name', value:'밀링 황삭', label:'공정명',
+     tip:'화면 곳곳에 <b>코드 · 공정명</b> 형태로 함께 표시됩니다. 협력사도 이동표에서 보는 이름이라 '+
+         '현장 용어 그대로 적는 편이 혼선이 적습니다.'},
+    {t:'fill', el:'#e_process_group', value:'가공', label:'공정그룹',
+     tip:'<b>가공</b>만 LOT 반출의 공정 목록에 나옵니다. 설계 · 조립은 집계용으로만 쓰입니다.'},
+    {t:'fill', el:'#e_sort_order', value:String(next), label:'정렬순서',
+     tip:'선택 목록에 나오는 순서입니다. <b>실제 가공 흐름 순</b>으로 번호를 주면 반출 등록이 빨라집니다.'},
+    {t:'fill', el:'#e_completion_progress', value:'30', label:'완료 진척률(%)',
+     tip:'이 공정을 마쳤을 때의 공정률입니다. 비워 두면 단계 수로만 진척을 계산합니다.'},
+    wait('진척 사용 · 계획 사용',
+         '<b>진척 사용</b>을 끄면 진척률 계산에서 빠지고, <b>계획 사용</b>은 생산계획 화면에서 쓰입니다. '+
+         '단순 관리용 코드라면 둘 다 꺼두세요.', '#e_use_progress'),
+    wait('저장은 직접',
+         '<b>[저장]</b>을 누르면 등록됩니다. 저장 후 표준 공정경로에서 이 코드를 단계로 쓸 수 있습니다.', '#eSave')
   ];
 }
 
@@ -226,5 +260,5 @@ function lotTrack(){
 }
 
 return {'vendor':vendor, 'std-route':stdRoute, 'mold-spec':moldSpec,
-        'lot-route':lotRoute, 'lot-track':lotTrack};
+        'lot-route':lotRoute, 'lot-track':lotTrack, 'process':process};
 })();

@@ -794,8 +794,18 @@ const POST={
       _rate: total?Math.round(done/total*100):0,
       chain:st.map(s=>s.mp+'('+(s.vendor||'')+')').join(' → ')};
   }),
-  std: rows=>rows.map(r=>{ const st=Array.isArray(r.steps)?r.steps:[];
-    return Object.assign({},r,{_cnt:st.length,_steps:st.join(' → ')}); })
+  std: rows=>rows.map(r=>{
+    const st=Array.isArray(r.steps)?r.steps:[];
+    const ih=Array.isArray(r.inhouse)?r.inhouse:[];
+    /* 사내 수행 단계는 순서 표시에서 🏭 로 구분한다 (외주는 그대로) */
+    return Object.assign({},r,{
+      _cnt:st.length,
+      _in: ih.length? ih.length+'단계' : '-',
+      _steps: st.map(x=>ih.indexOf(x)>=0?('🏭'+x):x).join(' → ')
+    }); }),
+  proc: rows=>rows.map((r,i)=>Object.assign({_i:i+1},r,{
+    _up: r.use_progress===false?'미사용':'사용',
+    _pl: r.use_plan?'사용':'미사용' }))
 };
 
 /* ---------- 셀 렌더 ---------- */
