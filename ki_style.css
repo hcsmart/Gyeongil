@@ -206,7 +206,11 @@ table.grid{width:100%;border-collapse:collapse;table-layout:fixed}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .grid tr:nth-child(even) td{background:#fafbfc}
 .grid tr:hover td{background:#e8f1fa}
-.grid tr.sel td{background:#2f68ad;color:#fff}
+/* 선택 행 : 셀 안에 색 있는 글자(공정 체인 · 배지 · 상태색)가 많아
+   짙은 남색 반전은 글자가 묻힌다. 밝은 파랑 + 좌측 강조선으로 표시한다. */
+.grid tr.sel td{background:#c9ddf3;color:#123a61;font-weight:700}
+.grid tr.sel:hover td{background:#bed5ef}
+.grid tr.sel td:first-child{box-shadow:inset 3px 0 0 #2f68ad}
 .grid .num{text-align:right}
 .grid .center{text-align:center}
 .badge{display:inline-block;padding:0 6px;border-radius:2px;font-weight:700;font-size:11px;border:1px solid transparent}
