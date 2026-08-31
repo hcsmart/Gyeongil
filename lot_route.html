@@ -222,7 +222,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   const CAN_S=KI.can('lot-route','save'), CAN_E=KI.can('lot-route','edit'),
         CAN_D=KI.can('lot-route','delete');
   const TODAY=new Date().toISOString().slice(0,10);
-  let ROWS=[], OSP=[], VEN=[], PROC=[], RT=[], MOLDS=[], RCPT=[], MVIN=[], MVST={}, sel=null, NEW=false, editNo=null;
+  let ROWS=[], OSP=[], VEN=[], PROC=[], RT=[], MOLDS=[], RCPT=[], MVIN=[], MVST={}, MVQ={}, sel=null, NEW=false, editNo=null;
 
   const ui=KI.page(cur,[
     ['신규등록','',()=>openNew()],
@@ -450,31 +450,56 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const os=ospOf(c.part).filter(o=>o.mp===mp && o.sdate)
              .sort((a,b)=>String(a.sdate||'').localeCompare(String(b.sdate||''))
                         ||(Number(a.no)||0)-(Number(b.no)||0));
-    let out=0, inq=0;
-    const rounds=os.map((o,i)=>{
-      const q=Number(o.qty)||0; out+=q; if(o.idate) inq+=q;
-      return {seq:i+1, no:o.no, vendor:o.vendor||'', qty:q, sdate:o.sdate||'',
-              idate:o.idate||'', kind:String(o.move_kind||'외주'),
-              done:!!o.idate};
-    });
-    return {out:out, in:inq, open:Math.max(out-inq,0), rounds:rounds,
+    /* 회수(사내 복귀)는 반출건 단위가 아니라 <b>입고 이벤트 단위</b>로 집계한다.
+       한 반출건을 3회로 나눠 보내오는 경우가 있어 osp.idate 만으로는 수량을 알 수 없다. */
+    const ins=((MVQ[String(c.part||'')])||[]).filter(v=>v.mp===mp && v.io==='입고')
+             .sort((a,b)=>String(a.move_date||'').localeCompare(String(b.move_date||'')));
+    const out=os.reduce((s2,o)=>s2+(Number(o.qty)||0),0);
+    let inq=ins.reduce((s2,v)=>s2+(Number(v.in_qty)||0),0);
+    const lost=ins.reduce((s2,v)=>s2+(Number(v.short_qty)||0),0);   /* 부족(손실) 확정분 */
+    let rounds;
+    if(ins.length){
+      rounds=ins.map((v,i)=>({seq:i+1, qty:Number(v.in_qty)||0, short:Number(v.short_qty)||0,
+        date:v.move_date||'', vendor:v.vendor||'', done:true}));
+    }else{
+      /* 이동기록이 없는 예전 데이터 : 반출건의 입고일로 대체 */
+      inq=os.filter(o=>o.idate).reduce((s2,o)=>s2+(Number(o.qty)||0),0);
+      rounds=os.filter(o=>o.idate).map((o,i)=>({seq:i+1, qty:Number(o.qty)||0, short:0,
+        date:o.idate||'', vendor:o.vendor||'', done:true}));
+    }
+    const outs=os.map((o,i)=>({seq:i+1, no:o.no, vendor:o.vendor||'', qty:Number(o.qty)||0,
+      sdate:o.sdate||'', idate:o.idate||'', kind:String(o.move_kind||'외주')}));
+    const open=Math.max(out-inq-lost,0);
+    return {out:out, in:inq, lost:lost, open:open, rounds:rounds, outs:outs,
             rate: out?Math.round(inq/out*100):0,
-            part: out>0 && inq>0 && inq<out};        /* 부분완료 */
+            part: out>0 && inq>0 && open>0};        /* 부분완료 */
   };
   const nf = v => (Number(v)||0).toLocaleString();
   /* 차수별 상세 문구 (툴팁 · B안) */
   function roundsTip(q){
-    if(!q||!q.rounds.length) return '';
-    if(q.rounds.length===1){
-      const r=q.rounds[0];
-      return (r.vendor?r.vendor+' · ':'')+nf(r.qty)+'EA · '+
-             (r.done?'입고 '+r.idate:'반출 '+r.sdate+' (미입고)');
+    if(!q||!q.out) return '';
+    const L=[];
+    q.outs.forEach(o=>L.push('반출 '+nf(o.qty)+'EA'+(o.vendor?' · '+o.vendor:'')+
+      (o.sdate?' · '+o.sdate:'')));
+    if(q.rounds.length){
+      L.push('──────────');
+      q.rounds.forEach(r=>L.push(r.seq+'차 회수 '+nf(r.qty)+'EA'+(r.date?' · '+r.date:'')+
+        (r.short?' (부족 '+nf(r.short)+')':'')));
     }
-    return q.rounds.map(r=>r.seq+'차 '+nf(r.qty)+'EA'+(r.vendor?' · '+r.vendor:'')+
-      ' · '+(r.done?'✓ 입고 '+r.idate:'🚚 반출 '+r.sdate)).join('\n')+
-      '\n──────────\n합계 반출 '+nf(q.out)+' · 입고 '+nf(q.in)+
-      (q.open?' · 미회수 '+nf(q.open):'');
+    L.push('──────────');
+    L.push('반출 '+nf(q.out)+' · 회수 '+nf(q.in)+
+      (q.lost?' · 부족 '+nf(q.lost):'')+(q.open?' · 미회수 '+nf(q.open):' · 완료'));
+    return L.join('\n');
   }
+  /* 이 반출건에서 아직 돌아오지 않은 수량 */
+  const openQtyOf = o => {
+    if(!o || !o.sdate) return 0;
+    if(o.idate) return 0;                      /* 마감된 반출건은 잔여 없음 */
+    const ins=((MVQ[String(o.part||'')])||[])
+      .filter(v=>v.io==='입고' && String(v.osp_no||'')===String(o.no));
+    const got=ins.reduce((s2,v)=>s2+(Number(v.in_qty)||0)+(Number(v.short_qty)||0),0);
+    return Math.max((Number(o.qty)||0)-got,0);
+  };
 
   /* ── 제품의 현재 물리적 위치 ───────────────────────────────
      외주는 [사내 → 1공정 → 사내복귀 → 2공정 → 사내복귀 …] 로 왕복하므로
@@ -509,7 +534,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     /* 외주 미결건 = 그 업체가 들고 있는 수량 (업체별 합산) */
     const byVen={};
     op.filter(o=>!isIn(o)).forEach(o=>{
-      const v=o.vendor||'-'; byVen[v]=(byVen[v]||0)+(Number(o.qty)||0); });
+      const q=openQtyOf(o); if(q<=0) return;        /* 이미 전량 돌아온 건은 제외 */
+      const v=o.vendor||'-'; byVen[v]=(byVen[v]||0)+q; });
     /* 사내 보유량 = 최종 반출 묶음 중 이미 돌아온 수량 − 다시 나간 수량 */
     const home=Math.max(homeQty(c),0);
     if(home>0 || !Object.keys(byVen).length){
@@ -526,7 +552,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     if(!os.length) return 0;
     const first=os.slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0];
     const base=Number(first.qty)||0;                       /* 최초 투입 수량 */
-    const outQ=os.filter(o=>!o.idate).reduce((s,o)=>s+(Number(o.qty)||0),0);
+    const outQ=os.reduce((s,o)=>s+openQtyOf(o),0);   /* 아직 밖에 있는 수량 */
     const recvQ=Number(c.recv&&c.recv.qty)||0;             /* 이미 사내입고 종결분 */
     return Math.max(base-outQ-recvQ,0);
   };
@@ -1156,25 +1182,42 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   async function receive(no){
     const o=OSP.find(x=>String(x.no)===String(no))||{};
     const outQ=Number(o.qty)||0;
-    const inS=prompt('입고 수량을 입력하세요 (출고 '+outQ.toLocaleString()+')\n불량 등으로 부족하면 실제 입고수량을 입력합니다.', String(outQ));
+    /* 이미 나눠 들어온 분이 있으면 그만큼 뺀 <b>잔여</b>가 기준이다 (3회 분납 등) */
+    const restQ=openQtyOf(o);
+    const gotQ=Math.max(outQ-restQ,0);
+    const inS=prompt('입고 수량을 입력하세요'+
+      '\n반출 '+outQ.toLocaleString()+
+      (gotQ?' · 기회수 '+gotQ.toLocaleString()+' · 잔여 '+restQ.toLocaleString():'')+
+      '\n\n일부만 들어왔다면 실제 입고분만 넣으세요. 나머지는 다시 등록할 수 있습니다.',
+      String(restQ||outQ));
     if(inS===null)return;
     const inQ=Number(String(inS).replace(/[^0-9.]/g,''))||0;
-    const short=Math.max(outQ-inQ,0);
-    let reason='';
-    if(short>0){ reason=prompt('부족 '+short.toLocaleString()+' — 사유를 입력하세요 (불량 등)','불량')||''; }
+    if(inQ<=0) return alert('입고수량을 확인하세요.');
+    const rem=Math.max(restQ-inQ,0);                 /* 이번 입고 후 남는 수량 */
+    let short=0, reason='';
+    if(rem>0){
+      if(confirm('남은 '+rem.toLocaleString()+'EA 를 <부족(손실)>으로 처리하고 이 반출건을 마감할까요?\n\n'+
+                 '[확인] 부족 처리 후 마감\n[취소] 분납 — 나머지는 나중에 다시 입고 등록')){
+        short=rem; reason=prompt('부족 '+rem.toLocaleString()+' — 사유를 입력하세요 (불량 등)','불량')||'';
+      }
+    }
+    const close2=(rem<=0)||short>0;                  /* 잔여가 없어야 반출건 마감 */
     const rmk=prompt('특기사항 (없으면 비워두세요)','')||'';
     const m=$('#mMsg');
     try{
-      await KI.upd(TBL.ospOrder,'no=eq.'+no,{idate:TODAY, st:'완료'});
+      if(close2) await KI.upd(TBL.ospOrder,'no=eq.'+no,{idate:TODAY, st:'완료'});
       await KI.ins(TBL.lotMove,[{part:o.part||(sel?sel.part:''), osp_no:Number(no)||null, io:'입고',
         mp:o.mp||null, vendor:o.vendor||null, move_date:TODAY,
-        out_qty:outQ||null, in_qty:inQ||null, short_qty:short, reason:reason||null,
-        remark:rmkJoin(flow(node(o.mp,o.vendor),'가공완료 입고',inQ)+
-                       (short?' (출고 '+outQ.toLocaleString()+' · 부족 '+short.toLocaleString()+')':''), rmk),
+        out_qty:restQ||null, in_qty:inQ||null, short_qty:short, reason:reason||null,
+        remark:rmkJoin(flow(node(o.mp,o.vendor),close2?'가공완료 입고':'부분 회수',inQ)+
+                       (short?' (잔여 '+rem.toLocaleString()+' · 부족 처리)':'')+
+                       (!close2?' · 잔량 '+rem.toLocaleString()+' 유지':''), rmk),
         worker:(KI.me()||{}).emp_name||'', source:'수동'}]);
       m.className='msg ok';
-      m.textContent='✓ 입고 처리되었습니다.'+(short?' (부족 '+short.toLocaleString()+' · '+reason+')':'');
-      KI.msg('✓ 입고 처리'+(short?' — 부족 '+short.toLocaleString():''));
+      m.textContent=(close2?'✓ 입고 처리되었습니다.':'◐ 부분 회수 등록 — 잔량 '+rem.toLocaleString()+' 유지')+
+        (short?' (부족 '+short.toLocaleString()+' · '+reason+')':'');
+      KI.msg((close2?'✓ 입고 처리':'◐ 부분 회수 '+inQ.toLocaleString())+
+        (short?' — 부족 '+short.toLocaleString():''));
       const keep=sel?sel.part:(lotList()[0]||{}).lot; await load();
       const c=ROWS.map(calc).find(x=>x.part===keep); if(c) open(c);
     }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
@@ -1375,12 +1418,15 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       KI.get(OBJ.moldSpec+'?select=mold_no,part_no,asset_owner&order=mold_no.asc'),
       KI.get(OBJ.lotReceipt+'?select=part,in_date,qty,short_qty').catch(()=>[]),
       KI.get(OBJ.lotMove+'?select=part,move_date,in_qty,short_qty&io=eq.'+encodeURIComponent('사내입고')).catch(()=>[]),
-      KI.get(OBJ.lotMove+'?select=part,io,mp,vendor,move_date&io=in.('+
-        encodeURIComponent('"도착","입고"')+')&order=move_date.asc').catch(()=>[])
+      KI.get(OBJ.lotMove+'?select=part,io,mp,vendor,move_date,osp_no,out_qty,in_qty,short_qty&io=in.('+
+        encodeURIComponent('"도착","입고"')+')&order=move_date.asc,move_id.asc').catch(()=>[])
     ]);
     ROWS=rows; OSP=osp; VEN=ven; PROC=proc; RT=rt; MOLDS=molds; RCPT=rcpt;
     MVIN=(mvin||[]).map(v=>({part:v.part,in_date:v.move_date,qty:v.in_qty,short_qty:v.short_qty}));
-    MVST={}; (mvst||[]).forEach(v=>{ const k=String(v.part||''); if(!k||!v.mp) return;
+    MVST={}; MVQ={};
+    (mvst||[]).forEach(v=>{ const k=String(v.part||''); if(!k) return;
+      (MVQ[k]=MVQ[k]||[]).push(v);                       /* 수량 집계용 원본 */
+      if(!v.mp) return;
       (MVST[k]=MVST[k]||[]).push({mp:v.mp, vendor:v.vendor||'', date:v.move_date||''}); });
     /* 진행이력이 아직 없는 반출건(입고 전)도 목록에 노출 */
     const have=new Set(ROWS.map(r=>String(r.part||'')));
