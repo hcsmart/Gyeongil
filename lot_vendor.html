@@ -121,6 +121,11 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const wrap=$('#wrap'), bar=$('#bar');
 const HOME='사내 (발주처)';
+/* [사내 (발주처)] 는 협력사에게 보일 필요가 없어 기본으로 숨긴다.
+   사내 담당자가 이 화면을 쓸 때는 주소 뒤에 ?home=1 을 붙여 연다.
+   (이미 사내로 저장해 둔 폰에서는 다시 고를 수 있도록 계속 보여준다) */
+const HOMEOK = /[?&]home=1\b/.test(location.search) ||
+               (localStorage.getItem('ki_qr_vendor')||'')===HOME;
 let MYVEN='', WORKER='', VENS=[], REC=[];
 try{
   MYVEN=localStorage.getItem('ki_qr_vendor')||'';
@@ -167,7 +172,7 @@ function gate(){
     '<p>한 번만 고르면 이 휴대폰에 저장됩니다.<br>다음부터는 바로 스캔 화면이 열립니다.</p>'+
     '<div class="vl" id="vl">'+
       VENS.map(v=>'<button data-v="'+esc(v)+'"'+(v===MYVEN?' class="on"':'')+'>🏢 '+esc(v)+'</button>').join('')+
-      '<button data-v="'+esc(HOME)+'"'+(MYVEN===HOME?' class="on"':'')+'>🏠 '+esc(HOME)+'</button>'+
+      (HOMEOK?'<button data-v="'+esc(HOME)+'"'+(MYVEN===HOME?' class="on"':'')+'>🏠 '+esc(HOME)+'</button>':'')+
     '</div>'+
     '<div class="fld"><label>담당자 성함</label><input id="gWk" value="'+esc(WORKER)+'" placeholder="기록에 남습니다"></div>'+
   '</div></div>';
