@@ -1342,6 +1342,83 @@ function makeUpload(def, title, getRows, onSaved){
 }
 
 /* ---------- 그리드 화면 ---------- */
+/* ---------- 검색형 선택상자 (공용) ----------
+   <select> 를 그대로 두고 그 위에 입력칸을 씌운다.
+   · 타이핑하면 목록이 좁혀지고, 고르면 원래 select 의 값이 바뀐다.
+     (기존 코드는 select.value 만 읽고 쓰면 되므로 화면 로직을 고칠 필요가 없다)
+   · 목록에 없는 값은 받지 않는다 (opts.free 를 주면 자유입력 허용)
+   사용 : KI.combo($('#fMap'));  값을 코드로 바꾼 뒤엔 KI.comboSync($('#fMap')); */
+function combo(sel, opts){
+  if(!sel) return null;
+  if(sel._combo) return sel._combo;
+  opts = opts || {};
+  const box = el('div','ki-combo');
+  sel.parentNode.insertBefore(box, sel);
+  box.appendChild(sel);
+  sel.classList.add('ki-combo-src');
+  const inp = el('input','ki-combo-in');
+  inp.type='text'; inp.autocomplete='off';
+  inp.placeholder = opts.placeholder || sel.getAttribute('data-ph') || '입력하여 검색';
+  const list = el('div','ki-combo-list');
+  box.appendChild(inp); box.appendChild(list);
+
+  let open=false, idx=-1, items=[];
+  const all   = ()=>[].slice.call(sel.options).filter(o=>o.value!=='');
+  const label = ()=>{ const o=sel.options[sel.selectedIndex]; return (o&&o.value)?o.textContent:''; };
+  function sync(){ inp.value = label(); }
+  function render(q){
+    q = String(q||'').trim().toLowerCase();
+    items = all().filter(o=>!q || o.textContent.toLowerCase().indexOf(q)>=0);
+    const more = items.length>60;
+    if(more) items = items.slice(0,60);
+    list.innerHTML = items.length
+      ? items.map((o,i)=>'<div class="ki-combo-it'+(i===idx?' on':'')+'" data-i="'+i+'">'+
+          esc(o.textContent)+'</div>').join('') +
+        (more?'<div class="ki-combo-no">… 더 입력해 좁혀 주세요</div>':'')
+      : '<div class="ki-combo-no">일치하는 항목이 없습니다</div>';
+  }
+  function show(q){ open=true; box.classList.add('on'); render(q); }
+  function hide(){ open=false; box.classList.remove('on'); idx=-1; }
+  function pick(i){
+    const o=items[i]; if(!o) return;
+    sel.value=o.value; hide(); sync();
+    sel.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+  inp.addEventListener('focus',()=>{ inp.select(); show(''); });
+  inp.addEventListener('input',()=>{ idx=-1; show(inp.value); });
+  inp.addEventListener('keydown',ev=>{
+    if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){
+      ev.preventDefault(); if(!open) return show(inp.value);
+      idx += (ev.key==='ArrowDown'?1:-1);
+      if(idx<0) idx=items.length-1; if(idx>=items.length) idx=0;
+      render(inp.value);
+      const on=list.querySelector('.on');
+      if(on && on.scrollIntoView) try{ on.scrollIntoView({block:'nearest'}); }catch(e){}
+    }
+    else if(ev.key==='Enter'){
+      if(open && items.length){ ev.preventDefault(); pick(idx<0?0:idx); }
+    }
+    else if(ev.key==='Escape'){ hide(); sync(); }
+  });
+  inp.addEventListener('blur',()=>setTimeout(()=>{
+    if(!open) return;
+    hide();
+    if(opts.free){ sel.value=inp.value; }
+    else sync();                       /* 목록에 없는 입력은 되돌린다 */
+  },140));
+  list.addEventListener('mousedown',ev=>{
+    const it=ev.target.closest('[data-i]'); if(!it) return;
+    ev.preventDefault(); pick(Number(it.dataset.i));
+  });
+  sel.addEventListener('change',sync);
+  /* 옵션이 통째로 바뀌면(목록 재구성) 표시도 맞춘다 */
+  try{ new MutationObserver(()=>sync()).observe(sel,{childList:true}); }catch(e){}
+  sync();
+  sel._combo={sync:sync, input:inp, box:box};
+  return sel._combo;
+}
+function comboSync(sel){ if(sel && sel._combo) sel._combo.sync(); }
+
 /* ---------- 표 제목행 정렬 (공용) ----------
    · 대상 : th[data-sk="필드명"]  (data-st 에 숫자형 타입이면 숫자 비교)
    · 클릭 로테이션 : 오름차순 ▲ → 내림차순 ▼ → 등록순 ↕
@@ -1507,6 +1584,6 @@ return {CFG:C, $:$, el:el, esc:esc,
         me:()=>ME, loginError:loginError, isAdmin:isAdmin, clearCache:cacheClear, can:can, session:session, guard:guard,
         header:chrome, chrome:chrome, page:page, masters:masters, M:M, msg:msg,
         grid:grid, csv:csv, makeUpload:makeUpload, POST:POST, cell:cell, LK:LK, emailOf:emailOf,
-        sortHead:sortHead,
+        sortHead:sortHead, combo:combo, comboSync:comboSync,
         isPhone:isPhone, openPop:openPop, logErr:logErr, rpc:rpc};
 })();

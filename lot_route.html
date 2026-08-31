@@ -342,6 +342,13 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     $('#fVenL').textContent = inh?'이동처 *':'외주처 *';
     const fd=$('#fFromL'); if(fd) fd.textContent = inh?'출발 보유분':'출발 보유분';
   }
+  /* 선택 항목이 많은 칸은 <b>입력하며 좁히는</b> 검색형 선택상자로 바꾼다.
+     select 는 그대로 남아 값의 원본 역할을 하므로 저장 로직은 손대지 않는다. */
+  KI.combo($('#fMap'),  {placeholder:'품번 입력 (예: MB-100)'});
+  KI.combo($('#fRoute'),{placeholder:'표준공정 입력'});
+  KI.combo($('#fMp'),   {placeholder:'가공공정 입력 (예: MS)'});
+  KI.combo($('#fVen'),  {placeholder:'외주처 입력'});
+  KI.combo($('#fFrom'), {placeholder:'출발 보유분 선택'});
   $('#fKind').addEventListener('change',syncKind);
   $('#fRoute').addEventListener('change',()=>fillMp($('#fRoute').value,''));
   /* 순차 이동 확인 : 완료·건너뛴 공정 경고 */
@@ -362,7 +369,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   const rmkJoin=(...a)=>a.filter(x=>x&&String(x).trim()).join(' | ')||null;
   const routeOf=no=>RT.find(r=>String(r.standard_process_no)===String(no));
   /* 표준공정경로(기준정보 › 외주기준)의 단계만 가공공정으로 선택 — 순차 이동 관리 */
-  function fillMp(routeNo,keep){
+  function fillMp(routeNo,keep){   /* 목록 재구성 후 검색칸 표시도 맞춘다 */
     const mp=$('#fMp'), rt=routeOf(routeNo), done=sel?sel.seen:new Set();
     const steps=rt&&Array.isArray(rt.steps)?rt.steps:[];
     mp.innerHTML='<option value="">선택</option>'+(
@@ -376,6 +383,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       else { mp.insertAdjacentHTML('beforeend','<option value="'+esc(keep)+'">'+esc(keep)+
              (pName(keep)?' · '+esc(pName(keep)):'')+' (경로 외)</option>'); mp.value=keep; }
     }
+    KI.comboSync(mp);
   }
   function matchRoute(seq){
     let best=null;
@@ -846,6 +854,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     fillMp($('#fRoute').value, c.rest[0]||'');
     $('#fKind').value='외주'; syncKind();
     $('#fVen').value=c.last.vendor||''; $('#fDept').value='';
+    KI.comboSync($('#fRoute')); KI.comboSync($('#fMp')); KI.comboSync($('#fVen'));
     $('#fSdate').value=TODAY;
     const e=new Date(); e.setDate(e.getDate()+7); $('#fEdate').value=e.toISOString().slice(0,10);
     $('#fQuote').value='';
@@ -857,6 +866,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       op.map(o=>'<option value="'+o.no+'">'+esc(o.mp||'')+' · '+esc(o.vendor||'')+
         ' 보유분 ('+esc(o.sdate||'')+' 반출)</option>').join('');
     $('#fFrom').value = op.length ? String(op[0].no) : '';
+    KI.comboSync($('#fFrom'));
     showFrom(op.length>1); fromNote();
     /* 수량 : 첫 반출 수량을 기본값으로 유지 */
     const first=ospOf(c.part).slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0];
@@ -935,7 +945,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     $('#fSdate').value=TODAY;
     const e=new Date(); e.setDate(e.getDate()+7); $('#fEdate').value=e.toISOString().slice(0,10);
     $('#fQuote').value=''; setMap('');
-    $('#fFrom').innerHTML='<option value="">사내 → 외주 (신규 반출)</option>'; showFrom(false); fromNote();
+    $('#fFrom').innerHTML='<option value="">사내 → 외주 (신규 반출)</option>';
+    KI.comboSync($('#fFrom')); showFrom(false); fromNote();
     lotBody.innerHTML=''; lotRow('','');
     $('#mS').style.display='';
     $('#mTag').style.display='none'; $('#mInh').style.display='none'; $('#moveBox').innerHTML='';
@@ -974,6 +985,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     fillMp($('#fRoute').value,o.mp||'');
     $('#fKind').value=String(o.move_kind||'외주')==='사내'?'사내':'외주'; syncKind();
     if($('#fKind').value==='사내') $('#fDept').value=o.vendor||''; else $('#fVen').value=o.vendor||'';
+    KI.comboSync($('#fRoute')); KI.comboSync($('#fMp')); KI.comboSync($('#fVen'));
     $('#fSdate').value=o.sdate||''; $('#fEdate').value=o.edate||'';
     $('#fQuote').value=o.quote==null?'':o.quote;
     setMap(o.map_part||(MOLDS.find(x=>x.mold_no===o.mold_no)||{}).part_no||'');
@@ -1025,7 +1037,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     sel2.value=k;
   }
   /* 값 지정 : 목록에 없는 품번이면 임시 항목으로 추가한 뒤 선택 */
-  function setMap(v){ fillMap(v); syncMap(); }
+  function setMap(v){ fillMap(v); KI.comboSync($('#fMap')); syncMap(); }
   function syncMap(){
     const v=$('#fMap').value.trim();
     const m=moldOf(v);
@@ -1519,6 +1531,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       .map(o=>String(o.vendor||'').trim()).filter(Boolean))].sort();
     const dd=$('#dlDept'); if(dd) dd.innerHTML=deps.map(d=>'<option>'+esc(d)+'</option>').join('');
     rs.value=rv; vn.value=vv; fillMp(rv,mv);
+    KI.comboSync(rs); KI.comboSync(vn);
     /* 품번 선택 목록 : 기준정보 › 금형정보에 <b>매칭품번</b>이 등록된 것만
        (자유입력을 막아 오타 · 미등록 품번이 들어오지 않게 한다) */
     fillMap($('#fMap').value);

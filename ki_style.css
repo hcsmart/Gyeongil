@@ -590,3 +590,22 @@ body.mob-lock{overflow:hidden !important;position:fixed;width:100%}
   body.mobnav .pg-title{font-size:15px}
   body.mobnav .btn{height:34px;padding:0 12px;font-size:13px}
 }
+
+/* ============================================================
+   검색형 선택상자 (KI.combo) — 타이핑하면 목록이 좁혀진다
+============================================================ */
+.ki-combo{position:relative;display:block;width:100%;min-width:0}
+.ki-combo .ki-combo-src{display:none !important}
+.ki-combo-in{width:100%;height:26px;border:1px solid #aeb9c4;padding:0 22px 0 6px;
+  font:inherit;background:#fff url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%237b8794'/%3E%3C/svg%3E") no-repeat right 7px center}
+.ki-combo-in:focus{border-color:#5f92c6;outline:none;box-shadow:0 0 0 2px rgba(95,146,198,.18)}
+.ki-combo-list{display:none;position:absolute;z-index:70;left:0;right:0;top:100%;margin-top:2px;
+  max-height:230px;overflow:auto;background:#fff;border:1px solid #8f9ca8;
+  box-shadow:0 6px 18px rgba(20,40,60,.22)}
+.ki-combo.on .ki-combo-list{display:block}
+.ki-combo-it{padding:6px 9px;font-size:12.5px;color:#2c3e50;cursor:pointer;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.ki-combo-it:hover,.ki-combo-it.on{background:#e5eef6;color:#1d568c}
+.ki-combo-no{padding:7px 9px;font-size:11.5px;color:#8b98a5}
+@media (max-width:820px){ .ki-combo-in{height:38px;font-size:15px;padding-left:9px}
+  .ki-combo-it{padding:10px 11px;font-size:14px} }
