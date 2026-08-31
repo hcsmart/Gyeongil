@@ -1269,8 +1269,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   async function loadMoves(part){
     const box=$('#moveBox'); box.innerHTML='';
     try{
+      /* 시간 순(오름차순)으로 받아 1번부터 번호를 매긴다 — 물류 흐름을 위에서 아래로 읽는다 */
       const mv=await KI.get(OBJ.lotMove+'?select=*&part=eq.'+encodeURIComponent(part)+
-                            '&order=move_date.desc,move_id.desc&limit=8');
+                            '&order=move_date.asc,move_id.asc&limit=200');
       if(sel&&sel.part===part) drawFlow(sel,mv);   /* 실제 입출고 일자로 다이어그램 갱신 */
       if(!mv.length)return;
       const RM=flowMap(mv);
@@ -1279,12 +1280,14 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         '<h5><span class="arw">▶</span>📝 현장 기록 — 물류 흐름 · 특기사항'+
         '<span class="cnt">'+mv.length+'건'+(short?' · 부족 '+short+'건':'')+' · 클릭하여 펼치기</span></h5>'+
         '<div class="fold-bd">'+
-        '<table class="grid"><thead><tr><th style="width:84px">일자</th><th style="width:62px">구분</th>'+
+        '<table class="grid"><thead><tr><th style="width:38px">NO</th>'+
+        '<th style="width:84px">일자</th><th style="width:62px">구분</th>'+
         '<th style="width:150px">출고처</th><th style="width:18px"></th><th style="width:150px">입고처</th>'+
         '<th style="width:64px">수량</th><th style="width:52px">부족</th>'+
         '<th style="width:110px">사유</th><th>특기사항</th></tr></thead><tbody>'+
-        mv.map(v=>{ const r=RM[v.move_id]||{};
-          return '<tr><td class="center nw">'+esc(v.move_date||'')+'</td>'+
+        mv.map((v,i)=>{ const r=RM[v.move_id]||{};
+          return '<tr><td class="center" style="color:#8894a0;font-weight:700">'+(i+1)+'</td>'+
+          '<td class="center nw">'+esc(v.move_date||'')+'</td>'+
           '<td class="center"><span class="badge '+(v.io==='입고'||v.io==='사내입고'?'b-done':v.io==='출고'?'b-run':'b-wait')+'">'+esc(v.io)+'</span></td>'+
           '<td>'+esc(r.f||'')+'</td>'+
           '<td class="center" style="color:#8894a0">'+(r.t?'▶':'')+'</td>'+
