@@ -95,6 +95,9 @@ function loadMeCached(){
   ME=c.me; PERM=c.perm||{};
   return ME;
 }
+/* 캐시 나이(ms) — 화면을 옮길 때마다 배경 갱신을 반복하지 않기 위해 사용 */
+function cacheAge(){ const c=cacheGet(); return c?Date.now()-c.ts:Infinity; }
+const PREFRESH=2*60*1000;      /* 2분 이내 갱신분은 다시 조회하지 않는다 */
 async function loadMe(){
   LOGIN_ERR='';
   /* 1) 사원 조회 — 실패 시 원인을 남긴다 */
@@ -136,7 +139,9 @@ async function guard(menuId){
   if(SESS.exp&&SESS.exp<Date.now()+60000){ if(!await refresh()){ toLogin(); return false; } }
   if(!ME) loadMeCached();                 /* ① 캐시로 즉시 진행 */
   if(!ME) await loadMe();                 /* ② 캐시 없을 때만 조회 */
-  else setTimeout(()=>{ loadMe().catch(()=>{}); },0);   /* ③ 백그라운드 갱신 */
+  /* ③ 백그라운드 갱신 — 화면을 옮길 때마다 사원·권한을 다시 읽으면
+        이동 1회당 왕복 2회(약 300ms)가 계속 붙는다. 2분 지난 캐시만 갱신한다. */
+  else if(cacheAge()>PREFRESH) setTimeout(()=>{ loadMe().catch(()=>{}); },0);
   if(!ME){ await signOut(); toLogin(); return false; }
   if(mobileLanding()) return false;       /* 폰 전용 첫 화면이 지정된 경우만 */
   if(menuId&&!can(menuId,'view')){
@@ -577,7 +582,7 @@ function actOverflow(act){
   const more=el('button','btn act-more','⋯');
   more.type='button'; more.title='더보기'; more.style.display='none';
   const menu=el('div','act-menu'); document.body.appendChild(menu);
-  let busy=false, open=false;
+  let open=false, obs=null, raf=0;
   const close=()=>{ open=false; menu.classList.remove('on'); more.classList.remove('on'); };
   more.addEventListener('click',ev=>{
     ev.stopPropagation();
@@ -589,25 +594,35 @@ function actOverflow(act){
   });
   menu.addEventListener('click',()=>setTimeout(close,0));
   document.addEventListener('click',close);
-  window.addEventListener('resize',()=>{ close(); layout(); });
+
   function layout(){
-    if(busy) return; busy=true;
+    /* 버튼을 옮기는 동안에는 감시를 끊는다.
+       (옮기는 것 자체가 childList 변경이라, 켜둔 채로 두면 재귀 호출이 끝나지 않는다) */
+    if(obs) obs.disconnect();
     try{
-      /* 접었던 버튼을 모두 되돌린 뒤 다시 계산한다 */
       while(menu.firstChild) act.insertBefore(menu.firstChild, more);
       more.style.display='none';
       const fits=()=>act.scrollWidth<=act.clientWidth+1;
-      if(!act.clientWidth || fits()) return;
-      more.style.display='';
-      let btns=[].slice.call(act.children).filter(b=>b!==more);
-      while(btns.length>1 && !fits()) menu.insertBefore(btns.pop(), menu.firstChild);
-      if(!menu.children.length) more.style.display='none';
-    } finally { busy=false; }
+      if(act.clientWidth && !fits()){
+        more.style.display='';
+        let btns=[].slice.call(act.children).filter(b=>b!==more);
+        let guard=btns.length+2;                       /* 안전장치 : 최대 버튼 수만큼만 */
+        while(btns.length>1 && !fits() && guard-->0) menu.insertBefore(btns.pop(), menu.firstChild);
+        if(!menu.children.length) more.style.display='none';
+      }
+    } finally {
+      if(obs) obs.observe(act,{childList:true});
+    }
+  }
+  /* 연속 호출은 한 프레임으로 합친다 */
+  function schedule(){
+    if(raf) return;
+    raf=(window.requestAnimationFrame||setTimeout)(()=>{ raf=0; layout(); },16);
   }
   act.appendChild(more);
-  try{ new MutationObserver(()=>{ if(!busy) layout(); })
-        .observe(act,{childList:true}); }catch(e){}
-  setTimeout(layout,0); setTimeout(layout,700);   /* 폰트 로딩 · 늦게 붙는 버튼 대응 */
+  try{ obs=new MutationObserver(schedule); obs.observe(act,{childList:true}); }catch(e){}
+  window.addEventListener('resize',()=>{ close(); schedule(); });
+  schedule(); setTimeout(schedule,700);   /* 폰트 로딩 · 늦게 붙는 버튼 대응 */
   return layout;
 }
 
