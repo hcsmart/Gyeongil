@@ -19,10 +19,12 @@
   let TYPES=[], MATS=[], ROWS=[], key=null;      // key : 수정중인 금형제번
 
   const CAN_S=KI.can('mold-spec','save'), CAN_E=KI.can('mold-spec','edit'), CAN_D=KI.can('mold-spec','delete');
-  /* 저장 · 새로입력 · 삭제는 폼 하단 버튼에만 둔다 (상단 중복 제거 → 상단바 폭 확보) */
+  /* 저장 · 새로입력 · 삭제는 폼 하단 버튼에만 둔다 (상단 중복 제거 → 상단바 폭 확보)
+     엑셀 버튼 라벨은 다른 조회화면(KI.grid)과 같은 문자열을 쓴다 —
+     드롭다운 우측 실행메뉴와 [?act=버튼명] 자동실행이 라벨로 매칭되기 때문이다. */
   const acts=[];
-  if(CAN_S)        acts.push(['📊 엑셀 업로드','',()=>uploader.open()]);
-  acts.push(['새로고침','',()=>loadAll()]);
+  if(CAN_S)        acts.push(['엑셀업로드','',()=>uploader.open()]);
+  acts.push(['엑셀다운로드','',()=>exportCsv()],['새로고침','',()=>loadAll()]);
   const ui=KI.page(cur,acts);
 
   /* ---------- 엑셀 템플릿 업로드 ---------- */
