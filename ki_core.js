@@ -997,7 +997,11 @@ function makeModal(def, onSaved){
       else c.value = (v==null?'':v);
     });
     if(E.auto && !row){ const c=$('#e_'+E.pk,mask); if(c){ c.value=''; } }
-    const pk=$('#e_'+E.pk,mask); if(pk) pk.readOnly = !!row;
+    /* 기본은 키 잠금. def.edit.rename 이 있으면 코드 변경을 허용하고
+       그 코드를 쓰던 자료(rename 목록)까지 함께 바꾼다. */
+    const pk=$('#e_'+E.pk,mask);
+    if(pk){ pk.readOnly = !!row && !E.rename;
+      if(row&&E.rename) pk.title='코드를 바꾸면 이 코드를 쓰던 자료도 함께 바뀝니다.'; }
     $('#eMsg',mask).textContent='';
     mask.classList.add('on');
     setTimeout(()=>{ const first=mask.querySelector('input,select,textarea'); if(first)first.focus(); },50);
@@ -1022,7 +1026,21 @@ function makeModal(def, onSaved){
       if(editKey!=null){
         let flt=E.pk+'=eq.'+encodeURIComponent(editKey);
         if(E.pk2 && editRow) flt+='&'+E.pk2+'=eq.'+encodeURIComponent(editRow[E.pk2]);
+        const nk=body[E.pk];
+        const ren = !!(E.rename && nk!=null && String(nk)!==String(editKey));
+        if(ren){
+          const dup=await get(E.table+'?select='+E.pk+'&'+E.pk+'=eq.'+encodeURIComponent(nk)+'&limit=1');
+          if(dup && dup.length){
+            m.className='msg err'; m.textContent='❌ 이미 사용중인 코드입니다 — '+nk; return; }
+          if(!confirm('코드를 바꿉니다.\n\n'+editKey+'  →  '+nk+'\n\n'+
+              '이 코드를 쓰던 자료도 새 코드로 함께 바뀝니다.\n계속할까요?')){
+            m.className='msg'; m.textContent=''; return; }
+        }
         await upd(E.table, flt, body);
+        if(ren){
+          for(const r of E.rename)
+            await upd(r[0], r[1]+'=eq.'+encodeURIComponent(editKey), (o=>{o[r[1]]=nk;return o;})({}));
+        }
       }
       else              await ins(E.table, [body]);
       close(); await onSaved(editKey!=null?'수정':'등록');

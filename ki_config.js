@@ -795,12 +795,14 @@ const VIEWS = {
 },
 'mold-loc':{
   table:OBJ.moldLoc, order:'sort_order.asc',
-  note:'금형 보관장소 기준입니다. 금형대장의 <b>보관장소</b> 선택 목록으로 사용됩니다.',
+  note:'금형 보관장소 기준입니다. 금형대장의 <b>보관장소</b> 선택 목록으로 사용됩니다.<br>'+
+       '<b>장소코드</b>는 [수정]에서 직접 바꿀 수 있으며, 바꾸면 그 장소에 있던 '+
+       '<b>금형대장의 보관장소</b>도 새 코드로 함께 갱신됩니다.',
   search:[['장소코드','text','location_code'],['장소명','text','location_name']],
   cols:[['장소코드',100,'','location_code'],['장소명',220,'','location_name'],
         ['공장',80,'center','factory_code'],['순서',60,'num','sort_order'],
         ['사용',56,'center','is_active','bool'],['비고',0,'','remark']],
-  edit:{ table:TBL.moldLoc, pk:'location_code', fields:[
+  edit:{ table:TBL.moldLoc, pk:'location_code', rename:[[TBL.mold,'location']], fields:[
     ['location_code','장소코드','text',null,'req'],
     ['location_name','장소명','text',null,'req'],
     ['factory_code','공장','ref',{table:OBJ.factory,v:'factory_code',t:'factory_name'}],
