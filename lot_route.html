@@ -448,23 +448,24 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
                     .slice(-1)[0]||{};
       rc={part:r.part, job:lastR.job, in_date:lastR.in_date, qty:q, short_qty:sh,
           reason:lastR.reason, worker:lastR.worker, remark:lastR.remark, n:rcs.length};
-      /* 목표(최초 투입) 대비 아직 덜 들어왔고 부족 처리도 안 했으면 종결이 아니다 */
-      /* 목표 = 1단계 누적 반출 (부분반출 시 첫 반출건 수량은 투입량이 아니다) */
-      const mp0=sd[0]||'';
-      const osA=ospOf(r.part).filter(o=>o.sdate);
-      const goal=(mp0?osA.filter(o=>o.mp===mp0).reduce((s2,o)=>s2+(Number(o.qty)||0),0):0)
-        || (Number((osA.slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0]||{}).qty)||0);
-      recvOpen = goal>0 && (q+sh)<goal;
+      /* 종결 여부는 목표수량과 비교하지 않는다 — 아래에서 흐름으로 판정한다 */
+      recvOpen = false;
     }else{
       rc=MVIN.find(x=>String(x.part||'')===String(r.part))||null;
     }
-    return {no:r.no, job:r.job, part:r.part, proc:r.proc,
+    const C={no:r.no, job:r.job, part:r.part, proc:r.proc,
       map_part:r.map_part||(ospOf(r.part).find(o2=>o2.map_part)||{}).map_part||'',
       recv:rc||null, recvOpen:recvOpen,
       route_no:rno||'', moving:moving, steps:st, last:last, std:m?m.rt:null,
       sd:sd, seen:seen, arr:arrS, done:done, total:total, rest:rest, wip:wip, wipMp:wipMp,
       rate: total?Math.round(done/total*100):0,
       wipRate: total?Math.round((done+wip)/total*100):0};
+    /* 종결 = 밖에 나가 있는 물량 없음 + 미처리 반납 잔량 없음 + 사내 대기 없음 */
+    if(rcs.length){
+      const openOut=ospOf(r.part).some(o=>o.sdate&&!o.idate);
+      C.recvOpen = openOut || homeQty(C)>0 || undoneOf(C)>0;
+    }
+    return C;
   }
   /* ── 공정별 수량 집계 (분할 · 순차납품 대응) ───────────────
      한 공정에 반출건이 여러 개일 수 있다 (부분출고로 잔량이 나뉜 경우).
@@ -589,37 +590,54 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     Object.keys(byVen).forEach(v=>out.push({who:v, qty:byVen[v], home:false}));
     return out;
   };
-  /* ── 목표(최초 투입) 수량 ──────────────────────────────────
-     첫 반출건의 수량을 투입량으로 보면 <b>부분반출</b>일 때 실제보다 작아진다.
-     (1,000개를 600 + 400 으로 나눠 보내면 목표가 600으로 잡혀 조기 종결된다)
-     모든 물량은 표준공정 1단계를 반드시 한 번 통과하므로
-     [1단계 누적 반출수량]을 목표로 쓴다. 표준공정 미매칭이면 종전 방식으로 폴백. */
-  const goalOf = c => {
-    const os=ospOf(c.part).filter(o=>o.sdate);
-    if(!os.length) return 0;
-    /* 표준공정이 매칭되지 않은 LOT은 <b>실제로 가장 먼저 나간 공정</b>을 1단계로 본다 */
-    const seq=os.slice().sort((a,b)=>String(a.sdate||'').localeCompare(String(b.sdate||''))
-                                   ||(Number(a.no)||0)-(Number(b.no)||0));
-    const mp0=((c&&c.std&&c.std.steps)||[])[0]||(seq[0]&&seq[0].mp)||'';
-    /* 재반출(재작업 · 미처리 반납분 재투입)은 새로 들어온 물량이 아니므로 목표에서 뺀다 */
-    const g=mp0?os.filter(o=>o.mp===mp0&&!o.rework)
-                  .reduce((s,o)=>s+(Number(o.qty)||0),0):0;
-    return g||(Number(seq[0].qty)||0);
+  /* ── 사내 대기수량 (흐름만으로 계산) ─────────────────────
+     투입수량(목표)이라는 값은 원장에 없다. 반출 기록으로 역산하면
+     부분반출 · 재작업 · 미처리 반납 · 표준공정 미매칭에서 계속 어긋난다. 그래서 쓰지 않는다.
+     대신 공장 안을 드나든 <b>흐름</b>만으로 셀 수 있는 것을 센다.
+
+       사내 대기 = Σ입고(복귀수량) − Σ출고(복귀분에서 다시 나간 것) − Σ사내입고 − 사내 손실
+
+     · 1공정으로 처음 나가는 반출(신규 투입)은 복귀분에서 나가는 게 아니므로 빼지 않는다.
+     · 재반출(재작업 · 미처리)은 복귀분에서 나가므로 뺀다.
+     · 아직 1공정에 나가지 않은 물량은 원장에 흔적이 없어 셀 수 없다 —
+       이 값은 '투입 대비 잔량'이 아니라 <b>돌아와서 대기중인 수량</b>이다. */
+  const step0Of = c => {
+    const sd0=((c&&c.std&&c.std.steps)||[])[0];
+    if(sd0) return sd0;
+    const os=ospOf(c.part).filter(o=>o.sdate)
+      .sort((a,b)=>String(a.sdate||'').localeCompare(String(b.sdate||''))
+                 ||(Number(a.no)||0)-(Number(b.no)||0));
+    return (os[0]&&os[0].mp)||'';
   };
-  /* 확정 손실(부족) 누계 — 도착·입고·현장기록에 적힌 부족수량 전부 */
+  /* 신규 투입 반출인가 — 1공정으로 처음 나가는 건 (재반출 제외) */
+  const isFeed = (c,o) => String(o.mp||'')===String(step0Of(c)) && !o.rework;
+  /* 사내에 들어온 뒤 없어진 수량 — 반출건에 딸리지 않은 현장기록(io='기록')의 부족.
+     · 도착·입고의 부족은 애초에 in_qty 에 포함되지 않으므로 다시 빼지 않는다.
+     · 특정 반출건(osp_no)에 딸린 기록은 그 반출건의 부족을 메모로 옮겨 적은 것이라
+       역시 in_qty 에 이미 반영돼 있다 — 두 번 빼면 사내 대기가 모자라게 나온다. */
   const lostOf = c => ((MVQ[String(c.part||'')])||[])
+    .filter(v=>v.io==='기록' && !v.osp_no)
     .reduce((s,v)=>s+(Number(v.short_qty)||0),0);
-  /* 사내에 남아 있는 수량
-     = 투입 − 외주 보유분 − 사내입고 종결분 − 확정 손실
-     · <b>사내 미결건(사내 이동중·작업중)은 차감하지 않는다</b> — 제품이 경일FB 안에 있다.
-     · 확정 손실은 어디에도 없는 물량이므로 사내 재고로 남겨두면 안 된다. */
   const homeQty = c => {
-    const os=ospOf(c.part).filter(o=>o.sdate);
-    if(!os.length) return 0;
-    const outQ=os.filter(o=>String(o.move_kind||'외주')!=='사내')
-                 .reduce((s,o)=>s+openQtyOf(o),0);         /* 아직 협력사에 있는 수량 */
-    const recvQ=Number(c.recv&&c.recv.qty)||0;             /* 이미 사내입고 종결분 */
-    return Math.max(goalOf(c)-outQ-recvQ-lostOf(c),0);
+    const mvs=(MVQ[String(c.part||'')])||[];
+    const back=mvs.filter(v=>v.io==='입고')
+      .reduce((s,v)=>s+(Number(v.in_qty)||0),0);            /* 복귀 총량 */
+    /* 복귀분에서 다시 나간 수량.
+       사내 이동(작업장)은 공장 밖으로 나간 게 아니므로 아직 안 돌아온 몫은 되돌려 더한다. */
+    const outAgain=ospOf(c.part).filter(o=>o.sdate&&!isFeed(c,o))
+      .reduce((s,o)=>{ const q=Number(o.qty)||0;
+        return s+((String(o.move_kind||'외주')==='사내'&&!o.idate)?q-openQtyOf(o):q); },0);
+    /* 1공정이 사내 작업장인 경우, 아직 작업중인 물량도 공장 안에 있다 */
+    const inFeed=ospOf(c.part).filter(o=>o.sdate&&!o.idate&&isFeed(c,o)
+                  &&String(o.move_kind||'외주')==='사내')
+      .reduce((s,o)=>s+openQtyOf(o),0);
+    const recvQ=Number(c.recv&&c.recv.qty)||0;              /* 사내입고 종결분 */
+    return Math.max(back+inFeed-outAgain-recvQ-lostOf(c),0);
+  };
+  /* 미처리 반납 잔량 — 아직 재반출하지 않은 분 */
+  const undoneOf = c => {
+    const seq=(c.sd&&c.sd.length)?c.sd:(c.steps||[]).map(x=>x.mp);
+    return seq.reduce((s,mp)=>s+(qtyOf(c,mp).undone||0),0);
   };
   /* 목록 · CSV 의 [현재 위치(보유처)] */
   const holderOf = c => {
@@ -819,7 +837,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     /* 외주는 공정마다 이 '사내'로 되돌아오므로 사내 노드는 하나만 둔다
        (출발 · 공정 간 복귀 · 최종 사내입고 종결을 모두 이 노드가 표시) */
     let html=node(closed?'st-done':'st-home', closed||curPos==='home', '🏭 사내',
-      closed ? '종결' : (curPos==='home'&&nDone?'보유중':'출발'),
+      closed ? '종결' : (curPos==='home'&&nDone?'대기중':'출발'),
       closed ? ('✓ 사내입고 '+md(rIn)+' · '+rQty.toLocaleString()+
                 (rShort?' <span style="color:#ffd9d9">(부족 '+rShort+')</span>':''))
       : curPos!=='home' ? '반출 완료'
@@ -871,7 +889,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     });
     $('#iChain').innerHTML='<div class="fx">'+html+'</div>'+
       '<div class="fx-lg">'+
-      '<span><i class="g1"></i>현재 위치(사내 보유 · 출발/복귀 지점)</span>'+
+      '<span><i class="g1"></i>현재 위치(사내 대기 · 출발/복귀 지점)</span>'+
       '<span><i class="g2"></i>공정 완료 (외주=사내복귀 · 사내=사내작업)</span>'+
       '<span><i class="g3"></i>반출중(외주 보유)</span>'+
       '<span><i class="g6"></i>부분완료(분할 · 순차납품)</span>'+
@@ -987,11 +1005,14 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         ' — 종결된 LOT이라 추가 반출·입고를 할 수 없습니다.</span>';
       setOutFold(false);
     }else if(partRecv){
-      const goal=goalOf(c);
+      const wait=homeQty(c), und=undoneOf(c);
+      const outQ=ospOf(c.part).filter(o=>o.sdate&&!o.idate)
+        .reduce((s2,o)=>s2+openQtyOf(o),0);
       $('#mMsg').className='msg';
       $('#mMsg').innerHTML='<span style="color:#8a5a12">◐ 분납 입고중 · 누적 '+rq.toLocaleString()+
-        (goal?' / '+goal.toLocaleString():'')+(c.recv.n>1?' ('+c.recv.n+'회)':'')+
-        ' · 잔여 '+Math.max(goal-rq-rs2,0).toLocaleString()+
+        (c.recv.n>1?' ('+c.recv.n+'회)':'')+' · 사내 대기 '+wait.toLocaleString()+
+        (outQ?' · 외주 보유 '+outQ.toLocaleString():'')+
+        (und?' · 미처리 '+und.toLocaleString():'')+
         ' — 나머지가 들어오면 다시 [사내입고]로 등록하세요.</span>';
     }
     { const fh=$('#outFold'); if(fh) fh.style.display=closed?'none':''; }
@@ -1214,27 +1235,23 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       quote:q===''?null:Number(q), st:'진행', move_kind:kind};
     /* ── 재작업 반출 판정 ──────────────────────────────────
        이미 목표수량만큼 이 공정을 통과했는데 또 내보낸다면 그것은 새 투입이 아니라
-       불합격품 재투입(재작업)이다. 분할반출 2차와 구분해 두지 않으면
-       [1단계 누적 반출]로 계산하는 목표수량이 재작업분만큼 부풀어 오른다. */
+       불합격품 재투입(재작업)이다.
+       수량 계산에는 쓰지 않지만, <b>그 공정을 다시 거쳐야 하는지</b>를 가르는 정보라 남긴다.
+       (미처리 반납 = 아예 안 거침 / 재작업 = 거쳤으나 불합격) */
     if(!editNo && sel){
-      /* 미처리 반납분이 남아 있으면 그 범위까지는 자동으로 '미처리 재반출' */
       const uq=qtyOf(sel,mp).undone;
       if(uq>0){
+        /* 미처리 반납 잔량이 있으면 그 범위까지는 자동으로 '미처리 재반출' */
         body.rework=true; body.rework_kind='미처리';
         if(qty>uq && !confirm('['+mp+'] 미처리 반납 잔량은 '+uq.toLocaleString()+' EA 입니다.\n'+
             '이번 반출 '+qty.toLocaleString()+' EA 는 그보다 많습니다.\n\n'+
             '[확인] 그대로 진행  [취소] 수량을 다시 확인')) return;
-      }
-      const sent=ospOf(part).filter(o=>String(o.mp||'')===String(mp)&&o.sdate&&!o.rework)
-        .reduce((s3,o)=>s3+(Number(o.qty)||0),0);
-      const gl=goalOf(sel);
-      const back=((MVQ[String(part)])||[]).some(v=>v.mp===mp&&v.io==='입고');
-      if(!body.rework && back && gl>0 && sent+qty>gl){
-        body.rework=confirm('['+mp+'] 공정은 이미 '+sent.toLocaleString()+' EA 반출되어\n'+
-          '투입 목표 '+gl.toLocaleString()+' EA 를 채웠습니다.\n\n'+
+      }else if(sel.seen && sel.seen.has(mp)){
+        /* 이미 가공을 마친 공정으로 다시 내보낸다 → 재작업인지 물어본다 */
+        body.rework=confirm('['+mp+'] 공정은 이미 가공이 끝난 공정입니다.\n\n'+
           '이번 '+qty.toLocaleString()+' EA 는 재작업(불합격 재투입) 반출입니까?\n\n'+
-          '[확인] 재작업으로 등록 — 투입수량에 더하지 않습니다\n'+
-          '[취소] 신규 투입 반출로 등록');
+          '[확인] 재작업으로 등록\n'+
+          '[취소] 일반 반출로 등록 (분할 반출 등)');
         if(body.rework) body.rework_kind='재작업';
       }
     }
@@ -1407,13 +1424,11 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     if(c.rest.length) return alert('아직 남은 공정이 있습니다 ('+c.rest.join(' · ')+').');
     if(c.wip||c.moving) return alert('외주 반출중인 건이 있어 종결할 수 없습니다. 먼저 입고 처리하세요.');
     const last=ospOf(c.part).slice().sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0]||{};
-    /* 목표 수량 = 최초 투입 수량, 남은 수량 = 목표 − 이미 사내입고된 누적 */
-    const goalQ=goalOf(c)||Number(last.qty)||0;
+    /* 종결 대상은 <b>지금 사내에 대기중인 수량</b>이다. 목표(최초 투입)를 역산하지 않는다. */
     const gotQ =Number(c.recv&&c.recv.qty)||0;
-    const baseQ=goalQ?Math.max(goalQ-gotQ,0):(Number(last.qty)||0);
+    const baseQ=homeQty(c)||Number(last.qty)||0;
     const inS=prompt('['+c.part+'] 사내입고 수량을 입력하세요'+
-      (goalQ?'\n목표 '+goalQ.toLocaleString()+
-             (gotQ?' · 기입고 '+gotQ.toLocaleString()+' · 남은 '+baseQ.toLocaleString():''):'')+
+      '\n사내 대기 '+baseQ.toLocaleString()+(gotQ?' · 기입고 '+gotQ.toLocaleString():'')+
       '\n\n일부만 들어왔다면 실제 입고분만 넣으세요. 나머지는 나중에 다시 등록할 수 있습니다.',
       String(baseQ||''));
     if(inS===null)return;
