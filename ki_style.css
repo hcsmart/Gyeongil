@@ -189,7 +189,9 @@ body.resizing{cursor:col-resize;user-select:none}
 table.grid{width:100%;border-collapse:collapse;table-layout:fixed}
 .grid th{height:27px;background:linear-gradient(#f3f6f8,#dce3e9);border-right:1px solid #aab7c3;
   border-bottom:1px solid #91a0af;color:#4a5968;font-weight:800;text-align:center;padding:0 5px;
-  white-space:nowrap;position:sticky;top:28px;z-index:2}
+  white-space:nowrap;position:sticky;top:0;z-index:2}
+/* 표 위에 그리드 툴바(.grid-tb, 높이 28px)가 있을 때만 그만큼 내려 고정 */
+.grid-tb + table.grid th{top:28px}
 .ck-tb + .grid-wrap .grid th{top:0}   /* 툴바가 표 밖일 때 머리 겹침/빈줄 방지 */
 /* 제목행 정렬 : 오름차순 ▲ → 내림차순 ▼ → 등록순 ↕ 로테이션 */
 .grid th.sortable{cursor:pointer;user-select:none;-webkit-user-select:none}
