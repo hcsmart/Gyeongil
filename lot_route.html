@@ -63,6 +63,8 @@
 .fx-node .vst{display:block;margin-top:3px;padding:1px 4px;border-radius:3px;cursor:help;
   font-size:9.5px;font-weight:800;color:#1d568c;background:#e9f2fc;border:1px solid #cfe0f2}
 .fx-node .vst b{color:#8a5a12;font-weight:800}
+/* 미처리 반납 배지 (현장기록 표) */
+.badge.b-part{background:#fdf6ea;color:#8a5a12;border-color:#d9a441}
 .fx-node.st-home .vst{color:#cfe0f2;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25)}
 .fx-node.st-done .qsub{color:#3f8f60}
 .fx-node.st-rest{background:#f2f4f6;border-color:#d5dce2}
@@ -406,7 +408,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const add=(MVST[String(r.part||'')]||[])
       .filter(x=>x.mp && !base.some(s=>s.mp===x.mp));
     const st=base.concat(add).sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
-    const seen0=new Set(st.map(s=>s.mp));
+    /* seen : 가공까지 끝난 공정 (진척·다음공정 판정)
+       arr  : 도착만 한 공정 포함 경유 이력 (작업중/이동중 표시) */
+    const dn=x=>x.done!==false;
+    const seen0=new Set(st.filter(dn).map(s=>s.mp));
     let last=st[st.length-1]||{}, moving=false;
     /* 입고 전(반출중)이라도 현재 위치를 표시 : 미입고 외주건 중 최근 출고건
        단, 도착확인이 된 건은 '이동중'이 아니라 그 업체에서 '작업중' */
@@ -424,9 +429,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         .find(o=>o.route_no)||{}).route_no || '';
     const fixed=rno?RT.find(x=>String(x.standard_process_no)===String(rno)):null;
     const m=fixed?{rt:fixed}:matchRoute(st.map(s=>s.mp)), sd=m?(m.rt.steps||[]):[];
-    const seen=new Set(st.map(s=>s.mp));
+    const seen=new Set(st.filter(dn).map(s=>s.mp));
+    const arrS=new Set(st.map(s=>s.mp));
     const hit=sd.filter(x=>seen.has(x)), total=sd.length||st.length||1;
-    const done=m?hit.length:st.length;
+    const done=m?hit.length:seen.size;
     let rest=sd.filter(x=>!seen.has(x));
     /* 반출중인 단계는 '진행중'으로 분리 — 다음 공정은 그 다음 단계 */
     const wipMp = (moving && last.mp && !seen.has(last.mp)) ? last.mp : '';
@@ -456,7 +462,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       map_part:r.map_part||(ospOf(r.part).find(o2=>o2.map_part)||{}).map_part||'',
       recv:rc||null, recvOpen:recvOpen,
       route_no:rno||'', moving:moving, steps:st, last:last, std:m?m.rt:null,
-      sd:sd, seen:seen, done:done, total:total, rest:rest, wip:wip, wipMp:wipMp,
+      sd:sd, seen:seen, arr:arrS, done:done, total:total, rest:rest, wip:wip, wipMp:wipMp,
       rate: total?Math.round(done/total*100):0,
       wipRate: total?Math.round((done+wip)/total*100):0};
   }
@@ -474,8 +480,13 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const ins=((MVQ[String(c.part||'')])||[]).filter(v=>v.mp===mp && v.io==='입고')
              .sort((a,b)=>String(a.move_date||'').localeCompare(String(b.move_date||'')));
     const out=os.reduce((s2,o)=>s2+(Number(o.qty)||0),0);
-    let inq=ins.reduce((s2,v)=>s2+(Number(v.in_qty)||0),0);
+    let inq=ins.reduce((s2,v)=>s2+(Number(v.in_qty)||0),0);         /* 복귀 총량 */
     const lost=ins.reduce((s2,v)=>s2+(Number(v.short_qty)||0),0);   /* 부족(손실) 확정분 */
+    /* 미처리 반납 : 물건은 돌아왔지만 그 공정을 거치지 않았다 → 재반출 대상 */
+    const undoneIn=ins.reduce((s2,v)=>s2+(Number(v.undone_qty)||0),0);
+    const redone=os.filter(o=>o.rework&&o.rework_kind==='미처리')
+                   .reduce((s2,o)=>s2+(Number(o.qty)||0),0);
+    const undone=Math.max(undoneIn-redone,0);                       /* 아직 재반출 안 한 미처리분 */
     let rounds;
     if(ins.length){
       rounds=ins.map((v,i)=>({seq:i+1, qty:Number(v.in_qty)||0, short:Number(v.short_qty)||0,
@@ -488,10 +499,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     }
     const outs=os.map((o,i)=>({seq:i+1, no:o.no, vendor:o.vendor||'', qty:Number(o.qty)||0,
       sdate:o.sdate||'', idate:o.idate||'', kind:String(o.move_kind||'외주')}));
-    const open=Math.max(out-inq-lost,0);
-    return {out:out, in:inq, lost:lost, open:open, rounds:rounds, outs:outs,
-            rate: out?Math.round(inq/out*100):0,
-            part: out>0 && inq>0 && open>0};        /* 부분완료 */
+    const open=Math.max(out-inq-lost,0);          /* 아직 밖에 있는 수량 */
+    const doneQ=Math.max(inq-undoneIn,0);        /* 실제로 가공을 마친 수량 */
+    return {out:out, in:inq, done:doneQ, undone:undone, lost:lost, open:open,
+            rounds:rounds, outs:outs,
+            rate: out?Math.round(doneQ/out*100):0,
+            part: out>0 && doneQ>0 && (open>0||undone>0)};   /* 부분완료 */
   };
   const nf = v => (Number(v)||0).toLocaleString();
   /* 차수별 상세 문구 (툴팁 · B안) */
@@ -520,8 +533,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     if(o.idate) return 0;                      /* 마감된 반출건은 잔여 없음 */
     const mv=((MVQ[String(o.part||'')])||[])
       .filter(v=>String(v.osp_no||'')===String(o.no));
-    const arr=mv.filter(v=>v.io==='도착').slice(-1)[0];
-    const base=arr?(Number(arr.in_qty)||0):(Number(o.qty)||0);
+    /* 기준 = 반출수량 − 운송 중 부족(도착확인 시 기록한 파손·분실)
+       도착확인이 여러 번 찍히거나(분할 입고) 아직 일부만 찍혔어도 흔들리지 않는다.
+       도착 in_qty 합계를 쓰면 미확인분이 사내 재고로 잘못 넘어간다. */
+    const lost=mv.filter(v=>v.io==='도착')
+      .reduce((s3,v)=>s3+(Number(v.short_qty)||0),0);
+    const base=Math.max((Number(o.qty)||0)-lost,0);
     const got=mv.filter(v=>v.io==='입고')
       .reduce((s2,v)=>s2+(Number(v.in_qty)||0)+(Number(v.short_qty)||0),0);
     return Math.max(base-got,0);
@@ -578,14 +595,18 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
      모든 물량은 표준공정 1단계를 반드시 한 번 통과하므로
      [1단계 누적 반출수량]을 목표로 쓴다. 표준공정 미매칭이면 종전 방식으로 폴백. */
   const goalOf = c => {
-    const mp0=((c&&c.std&&c.std.steps)||[])[0]||'';
     const os=ospOf(c.part).filter(o=>o.sdate);
-    const g=mp0?os.filter(o=>o.mp===mp0).reduce((s,o)=>s+(Number(o.qty)||0),0):0;
-    if(g) return g;
-    const f0=os.slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0];
-    return Number(f0&&f0.qty)||0;
+    if(!os.length) return 0;
+    /* 표준공정이 매칭되지 않은 LOT은 <b>실제로 가장 먼저 나간 공정</b>을 1단계로 본다 */
+    const seq=os.slice().sort((a,b)=>String(a.sdate||'').localeCompare(String(b.sdate||''))
+                                   ||(Number(a.no)||0)-(Number(b.no)||0));
+    const mp0=((c&&c.std&&c.std.steps)||[])[0]||(seq[0]&&seq[0].mp)||'';
+    /* 재반출(재작업 · 미처리 반납분 재투입)은 새로 들어온 물량이 아니므로 목표에서 뺀다 */
+    const g=mp0?os.filter(o=>o.mp===mp0&&!o.rework)
+                  .reduce((s,o)=>s+(Number(o.qty)||0),0):0;
+    return g||(Number(seq[0].qty)||0);
   };
-  /* 확정 손실(부족) 누계 — 도착·입고 기록의 부족수량 */
+  /* 확정 손실(부족) 누계 — 도착·입고·현장기록에 적힌 부족수량 전부 */
   const lostOf = c => ((MVQ[String(c.part||'')])||[])
     .reduce((s,v)=>s+(Number(v.short_qty)||0),0);
   /* 사내에 남아 있는 수량
@@ -615,7 +636,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const split=holdersOf(c).filter(x=>x.qty>0).length>1;
     if(split) return '분할 진행중';
     if(p==='recv') return '사내입고 완료';
-    if(p==='wip')  return c.seen.has(wipMpOf(c))?'외주 작업중':'이동중';
+    if(p==='wip')  return (c.arr||c.seen).has(wipMpOf(c))?'외주 작업중':'이동중';
     if(openIn(c))  return '사내 작업중';
     return c.std&&!c.rest.length?'사내입고 대기':'사내 보유';
   };
@@ -833,12 +854,14 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           (rt2?'" title="'+esc(rt2):''),
         curPos==='wip:'+x,
         esc(x), esc(pName(x)||''),
-        (part?('◐ 부분완료 '+nf(q.in)+'/'+nf(q.out)+
+        (part?('◐ 부분완료 '+nf(q.done)+'/'+nf(q.out)+
               '<i class="qbar"><b style="width:'+Math.min(q.rate,100)+'%"></b></i>'+
               '<span class="qsub">미회수 '+nf(q.open)+
+              (q.undone?' · 미처리 '+nf(q.undone):'')+
               (q.rounds.length>1?' · '+q.rounds.length+'차 분할':'')+'</span>')
         :inw?'🏭 '+esc(inVen||'사내 작업장')+' 작업중'
-        :done?'✓ 완료 · '+(kindOf(x)==='사내'?'사내작업':'사내복귀')+
+        :done?(q.undone?'↩ 미처리 반납 '+nf(q.undone)+' · 재반출 필요':
+              '✓ 완료 · '+(kindOf(x)==='사내'?'사내작업':'사내복귀'))+
               (dVen?' · '+esc(dVen):'')+(dDate?' · '+md(dDate):'')+
               (q.rounds.length>1?' <span class="qsub">('+q.rounds.length+'차 분납 · '+nf(q.in)+')</span>':'')
         :wip?((arr(null,x)||c.seen.has(x))
@@ -1189,6 +1212,32 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       lot:lots.map(x=>x.lot).join(','), qty:qty||null, lots:lots,
       sdate:$('#fSdate').value||null, edate:$('#fEdate').value||null,
       quote:q===''?null:Number(q), st:'진행', move_kind:kind};
+    /* ── 재작업 반출 판정 ──────────────────────────────────
+       이미 목표수량만큼 이 공정을 통과했는데 또 내보낸다면 그것은 새 투입이 아니라
+       불합격품 재투입(재작업)이다. 분할반출 2차와 구분해 두지 않으면
+       [1단계 누적 반출]로 계산하는 목표수량이 재작업분만큼 부풀어 오른다. */
+    if(!editNo && sel){
+      /* 미처리 반납분이 남아 있으면 그 범위까지는 자동으로 '미처리 재반출' */
+      const uq=qtyOf(sel,mp).undone;
+      if(uq>0){
+        body.rework=true; body.rework_kind='미처리';
+        if(qty>uq && !confirm('['+mp+'] 미처리 반납 잔량은 '+uq.toLocaleString()+' EA 입니다.\n'+
+            '이번 반출 '+qty.toLocaleString()+' EA 는 그보다 많습니다.\n\n'+
+            '[확인] 그대로 진행  [취소] 수량을 다시 확인')) return;
+      }
+      const sent=ospOf(part).filter(o=>String(o.mp||'')===String(mp)&&o.sdate&&!o.rework)
+        .reduce((s3,o)=>s3+(Number(o.qty)||0),0);
+      const gl=goalOf(sel);
+      const back=((MVQ[String(part)])||[]).some(v=>v.mp===mp&&v.io==='입고');
+      if(!body.rework && back && gl>0 && sent+qty>gl){
+        body.rework=confirm('['+mp+'] 공정은 이미 '+sent.toLocaleString()+' EA 반출되어\n'+
+          '투입 목표 '+gl.toLocaleString()+' EA 를 채웠습니다.\n\n'+
+          '이번 '+qty.toLocaleString()+' EA 는 재작업(불합격 재투입) 반출입니까?\n\n'+
+          '[확인] 재작업으로 등록 — 투입수량에 더하지 않습니다\n'+
+          '[취소] 신규 투입 반출로 등록');
+        if(body.rework) body.rework_kind='재작업';
+      }
+    }
     /* 같은 내용의 반출건이 방금 등록돼 있으면 되묻는다 (새로고침 전 중복 등록 방어) */
     if(!editNo){
       const dup=ospOf(part).find(o=>String(o.mp||'')===String(mp)
@@ -1299,6 +1348,24 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       }
     }
     const close2=(rem<=0)||short>0;                  /* 잔여가 없어야 반출건 마감 */
+    /* ── 처리유형 ──
+       가공을 안 하고 그대로 돌아온 물량(미처리 반납)을 일반 입고로 잡으면
+       그 공정이 완료로 표시되고 다음 공정으로 넘어갈 수 있게 된다. */
+    let inKind='가공완료', undone=0;
+    if(close2){
+      const k=prompt('이번 입고의 처리 유형을 고르세요.\n\n'+
+                     '1 = 가공완료 (정상)\n'+
+                     '2 = 미처리 반납 — 가공하지 않고 그대로 복귀\n'+
+                     '3 = 일부만 가공','1');
+      if(k===null) return;
+      if(String(k).trim()==='2'){ inKind='미처리'; undone=inQ; }
+      else if(String(k).trim()==='3'){
+        const u=prompt('가공되지 않은 수량을 입력하세요. (전체 '+inQ.toLocaleString()+' EA)','');
+        undone=Number(String(u||'').replace(/[^0-9.]/g,''))||0;
+        if(undone<=0||undone>=inQ) return alert('미처리 수량이 올바르지 않습니다.');
+        inKind='부분가공';
+      }
+    }
     const rmk=prompt('특기사항 (없으면 비워두세요)','')||'';
     const m=$('#mMsg');
     try{
@@ -1306,12 +1373,18 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       await KI.ins(TBL.lotMove,[{part:o.part||(sel?sel.part:''), osp_no:Number(no)||null, io:'입고',
         mp:o.mp||null, vendor:o.vendor||null, move_date:TODAY,
         out_qty:restQ||null, in_qty:inQ||null, short_qty:short, reason:reason||null,
-        remark:rmkJoin(flow(node(o.mp,o.vendor),close2?'가공완료 입고':'부분 회수',inQ)+
+        in_kind:inKind, undone_qty:undone,
+        remark:rmkJoin(flow(node(o.mp,o.vendor),
+                       close2?(inKind==='미처리'?'미처리 반납':
+                               inKind==='부분가공'?'일부 가공 입고':'가공완료 입고'):'부분 회수',inQ)+
+                       (undone?' · 미처리 '+undone.toLocaleString()+' (재반출 필요)':'')+
                        (short?' (잔여 '+rem.toLocaleString()+' · 부족 처리)':'')+
                        (!close2?' · 잔량 '+rem.toLocaleString()+' 유지':''), rmk),
         worker:(KI.me()||{}).emp_name||'', source:'수동'}]);
       m.className='msg ok';
-      m.textContent=(close2?'✓ 입고 처리되었습니다.':'◐ 부분 회수 등록 — 잔량 '+rem.toLocaleString()+' 유지')+
+      m.textContent=(close2?(undone?'↩ 미처리 반납 '+undone.toLocaleString()+' EA — 재반출이 필요합니다.'
+                                     :'✓ 입고 처리되었습니다.')
+                           :'◐ 부분 회수 등록 — 잔량 '+rem.toLocaleString()+' 유지')+
         (short?' (부족 '+short.toLocaleString()+' · '+reason+')':'');
       KI.msg((close2?'✓ 입고 처리':'◐ 부분 회수 '+inQ.toLocaleString())+
         (short?' — 부족 '+short.toLocaleString():''));
@@ -1415,7 +1488,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       /* 시간 순(오름차순)으로 받아 1번부터 번호를 매긴다 — 물류 흐름을 위에서 아래로 읽는다 */
       const mv=await KI.get(OBJ.lotMove+'?select=*&part=eq.'+encodeURIComponent(part)+
                             '&order=move_date.asc,move_id.asc&limit=200');
-      if(sel&&sel.part===part) drawFlow(sel,mv);   /* 실제 입출고 일자로 다이어그램 갱신 */
+      if(sel&&sel.part===part) drawFlow(sel,mv.filter(v=>!v.void));  /* 취소분 제외 */   /* 실제 입출고 일자로 다이어그램 갱신 */
       if(!mv.length)return;
       const RM=flowMap(mv);
       const short=mv.filter(v=>Number(v.short_qty)>0).length;
@@ -1430,9 +1503,15 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         '<th style="width:110px">사유</th><th>특기사항</th>'+
         (CAN_E||CAN_D?'<th style="width:62px">정정</th>':'')+'</tr></thead><tbody>'+
         mv.map((v,i)=>{ const r=RM[v.move_id]||{};
-          return '<tr data-mv="'+v.move_id+'"><td class="center" style="color:#8894a0;font-weight:700">'+(i+1)+'</td>'+
+          const vd=!!v.void, uq=Number(v.undone_qty)||0;
+          return '<tr data-mv="'+v.move_id+'"'+
+          (vd?' style="opacity:.5;text-decoration:line-through" title="취소됨 — '+
+              esc(v.void_reason||'')+(v.void_by?' ('+esc(v.void_by)+')':'')+'"':'')+
+          '><td class="center" style="color:#8894a0;font-weight:700">'+(i+1)+'</td>'+
           '<td class="center nw">'+esc(v.move_date||'')+'</td>'+
-          '<td class="center"><span class="badge '+(v.io==='입고'||v.io==='사내입고'?'b-done':v.io==='출고'?'b-run':'b-wait')+'">'+esc(v.io)+'</span></td>'+
+          '<td class="center"><span class="badge '+
+            (vd?'b-wait':uq?'b-part':(v.io==='입고'||v.io==='사내입고'?'b-done':v.io==='출고'?'b-run':'b-wait'))+'">'+
+            esc(vd?'취소':(uq?(uq>=(Number(v.in_qty)||0)?'미처리':'일부가공'):v.io))+'</span></td>'+
           '<td>'+esc(r.f||'')+'</td>'+
           '<td class="center" style="color:#8894a0">'+(r.t?'▶':'')+'</td>'+
           '<td'+(v.io==='사내입고'?' style="font-weight:700;color:#1d568c"':'')+'>'+esc(r.t||'')+'</td>'+
@@ -1443,10 +1522,46 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           (CAN_E||CAN_D?'<td class="center" style="white-space:nowrap">'+
             (CAN_E?'<button class="lr-go" data-mve="'+v.move_id+'" title="수량 · 부족 · 사유 · 특기사항 정정" '+
               'style="background:#fff;color:#1d568c;padding:0 5px">✎</button>':'')+
+            (CAN_E&&!vd&&(v.io==='입고'||v.io==='도착')?
+              '<button class="lr-go" data-mvv="'+v.move_id+'" title="입고 취소 — 물류기록은 남기고 공정을 직전으로 되돌립니다" '+
+              'style="background:#fff;color:#8a5a12;border-color:#d9a441;padding:0 5px;margin-left:3px">↩</button>':'')+
             (CAN_D?'<button class="lr-go" data-mvx="'+v.move_id+'" title="이 기록 삭제" '+
               'style="background:#fff;color:#a0505a;border-color:#c9a0a8;padding:0 5px;margin-left:3px">✕</button>':'')+
             '</td>':'')+'</tr>'; }).join('')+
         '</tbody></table></div></div>';
+      /* ── 입고 취소 ────────────────────────────────────────
+         (a) 오등록  — 물건은 안 움직였는데 잘못 눌렀다 → 진짜 취소
+         (b) 미처리 반납 — 물건은 실제로 왔다 → 취소가 아니라 유형 정정
+         (b)를 취소로 처리하면 트럭은 왔는데 원장에는 안 온 게 되어 협력사 재고가 계속 남는다.
+         그래서 취소는 <b>마지막 이동기록</b>일 때만 허용하고, 기록은 지우지 않고 표시만 바꾼다. */
+      box.querySelectorAll('[data-mvv]').forEach(b=>b.addEventListener('click',async()=>{
+        const id=Number(b.dataset.mvv);
+        const live=mv.filter(x=>!x.void);
+        const lastId=live.length?Math.max.apply(null,live.map(x=>Number(x.move_id)||0)):0;
+        const v=mv.find(x=>Number(x.move_id)===id)||{};
+        if(id!==lastId) return alert('이후에 등록된 이동기록이 있어 취소할 수 없습니다.\n'+
+          '뒤 기록부터 차례로 정리한 뒤 다시 시도하세요.');
+        if(sel&&sel.recv) return alert('사내입고가 등록된 LOT은 취소할 수 없습니다.\n'+
+          '먼저 사내입고를 정정하세요.');
+        const why=prompt('['+(v.io||'')+' '+(v.move_date||'')+'] 기록을 취소합니다.\n\n'+
+          '· 물건이 실제로 돌아왔다면 취소가 아니라 [✎] 로 처리유형을 미처리 반납으로 고치세요.\n'+
+          '· 오등록(물건은 그대로 협력사에 있음)일 때만 취소하세요.\n\n취소 사유를 입력하세요.','오등록');
+        if(!why) return;
+        try{
+          await KI.upd(TBL.lotMove,'move_id=eq.'+id,
+            {void:true, void_reason:why, void_at:new Date().toISOString(),
+             void_by:(KI.me()||{}).emp_name||''});
+          /* 이 입고로 마감됐던 반출건은 진행중으로 되돌린다 */
+          if(v.io==='입고'&&v.osp_no){
+            const rest2=live.filter(x=>Number(x.osp_no)===Number(v.osp_no)
+                                     && x.io==='입고' && Number(x.move_id)!==id);
+            if(!rest2.length) await KI.upd(TBL.ospOrder,'no=eq.'+v.osp_no,{idate:null, st:'진행'});
+          }
+          KI.msg('↩ 취소되었습니다 — 물류이동이 직전 상태로 되돌아갔습니다.');
+          await load();
+          const c2=ROWS.map(calc).find(x=>x.part===part); if(c2&&sel) open(c2); else loadMoves(part);
+        }catch(e){ alert('❌ '+e.message); }
+      }));
       /* ── 현장 기록 정정 ──
          현장에서 사유를 잘못 고르거나 수량을 잘못 넣는 일이 있어 뒤늦게 고칠 수 있게 한다.
          수량 · 부족을 고치면 공정별 집계(회수율 · 미회수)가 곧바로 다시 계산된다. */
@@ -1572,7 +1687,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       KI.get(OBJ.lotReceipt+'?select=part,in_date,qty,short_qty').catch(()=>[]),
       KI.get(OBJ.lotMove+'?select=part,move_date,in_qty,short_qty&io=eq.'+encodeURIComponent('사내입고')).catch(()=>[]),
       KI.get(OBJ.lotMove+'?select=part,io,mp,vendor,move_date,osp_no,out_qty,in_qty,short_qty&io=in.('+
-        encodeURIComponent('"도착","입고"')+')&order=move_date.asc,move_id.asc').catch(()=>[]),
+        encodeURIComponent('"도착","입고","기록"')+')&order=move_date.asc,move_id.asc').catch(()=>[]),
       KI.get(OBJ.venStock+'?select=vendor,part,job,mp,map_part,stock_qty,out_date,due_status'+
              '&order=vendor.asc,out_date.asc').catch(()=>[])
     ]);
@@ -1580,9 +1695,14 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     MVIN=(mvin||[]).map(v=>({part:v.part,in_date:v.move_date,qty:v.in_qty,short_qty:v.short_qty}));
     MVST={}; MVQ={};
     (mvst||[]).forEach(v=>{ const k=String(v.part||''); if(!k) return;
+      if(v.void) return;                                 /* 취소된 기록은 집계에서 제외 */
       (MVQ[k]=MVQ[k]||[]).push(v);                       /* 수량 집계용 원본 */
-      if(!v.mp) return;
-      (MVST[k]=MVST[k]||[]).push({mp:v.mp, vendor:v.vendor||'', date:v.move_date||''}); });
+      if(!v.mp || v.io==='기록') return;      /* 현장 메모는 공정 경유 이력이 아니다 */
+      /* 공정 '완료'로 인정하려면 그 공정에서 실제로 가공된 수량이 있어야 한다.
+         미처리 반납(가공 안 하고 그대로 복귀)은 복귀했을 뿐 공정을 거치지 않았다. */
+      const doneQ=(Number(v.in_qty)||0)-(Number(v.undone_qty)||0);
+      (MVST[k]=MVST[k]||[]).push({mp:v.mp, vendor:v.vendor||'', date:v.move_date||'',
+        done:(v.io==='입고' && doneQ>0)}); });
     /* ── 외주처 재고 인덱스 ──
        · 사내 작업장(move_kind='사내')은 협력사 재고가 아니므로 제외한다
        · 품번(map_part)이 비어 있는 건은 반출건에서 보완 */
