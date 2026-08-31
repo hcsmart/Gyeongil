@@ -327,8 +327,6 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       '<button class="hb" id="mRf" title="최신 상태 다시 읽기">🔄 새로고침</button>'+
       '<button class="hb" id="mTag" title="공정이동표 인쇄">🖨 이동표(QR)</button>'+
       '<button class="hb inh" id="mInh" style="display:none">🏭 사내입고(종결)</button>'+
-      '<button class="hb" id="mEC" style="display:none">↩ 수정취소</button>'+
-      '<button class="hb pri" id="mS">📤 반출 등록</button>'+
       '<button class="hb" id="mC">닫기</button>'+
       '<button class="x" id="mX">✕</button></div>'+
     '<div class="lr-mb">'+
@@ -384,7 +382,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       '</div>'+                                   /* /subStore */
     '</div>'+
     '<div class="lr-mf" id="mFoot" style="display:none">'+
-      '<span class="msg" id="mMsg" style="font-weight:700"></span></div>';
+      '<span class="msg" id="mMsg" style="font-weight:700"></span></div>'+
+    /* 반출 등록 · 수정취소는 [진행등록] 팝업 안에서만 누른다.
+       상태(표시여부 · 라벨)를 그대로 쓰는 곳이 많아 요소는 남기고 화면에서만 감춘다. */
+    '<span id="btnHost" style="display:none">'+
+      '<button class="btn primary" id="mS">📤 반출 등록</button>'+
+      '<button class="btn" id="mEC" style="display:none">↩ 수정취소</button></span>';
   document.body.appendChild(dim); document.body.appendChild(mo);
   mo.style.display='none';
   const dlD=el('datalist'); dlD.id='dlDept'; document.body.appendChild(dlD);
@@ -452,6 +455,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   function syncKind(){
     const inh=$('#fKind').value==='사내';
     $('#fVen').style.display = inh?'none':'';
+    const vb=($('#fVen')._combo&&$('#fVen')._combo.box)||null;
+    if(vb) vb.style.display = inh?'none':'';     /* 검색형 선택상자 본체까지 함께 숨긴다 */
     $('#fDept').style.display = inh?'':'none';
     $('#fVenL').textContent = inh?'이동처 *':'외주처 *';
     const fd=$('#fFromL'); if(fd) fd.textContent = inh?'출발 보유분':'출발 보유분';
@@ -1246,6 +1251,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     if(!l||!sl) return;
     l.style.display = on?'':'none';
     sl.style.display = on?'':'none';
+    /* 검색형 선택상자는 select 를 감싼 상자(.ki-combo)가 실제 화면 요소다.
+       select 만 감추면 빈 입력칸이 라벨 없이 남는다. */
+    const bx=(sl._combo&&sl._combo.box)||null; if(bx) bx.style.display = on?'':'none';
   }
 
   /* 품번(제품번호) → 기준정보 › 금형정보 기준으로 금형제번 자동 매칭 */
