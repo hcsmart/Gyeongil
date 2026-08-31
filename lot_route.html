@@ -123,15 +123,26 @@
 /* ── 상단 툴바 버튼 (2차 팝업 호출) ──
    본문은 요약(정보 · 흐름도 · 이동중)만 남기고
    진행등록 · 현장기록 · 범례는 필요할 때만 꺼내 본다. */
-.lr-mh #mTtl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:52px}
+.lr-mh #mTtl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:52px;
+  flex:0 1 auto;max-width:230px}
+.lr-mh .x{flex:none}
 .lr-mh .hb{height:22px;padding:0 9px;border:1px solid rgba(255,255,255,.55);border-radius:3px;
   background:rgba(255,255,255,.15);color:#fff;font:inherit;font-size:11px;font-weight:700;
-  cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+  cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;flex:none}
 .lr-mh .hb:hover{background:rgba(255,255,255,.34)}
 .lr-mh .hb i{font-style:normal;background:#fff;color:#1d568c;border-radius:8px;
   padding:0 5px;font-size:10px;font-weight:800}
 .lr-mh .hb i:empty{display:none}
-.lr-mh #hOut{margin-left:auto}
+.lr-mh .hb.pri{background:#fff;color:#1d568c;border-color:#fff}
+.lr-mh .hb.pri:hover{background:#e6f0fa}
+.lr-mh .hb.inh{background:#e8862e;border-color:#e8862e}
+.lr-mh .hb.inh:hover{background:#f09642}
+.lr-mh .hsep{width:1px;height:16px;background:rgba(255,255,255,.42);flex:none;margin:0 1px}
+.lr-mh{overflow-x:auto;gap:5px}
+.lr-mh::-webkit-scrollbar{height:0}
+.lr-mh #hOut{margin-left:12px}
+/* 메시지 바 : 내용이 있을 때만 보인다 */
+.lr-mo .lr-mf .msg{flex:1}
 /* ── 2차 팝업 ── */
 .lr-dimS{z-index:70;background:rgba(30,40,50,.34)}
 .lr-moS{z-index:71;width:900px}
@@ -312,6 +323,13 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       '<button class="hb" id="hOut" title="다음 공정 진행등록 (반출)">📤 진행등록</button>'+
       '<button class="hb" id="hMv" title="현장 기록 — 물류 흐름 · 특기사항">📝 현장기록<i id="hMvN"></i></button>'+
       '<button class="hb" id="hLg" title="공정 흐름도 범례">❔ 범례</button>'+
+      '<span class="hsep"></span>'+
+      '<button class="hb" id="mRf" title="최신 상태 다시 읽기">🔄 새로고침</button>'+
+      '<button class="hb" id="mTag" title="공정이동표 인쇄">🖨 이동표(QR)</button>'+
+      '<button class="hb inh" id="mInh" style="display:none">🏭 사내입고(종결)</button>'+
+      '<button class="hb" id="mEC" style="display:none">↩ 수정취소</button>'+
+      '<button class="hb pri" id="mS">📤 반출 등록</button>'+
+      '<button class="hb" id="mC">닫기</button>'+
       '<button class="x" id="mX">✕</button></div>'+
     '<div class="lr-mb">'+
       '<div class="lr-info" id="infoBox">'+
@@ -365,13 +383,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       '<div class="fx-lg" id="iLegend"></div>'+
       '</div>'+                                   /* /subStore */
     '</div>'+
-    '<div class="lr-mf"><span class="msg" id="mMsg" style="font-weight:700"></span>'+
-      '<button class="btn" id="mRf" style="margin-left:auto">🔄 새로고침</button>'+
-      '<button class="btn" id="mTag">🖨 이동표(QR)</button>'+
-      '<button class="btn" id="mInh" style="display:none;background:#e8862e;border-color:#c96f1a;color:#fff;font-weight:700">🏭 사내입고(종결)</button>'+
-      '<button class="btn" id="mC">닫기</button>'+
-      '<button class="btn" id="mEC" style="display:none">↩ 수정취소</button>'+
-      '<button class="btn primary" id="mS">📤 반출 등록</button></div>';
+    '<div class="lr-mf" id="mFoot" style="display:none">'+
+      '<span class="msg" id="mMsg" style="font-weight:700"></span></div>';
   document.body.appendChild(dim); document.body.appendChild(mo);
   mo.style.display='none';
   const dlD=el('datalist'); dlD.id='dlDept'; document.body.appendChild(dlD);
@@ -383,7 +396,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   moS.innerHTML='<div class="lr-mh"><span id="sTtl"></span><button class="x" id="sX">✕</button></div>'+
     '<div class="lr-mb" id="sBody"></div>'+
     '<div class="lr-mf"><span class="msg" id="sMsg" style="font-weight:700"></span>'+
-      '<button class="btn" id="sC" style="margin-left:auto">닫기</button>'+
+      '<button class="btn" id="sEC" style="display:none;margin-left:auto">↩ 수정취소</button>'+
+      '<button class="btn" id="sC">닫기</button>'+
       '<button class="btn primary" id="sS" style="display:none">📤 반출 등록</button></div>';
   document.body.appendChild(dimS); document.body.appendChild(moS);
   moS.style.display='none';
@@ -401,6 +415,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     if(fd) fd.classList.add('open');
     $('#sTtl').textContent=cfg.t;
     $('#sS').style.display=(k==='out'&&$('#mS').style.display!=='none')?'':'none';
+    $('#sS').textContent=$('#mS').textContent;
+    $('#sEC').style.display=(k==='out'&&$('#mEC').style.display!=='none')?'':'none';
     subMsg();
     subKey=k; dimS.classList.add('on'); moS.style.display=''; moS.scrollTop=0;
     if(k==='out'){ const t=$('#fVen'); if(t) try{t.focus();}catch(e){} }
@@ -412,16 +428,20 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   }
   function subMsg(){ const s=$('#sMsg'), m=$('#mMsg'); if(!s||!m) return;
     s.className=m.className; s.innerHTML=m.innerHTML; }
+  /* 하단 메시지 바 : 내용이 있을 때만 노출 (버튼이 모두 상단으로 올라가 평소엔 숨긴다) */
+  function footSync(){ const f=$('#mFoot'); if(!f) return;
+    f.style.display=(($('#mMsg').textContent||'').trim())?'':'none'; }
   $('#sX').addEventListener('click',subHide);
   $('#sC').addEventListener('click',subHide);
   dimS.addEventListener('click',subHide);
   $('#sS').addEventListener('click',()=>$('#mS').click());
+  $('#sEC').addEventListener('click',()=>$('#mEC').click());
   $('#hOut').addEventListener('click',()=>subShow('out'));
   $('#hMv') .addEventListener('click',()=>subShow('mv'));
   $('#hLg') .addEventListener('click',()=>subShow('lg'));
   document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&subKey) subHide(); });
   /* 저장·오류 메시지는 2차 팝업 하단에도 그대로 비춘다 */
-  new MutationObserver(()=>{ if(subKey) subMsg(); })
+  new MutationObserver(()=>{ footSync(); if(subKey) subMsg(); })
     .observe($('#mMsg'),{childList:true,subtree:true,characterData:true,attributes:true});
 
   function close(){ subHide(); dim.classList.remove('on'); mo.style.display='none'; sel=null; NEW=false; editNo=null; }
@@ -849,6 +869,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     editNo = kind==='edit' ? editNo : null;
     $('#mS').textContent = kind==='edit' ? '💾 저장' : '📤 반출 등록';
     $('#mEC').style.display = kind==='edit' ? '' : 'none';
+    const ss=$('#sS'), se=$('#sEC');
+    if(ss) ss.textContent=$('#mS').textContent;
+    if(se) se.style.display = (kind==='edit' && ss && ss.style.display!=='none') ? '' : 'none';
   }
   /* ── 사내 → 외주 → 사내 흐름 다이어그램 ──
      mv(현장 기록)가 있으면 도착·입고 실제 일자를 우선 사용하고, 현재 위치를 짙은 색으로 강조 */
