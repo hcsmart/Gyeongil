@@ -52,6 +52,14 @@
 .fx-node.st-wip .t{color:#1d568c}.fx-node.st-wip .s{color:#1d568c}
 .fx-node.st-next{background:#fff;border-style:dashed;border-color:#2e77bd}
 .fx-node.st-next .t{color:#1d568c}.fx-node.st-next .s{color:#5a83ab}
+/* 부분완료 : 분할 · 순차납품으로 일부만 회수된 공정 */
+.fx-node.st-part{background:#fdf6ea;border-color:#d9a441;box-shadow:0 0 0 1px #d9a441}
+.fx-node.st-part .t{color:#8a5a12}.fx-node.st-part .n{color:#a4702a}
+.fx-node.st-part .s{color:#8a5a12;font-weight:800}
+.fx-node .qbar{display:block;height:4px;background:#eadfc8;border-radius:2px;margin:3px 0 2px}
+.fx-node .qbar b{display:block;height:100%;background:#2f7d4d;border-radius:2px}
+.fx-node .qsub{display:block;font-size:9.5px;font-weight:700;color:#a4702a;opacity:.9}
+.fx-node.st-done .qsub{color:#3f8f60}
 .fx-node.st-rest{background:#f2f4f6;border-color:#d5dce2}
 .fx-node.st-rest .t{color:#96a2ad}.fx-node.st-rest .s{color:#a8b3bd}
 /* 현재 위치 : 짙은 색 강조 */
@@ -73,6 +81,7 @@
 .fx-lg .g3{background:#2e77bd;border-color:#1d568c}
 .fx-lg .g4{background:#fff;border-style:dashed;border-color:#2e77bd}
 .fx-lg .g5{background:#e8862e;border-color:#c96f1a}
+.fx-lg .g6{background:#fdf6ea;border-color:#d9a441}
 .fx-arrow{align-self:center;padding:0 6px;color:#b6c2cd;font-weight:800;font-size:14px;white-space:nowrap}
 .fx-arrow.a-done{color:#2f7d4d}
 .fx-arrow.a-wip{color:#2e77bd;animation:fxPulse 1.6s ease-in-out infinite}
@@ -118,6 +127,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
 .cn.inw{background:#e8862e;border-color:#c96f1a;color:#fff}
 .cn.inw em{color:#fde9d3}
 .cv.in{color:#e8862e}
+/* 부분완료(분할 · 순차납품) : 일부만 회수된 공정 */
+.cn.part{background:#fdf6ea;border-color:#e6c78f;color:#9a6510;position:relative;overflow:hidden}
+.cn.part em{color:#a4702a;font-weight:800}
+.cn .cbar{position:absolute;left:0;bottom:0;height:3px;background:#2f7d4d;opacity:.75}
 .cn.home{background:#eef1f4;border-color:#cfd7de;color:#5b6b7b}
 .cn.home.ok{background:#eaf6ee;border-color:#a8d6ba;color:#1f7a45}
 .cn.home.cur{background:#2f7d4d;border-color:#2f7d4d;color:#fff}
@@ -390,16 +403,66 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const wipMp = (moving && last.mp && !seen.has(last.mp)) ? last.mp : '';
     const wip = wipMp && sd.includes(wipMp) ? 1 : 0;
     if(wipMp) rest = rest.filter(x=>x!==wipMp);
-    const rc=RCPT.find(x=>String(x.part||'')===String(r.part))
-      ||MVIN.find(x=>String(x.part||'')===String(r.part))||null;
+    /* 사내입고 : 순차 납품이면 여러 건이 쌓이므로 <b>누적</b>으로 본다 */
+    const rcs=RCPT.filter(x=>String(x.part||'')===String(r.part));
+    let rc=null, recvOpen=false;
+    if(rcs.length){
+      const q=rcs.reduce((s2,x)=>s2+(Number(x.qty)||0),0);
+      const sh=rcs.reduce((s2,x)=>s2+(Number(x.short_qty)||0),0);
+      const lastR=rcs.slice().sort((a,b)=>String(a.in_date||'').localeCompare(String(b.in_date||'')))
+                    .slice(-1)[0]||{};
+      rc={part:r.part, job:lastR.job, in_date:lastR.in_date, qty:q, short_qty:sh,
+          reason:lastR.reason, worker:lastR.worker, remark:lastR.remark, n:rcs.length};
+      /* 목표(최초 투입) 대비 아직 덜 들어왔고 부족 처리도 안 했으면 종결이 아니다 */
+      const f0=ospOf(r.part).slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0];
+      const goal=Number(f0&&f0.qty)||0;
+      recvOpen = goal>0 && (q+sh)<goal;
+    }else{
+      rc=MVIN.find(x=>String(x.part||'')===String(r.part))||null;
+    }
     return {no:r.no, job:r.job, part:r.part, proc:r.proc,
       map_part:r.map_part||(ospOf(r.part).find(o2=>o2.map_part)||{}).map_part||'',
-      recv:rc||null,
+      recv:rc||null, recvOpen:recvOpen,
       route_no:rno||'', moving:moving, steps:st, last:last, std:m?m.rt:null,
       sd:sd, seen:seen, done:done, total:total, rest:rest, wip:wip, wipMp:wipMp,
       rate: total?Math.round(done/total*100):0,
       wipRate: total?Math.round((done+wip)/total*100):0};
   }
+  /* ── 공정별 수량 집계 (분할 · 순차납품 대응) ───────────────
+     한 공정에 반출건이 여러 개일 수 있다 (부분출고로 잔량이 나뉜 경우).
+     상태를 '이벤트 유무'가 아니라 <b>수량</b>으로 판정한다.
+       out  : 그 공정으로 나간 합계   in : 그 공정을 마치고 들어온 합계
+       open : 아직 밖에 있는 수량     rounds : 차수별 상세 (툴팁용) */
+  const qtyOf = (c,mp) => {
+    const os=ospOf(c.part).filter(o=>o.mp===mp && o.sdate)
+             .sort((a,b)=>String(a.sdate||'').localeCompare(String(b.sdate||''))
+                        ||(Number(a.no)||0)-(Number(b.no)||0));
+    let out=0, inq=0;
+    const rounds=os.map((o,i)=>{
+      const q=Number(o.qty)||0; out+=q; if(o.idate) inq+=q;
+      return {seq:i+1, no:o.no, vendor:o.vendor||'', qty:q, sdate:o.sdate||'',
+              idate:o.idate||'', kind:String(o.move_kind||'외주'),
+              done:!!o.idate};
+    });
+    return {out:out, in:inq, open:Math.max(out-inq,0), rounds:rounds,
+            rate: out?Math.round(inq/out*100):0,
+            part: out>0 && inq>0 && inq<out};        /* 부분완료 */
+  };
+  const nf = v => (Number(v)||0).toLocaleString();
+  /* 차수별 상세 문구 (툴팁 · B안) */
+  function roundsTip(q){
+    if(!q||!q.rounds.length) return '';
+    if(q.rounds.length===1){
+      const r=q.rounds[0];
+      return (r.vendor?r.vendor+' · ':'')+nf(r.qty)+'EA · '+
+             (r.done?'입고 '+r.idate:'반출 '+r.sdate+' (미입고)');
+    }
+    return q.rounds.map(r=>r.seq+'차 '+nf(r.qty)+'EA'+(r.vendor?' · '+r.vendor:'')+
+      ' · '+(r.done?'✓ 입고 '+r.idate:'🚚 반출 '+r.sdate)).join('\n')+
+      '\n──────────\n합계 반출 '+nf(q.out)+' · 입고 '+nf(q.in)+
+      (q.open?' · 미회수 '+nf(q.open):'');
+  }
+
   /* ── 제품의 현재 물리적 위치 ───────────────────────────────
      외주는 [사내 → 1공정 → 사내복귀 → 2공정 → 사내복귀 …] 로 왕복하므로
      공정을 마친 시점의 위치는 그 공정이 아니라 <b>사내</b>다.
@@ -422,18 +485,52 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   const wipMpOf = c => { const o=openOsp(c); return o?(o.mp||''):''; };
   const inMpOf  = c => { const o=openIn(c);  return o?(o.mp||''):''; };
   /* 제품의 현재 물리적 위치 : recv 종결 / wip 외주 보유 / home 사내 보유 */
-  const posOf = c => c.recv ? 'recv' : (wipMpOf(c) ? 'wip' : 'home');
-  /* 목록 · CSV 의 [현재 외주처] : 사내로 입고되면 직전 외주처가 아니라 경일FB */
+  /* 분납 중(recvOpen)이면 아직 종결이 아니다 */
+  const posOf = c => (c.recv && !c.recvOpen) ? 'recv' : (wipMpOf(c) ? 'wip' : 'home');
+  /* ── 현재 보유처 (분할 대응) ──
+     물량이 나뉘어 있으면 한 곳이 아니라 여러 곳에 있다.
+     사내 보유분과 각 외주처 보유분을 수량과 함께 나열한다. */
+  const holdersOf = c => {
+    const out=[];
+    const op=openAll(c);
+    /* 외주 미결건 = 그 업체가 들고 있는 수량 (업체별 합산) */
+    const byVen={};
+    op.filter(o=>!isIn(o)).forEach(o=>{
+      const v=o.vendor||'-'; byVen[v]=(byVen[v]||0)+(Number(o.qty)||0); });
+    /* 사내 보유량 = 최종 반출 묶음 중 이미 돌아온 수량 − 다시 나간 수량 */
+    const home=Math.max(homeQty(c),0);
+    if(home>0 || !Object.keys(byVen).length){
+      const inw=op.filter(isIn)[0];
+      out.push({who: inw ? ('경일FB · '+(inw.vendor||'사내 작업장')) : '경일FB',
+                qty: home, home:true});
+    }
+    Object.keys(byVen).forEach(v=>out.push({who:v, qty:byVen[v], home:false}));
+    return out;
+  };
+  /* 사내에 남아 있는 수량 : 전체 입고합계 − 전체 반출합계 (음수는 0) */
+  const homeQty = c => {
+    const os=ospOf(c.part).filter(o=>o.sdate);
+    if(!os.length) return 0;
+    const first=os.slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0];
+    const base=Number(first.qty)||0;                       /* 최초 투입 수량 */
+    const outQ=os.filter(o=>!o.idate).reduce((s,o)=>s+(Number(o.qty)||0),0);
+    const recvQ=Number(c.recv&&c.recv.qty)||0;             /* 이미 사내입고 종결분 */
+    return Math.max(base-outQ-recvQ,0);
+  };
+  /* 목록 · CSV 의 [현재 위치(보유처)] */
   const holderOf = c => {
-    const p=posOf(c);
-    if(p==='recv') return '경일FB (사내입고 완료)';
-    if(p==='wip'){ const o=openOsp(c); return (o&&o.vendor)||c.last.vendor||'-'; }
-    const oi=openIn(c);
-    return oi ? ('경일FB · '+(oi.vendor||'사내 작업장')) : '경일FB (사내 보유)';
+    if(posOf(c)==='recv' && !openAll(c).length) return '경일FB (사내입고 완료)';
+    const h=holdersOf(c).filter(x=>x.qty>0 || x.home);
+    if(!h.length) return '경일FB (사내 보유)';
+    if(h.length===1 && h[0].home) return h[0].qty? '경일FB (사내 보유 '+nf(h[0].qty)+')'
+                                                 : '경일FB (사내 보유)';
+    return h.map(x=>x.who+' '+nf(x.qty)).join(' · ');
   };
   /* 현재 상태 문구 */
   const stateOf = c => {
     const p=posOf(c);
+    const split=holdersOf(c).filter(x=>x.qty>0).length>1;
+    if(split) return '분할 진행중';
     if(p==='recv') return '사내입고 완료';
     if(p==='wip')  return c.seen.has(wipMpOf(c))?'외주 작업중':'이동중';
     if(openIn(c))  return '사내 작업중';
@@ -469,14 +566,22 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       (pos==='recv'?'✓ ':'')+'🏭 사내'+
       (pos==='recv'?'<em>'+esc((c.recv&&c.recv.in_date)||'')+'</em>':'')+'</span>';
     sd.forEach((mp,i)=>{
-      const wip=(mp===wip2), inw=(!wip&&mp===in2), done=(c.seen.has(mp)&&!wip&&!inw);
-      const cur=false;
+      const q=qtyOf(c,mp);
+      const wip=(mp===wip2), inw=(!wip&&mp===in2);
+      /* 수량 기준 완료 판정 : 반출 전량이 돌아왔을 때만 완료 (A안) */
+      const full=(q.out>0 && q.open===0);
+      const done=(full || (c.seen.has(mp)&&!q.out)) && !wip && !inw;
+      const part=q.part || (q.out>0 && q.in>0 && q.open>0);   /* 일부만 회수 */
       /* 앞 구간 차량 : 이 단계로 이동중이면 깜빡임 */
       html+='<span class="cv'+(wip?' go':(inw?' in':(done?' ok':'')))+'">'+(inw?'🏭':'🚚')+'</span>';
       const v=venOf(mp);
-      html+='<span class="cn'+(cur?' cur':(done?' ok':(wip?' wip':(inw?' inw':''))))+'" title="'+esc(mp+(pName(mp)?' · '+pName(mp):''))+
-            (dateOf(mp)?' / '+esc(dateOf(mp)):'')+'">'+(done?'✓ ':'')+esc(mp)+
-            (v?'<em>'+esc(v)+'</em>':'')+'</span>';
+      const tip2=esc(mp+(pName(mp)?' · '+pName(mp):''))+
+        (dateOf(mp)?' / '+esc(dateOf(mp)):'')+
+        (q.rounds.length?'\n'+esc(roundsTip(q)):'');
+      html+='<span class="cn'+(done?' ok':(part?' part':(wip?' wip':(inw?' inw':''))))+
+            '" title="'+tip2+'">'+(done?'✓ ':(part?'◐ ':''))+esc(mp)+
+            (part?'<em>'+nf(q.in)+'/'+nf(q.out)+'</em>':(v?'<em>'+esc(v)+'</em>':''))+
+            (part?'<i class="cbar" style="width:'+Math.min(q.rate,100)+'%"></i>':'')+'</span>';
     });
     return html;
   }
@@ -561,7 +666,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     /* 현재 위치 : 종결 > 반출중 > 마지막 완료 공정 > 사내
        완료 판정 : 진행이력(steps) 또는 현장 기록(도착·입고) 중 하나라도 있으면 완료 */
     const doneOf=x=>!!c.steps.find(s2=>s2.mp===x)||c.seen.has(x)||!!arr(null,x);
-    const closed=!!c.recv||!!inh;
+    const closed=(!!c.recv && !c.recvOpen)||!!inh;
     const wipMp2=closed?'':wipMpOf(c);
     const inMp2 =closed?'':inMpOf(c);
     const inVen =(openIn(c)||{}).vendor||'';
@@ -585,20 +690,32 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
                 : '현재 위치 · 출발 대기');
     seq.forEach((x,i)=>{
       const info=c.steps.find(s2=>s2.mp===x);
-      const wip=(x===wipMp2), inw=(!wip && x===inMp2), done=(doneOf(x)&&!wip&&!inw);
-      const nx=(!done && !wip && !inw && x===c.rest[0]);
+      const q=qtyOf(c,x);
+      /* 분할 · 순차납품 : 일부만 회수된 공정은 '부분완료'로 따로 표시한다 (A안) */
+      const part=(q.out>0 && q.in>0 && q.open>0);
+      const wip=(x===wipMp2 && !part), inw=(!wip && x===inMp2 && !part);
+      const done=(doneOf(x)&&!wip&&!inw&&!part);
+      const nx=(!done && !wip && !inw && !part && x===c.rest[0]);
       const a2=arr(null,x), o2=outOf(x);
       const dDate=(a2&&a2.move_date)||(info&&info.date)||'';      /* 실제 도착·입고일 우선 */
       const dVen =(a2&&a2.vendor)||(info&&info.vendor)||'';
       const wDate=(o2&&o2.move_date)||c.last.date||'';
       const prevDone = i===0 ? (c.steps.length>0||c.moving) : doneOf(seq[i-1])||seq[i-1]===wipMp2;
-      html+=arrow(done?'a-done':((wip||inw)&&prevDone)?'a-wip':'');
-      html+=node(done?'st-done':wip?'st-wip':inw?'st-in':nx?'st-next':'st-rest',
+      html+=arrow(done?'a-done':((wip||inw||part)&&prevDone)?'a-wip':'');
+      /* 차수(납품 회차) 상세는 노드 title 로 (B안) */
+      const rt2=roundsTip(q);
+      html+=node((part?'st-part':done?'st-done':wip?'st-wip':inw?'st-in':nx?'st-next':'st-rest')+
+          (rt2?'" title="'+esc(rt2):''),
         curPos==='wip:'+x,
         esc(x), esc(pName(x)||''),
-        inw?'🏭 '+esc(inVen||'사내 작업장')+' 작업중'
+        part?('◐ 부분완료 '+nf(q.in)+'/'+nf(q.out)+
+              '<i class="qbar"><b style="width:'+Math.min(q.rate,100)+'%"></b></i>'+
+              '<span class="qsub">미회수 '+nf(q.open)+
+              (q.rounds.length>1?' · '+q.rounds.length+'차 분할':'')+'</span>')
+        :inw?'🏭 '+esc(inVen||'사내 작업장')+' 작업중'
         :done?'✓ 완료 · '+(kindOf(x)==='사내'?'사내작업':'사내복귀')+
-              (dVen?' · '+esc(dVen):'')+(dDate?' · '+md(dDate):'')
+              (dVen?' · '+esc(dVen):'')+(dDate?' · '+md(dDate):'')+
+              (q.rounds.length>1?' <span class="qsub">('+q.rounds.length+'차 분납 · '+nf(q.in)+')</span>':'')
         :wip?((arr(null,x)||c.seen.has(x))
               ? '🏭 '+esc((a2&&a2.vendor)||c.last.vendor||'')+' 작업중'+(dDate?' · 도착 '+md(dDate):'')
               : '<span class="truck">🚚</span> '+esc(c.last.vendor||'')+' 반출중'+(wDate?' · '+md(wDate):''))
@@ -609,6 +726,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       '<span><i class="g1"></i>현재 위치(사내 보유 · 출발/복귀 지점)</span>'+
       '<span><i class="g2"></i>공정 완료 (외주=사내복귀 · 사내=사내작업)</span>'+
       '<span><i class="g3"></i>반출중(외주 보유)</span>'+
+      '<span><i class="g6"></i>부분완료(분할 · 순차납품)</span>'+
       '<span><i class="g5"></i>사내 작업장 이동</span>'+
       '<span><i class="g4"></i>다음 공정</span></div>';
   }
@@ -697,19 +815,30 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     (base&&base.length?base:[{lot:c.part||'',qty:''}]).forEach(x=>lotRow(x.lot||c.part||'',x.qty));
     $('#mMsg').textContent=''; $('#mMsg').className='msg';
     /* 이미 사내입고 종결된 LOT : 사내입고 · 반출 등록 모두 잠근다 */
-    const closed=!!c.recv;
-    const rq=closed?Number(c.recv.qty)||0:0, rs2=closed?Number(c.recv.short_qty)||0:0;
+    const closed=!!c.recv && !c.recvOpen;
+    const partRecv=!!c.recv && !!c.recvOpen;      /* 분납 진행중 */
+    const rq=c.recv?Number(c.recv.qty)||0:0, rs2=c.recv?Number(c.recv.short_qty)||0:0;
     $('#mS').style.display=((CAN_S||CAN_E)&&!closed)?'':'none';
     $('#mTag').style.display='';
     $('#mRf').style.display='';
     $('#mInh').style.display=((CAN_S||CAN_E)&&c.std&&!c.rest.length&&!c.wip&&!c.moving&&!closed)?'':'none';
+    $('#mInh').textContent=partRecv?'🏭 사내입고(분납 추가)':'🏭 사내입고(종결)';
     $('#mInh').disabled=false;
     if(closed){
       $('#mMsg').className='msg';
       $('#mMsg').innerHTML='<span style="color:#1d5a35">✅ 사내입고 완료 · '+esc(c.recv.in_date||'')+
         ' · '+rq.toLocaleString()+(rs2?' (부족 '+rs2.toLocaleString()+')':'')+
+        (c.recv.n>1?' · '+c.recv.n+'회 분납':'')+
         ' — 종결된 LOT이라 추가 반출·입고를 할 수 없습니다.</span>';
       setOutFold(false);
+    }else if(partRecv){
+      const f0=ospOf(c.part).slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0]||{};
+      const goal=Number(f0.qty)||0;
+      $('#mMsg').className='msg';
+      $('#mMsg').innerHTML='<span style="color:#8a5a12">◐ 분납 입고중 · 누적 '+rq.toLocaleString()+
+        (goal?' / '+goal.toLocaleString():'')+(c.recv.n>1?' ('+c.recv.n+'회)':'')+
+        ' · 잔여 '+Math.max(goal-rq-rs2,0).toLocaleString()+
+        ' — 나머지가 들어오면 다시 [사내입고]로 등록하세요.</span>';
     }
     { const fh=$('#outFold'); if(fh) fh.style.display=closed?'none':''; }
     loadMoves(c.part);
@@ -985,38 +1114,65 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   async function inhouse(c){
     if(!(CAN_S||CAN_E)) return KI.msg('❌ 등록 권한이 없습니다.');
     const B=$('#mInh'); if(B&&B.disabled) return;
-    /* 이미 종결된 LOT은 중복 등록하지 않는다 (화면이 오래되어 버튼이 남아 있는 경우 방어) */
-    if(c.recv){
+    /* 이미 전량 종결된 LOT만 막는다. 순차 납품이면 나눠서 여러 번 입고할 수 있다. */
+    if(c.recv && !c.recvOpen){
       if(B){ B.disabled=true; B.style.display='none'; }
       return alert('이미 사내입고 종결된 LOT입니다.\n입고일 '+(c.recv.in_date||'')+
-                   ' · 수량 '+(Number(c.recv.qty)||0).toLocaleString());
+                   ' · 누적수량 '+(Number(c.recv.qty)||0).toLocaleString()+
+                   (c.recv.n>1?' ('+c.recv.n+'회 분납)':''));
     }
     if(c.rest.length) return alert('아직 남은 공정이 있습니다 ('+c.rest.join(' · ')+').');
     if(c.wip||c.moving) return alert('외주 반출중인 건이 있어 종결할 수 없습니다. 먼저 입고 처리하세요.');
     const last=ospOf(c.part).slice().sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0]||{};
-    const baseQ=Number(last.qty)||0;
-    const inS=prompt('['+c.part+'] 사내입고 수량을 입력하세요'+(baseQ?' (최종 반출 '+baseQ.toLocaleString()+')':''), String(baseQ||''));
+    /* 목표 수량 = 최초 투입 수량, 남은 수량 = 목표 − 이미 사내입고된 누적 */
+    const first=ospOf(c.part).slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0]||{};
+    const goalQ=Number(first.qty)||Number(last.qty)||0;
+    const gotQ =Number(c.recv&&c.recv.qty)||0;
+    const baseQ=goalQ?Math.max(goalQ-gotQ,0):(Number(last.qty)||0);
+    const inS=prompt('['+c.part+'] 사내입고 수량을 입력하세요'+
+      (goalQ?'\n목표 '+goalQ.toLocaleString()+
+             (gotQ?' · 기입고 '+gotQ.toLocaleString()+' · 남은 '+baseQ.toLocaleString():''):'')+
+      '\n\n일부만 들어왔다면 실제 입고분만 넣으세요. 나머지는 나중에 다시 등록할 수 있습니다.',
+      String(baseQ||''));
     if(inS===null)return;
     const inQ=Number(String(inS).replace(/[^0-9.]/g,''))||0;
-    const short=baseQ?Math.max(baseQ-inQ,0):0;
-    let reason='';
-    if(short>0){ reason=prompt('부족 '+short.toLocaleString()+' — 사유를 입력하세요 (불량 등)','불량')||''; }
+    if(inQ<=0) return alert('입고수량을 확인하세요.');
+    const rem=Math.max(baseQ-inQ,0);               /* 이번 입고 후 남는 수량 */
+    const close2=(rem<=0);                          /* 전량 채워지면 종결 */
+    let short=0, reason='';
+    if(!close2){
+      /* 남은 수량이 있으면 : 나머지가 더 들어올 예정인지 · 부족(손실)인지 확인 */
+      if(confirm('남은 '+rem.toLocaleString()+'EA 를 <부족(손실)>으로 처리하고 LOT을 종결할까요?\n\n'+
+                 '[확인] 부족 처리 후 종결\n[취소] 분납 — 나머지는 나중에 다시 입고 등록')){
+        short=rem; reason=prompt('부족 '+rem.toLocaleString()+' — 사유를 입력하세요 (불량 등)','불량')||'';
+      }
+    }
+    const willClose = close2 || short>0;
     const rmk=prompt('특기사항 (없으면 비워두세요)','')||'';
-    if(!confirm('['+c.part+'] 사내입고로 LOT을 종결하시겠습니까?\n\n'+
+    if(!confirm('['+c.part+'] 사내입고를 등록하시겠습니까?\n\n'+
         '입고수량 : '+inQ.toLocaleString()+(short?'  (부족 '+short.toLocaleString()+')':'')+'\n'+
-        '입고일 : '+TODAY+'\n\n'+
-        '※ 종결 후에는 반출·입고를 등록할 수 없습니다.')) return;
+        '입고일 : '+TODAY+'\n'+
+        (goalQ?'누적 : '+(gotQ+inQ).toLocaleString()+' / '+goalQ.toLocaleString()+'\n':'')+'\n'+
+        (willClose?'※ 종결 후에는 반출·입고를 등록할 수 없습니다.'
+                  :'※ 분납 등록입니다. 남은 '+rem.toLocaleString()+'EA 는 나중에 다시 등록하세요.'))) return;
     if(B){ B.disabled=true; B.textContent='⏳ 등록중...'; }
     try{
-      await KI.upsert(TBL.lotReceipt+'?on_conflict=part',[{part:c.part, job:c.job||null, in_date:TODAY,
+      await KI.ins(TBL.lotReceipt,[{part:c.part, job:c.job||null, in_date:TODAY,
         qty:inQ||null, short_qty:short, reason:reason||null,
-        worker:(KI.me()||{}).emp_name||'', remark:rmk||null}]);
+        worker:(KI.me()||{}).emp_name||'',
+        remark:rmkJoin(willClose?null:'분납 '+(gotQ+inQ).toLocaleString()+'/'+goalQ.toLocaleString()+
+                       ' · 잔여 '+rem.toLocaleString(), rmk)||null}]);
       await KI.ins(TBL.lotMove,[{part:c.part, io:'사내입고', move_date:TODAY,
         out_qty:baseQ||null, in_qty:inQ||null, short_qty:short, reason:reason||null,
-        remark:rmkJoin(flow(node(last.mp,last.vendor),'사내입고 종결',inQ)+
-                       (short?' (반출 '+baseQ.toLocaleString()+' · 부족 '+short.toLocaleString()+')':''), rmk),
+        remark:rmkJoin(flow(node(last.mp,last.vendor),
+                       willClose?'사내입고 종결':'사내입고 (분납)',inQ)+
+                       (short?' (잔여 '+rem.toLocaleString()+' · 부족 처리)':'')+
+                       (!willClose?' · 누적 '+(gotQ+inQ).toLocaleString()+'/'+goalQ.toLocaleString()+
+                                   ' · 잔여 '+rem.toLocaleString():''), rmk),
         worker:(KI.me()||{}).emp_name||'', source:'수동'}]);
-      KI.msg('✓ '+c.part+' 사내입고 완료 — LOT이 종결되었습니다.');
+      KI.msg(willClose?('✓ '+c.part+' 사내입고 완료 — LOT이 종결되었습니다.')
+                      :('✓ '+c.part+' 분납 입고 '+inQ.toLocaleString()+
+                        ' — 잔여 '+rem.toLocaleString()+'EA 는 다시 등록하세요.'));
       await load();
       const c2=ROWS.map(calc).find(x=>x.part===c.part); if(sel&&c2) open(c2);
       if(B) B.textContent='🏭 사내입고(종결)';
