@@ -37,6 +37,12 @@ body{font:15px/1.6 'Malgun Gothic','맑은 고딕',-apple-system,sans-serif;back
      background:rgba(255,255,255,.09);border-radius:50%}
 
 /* 카드 */
+/* 방금 등록 취소 카드 */
+.card.undo{border:1px solid #e0c98a;background:#fdf8ee;padding:12px 14px}
+.undo-t{font-size:13px;color:#8a6a20;font-weight:700;margin-bottom:8px}
+.undo-b{width:100%;height:44px;border-radius:10px;border:1px solid #d9a441;background:#fff;
+  color:#8a5a12;font-size:15px;font-weight:800}
+.undo-b:disabled{opacity:.6}
 .card{background:#fff;border-radius:14px;box-shadow:0 1px 3px rgba(20,40,60,.09);margin-bottom:12px;overflow:hidden;
       animation:rise .3s ease both}
 .card h3{font-size:12.5px;font-weight:800;color:var(--sub);padding:12px 15px 0;letter-spacing:.3px}
@@ -206,14 +212,30 @@ function toast(msg,ok){
 if(!TOKEN){ wrap.innerHTML='<div class="errbox">공정이동표의 QR을 스캔해 주세요.<br><br>'+
   '<span style="font-weight:400;color:#6b7a89;font-size:13px">유효한 이동표 링크가 아닙니다.</span></div>'; return; }
 
-const movedOf = no => (D.moves||[]).filter(m=>m.io==='출고'&&String(m.osp_no||'')===String(no))
+/* 취소(void)된 기록은 없었던 것으로 본다 — 기록 자체는 남기되 계산에서만 뺀다 */
+const LIVE = () => (D.moves||[]).filter(m=>!m.void);
+const movedOf = no => LIVE().filter(m=>m.io==='출고'&&String(m.osp_no||'')===String(no))
                        .reduce((a,b)=>a+num(b.out_qty),0);
-const arrQtyOf = no => { const a=(D.moves||[]).filter(m=>(m.io==='도착'||m.io==='입고')&&
+const arrQtyOf = no => { const a=LIVE().filter(m=>(m.io==='도착'||m.io==='입고')&&
                            String(m.osp_no||'')===String(no)&&m.in_qty!=null)[0];
                          return a?num(a.in_qty):null; };
 const remainOf = o => { const a=arrQtyOf(o.no);
                         return Math.max((a==null?num(o.qty):a)-movedOf(o.no),0); };
-const arrivedOf = o => (D.moves||[]).find(m=>(m.io==='도착'||m.io==='입고')&&String(m.osp_no||'')===String(o.no))||null;
+const arrivedOf = o => LIVE().find(m=>(m.io==='도착'||m.io==='입고')&&String(m.osp_no||'')===String(o.no))||null;
+/* 미처리 반납 잔량 — 그 공정을 다시 거쳐야 하는 수량 */
+const undoneOf = mp => {
+  const back=LIVE().filter(m=>m.io==='입고'&&m.mp===mp)
+    .reduce((a,b)=>a+num(b.undone_qty),0);
+  const re=(D.osp||[]).filter(o=>o.mp===mp&&o.rework&&o.rework_kind==='미처리')
+    .reduce((a,b)=>a+num(b.qty),0);
+  return Math.max(back-re,0);
+};
+/* 방금 등록한 기록인가 — 마지막 이동기록만 취소할 수 있다 */
+const lastMoveId = () => { const v=Number(D&&D.last_move)||0; if(v) return v;
+  const m=LIVE()[0]; return m?Number(m.move_id)||0:0; };
+const undoable = () => { const m=LIVE()[0];
+  return (m && !D.receipt && (m.io==='도착'||m.io==='입고')
+          && Number(m.move_id)===lastMoveId()) ? m : null; };
 const pName = c => { const p=(D.procs||[]).find(x=>x.c===c); return p?p.n:''; };
 /* 이동 구분 : 표준공정경로 inhouse 우선 → 실제 이동건 → 외주 */
 const kindOfMp = mp => {
@@ -311,9 +333,13 @@ function draw(){
   const osp=(D.osp||[]), lot=D.lot||{}, rt=D.route||null;
   const open=osp.filter(o=>o.sdate&&!o.idate);
   const STEPS=rt&&Array.isArray(rt.steps)?rt.steps:[];
-  const SEEN=new Set((D.moves||[]).filter(m=>m.mp&&(m.io==='도착'||m.io==='입고')).map(m=>m.mp));
+  /* 완료로 볼 공정 : 그 공정에서 실제로 가공된 수량이 있어야 한다.
+     미처리 반납(가공 안 하고 그대로 복귀)은 복귀했을 뿐 공정을 거치지 않았다. */
+  const SEEN=new Set(LIVE().filter(m=>m.mp&&m.io==='입고'&&
+    (num(m.in_qty)-num(m.undone_qty))>0).map(m=>m.mp));
+  const ARR =new Set(LIVE().filter(m=>m.mp&&(m.io==='도착'||m.io==='입고')).map(m=>m.mp));
   (Array.isArray(lot.steps)?lot.steps:[]).forEach(s=>{ if(s.mp) SEEN.add(s.mp); });
-  const rest=STEPS.filter(x=>!SEEN.has(x)&&!open.some(o=>o.mp===x));
+  const rest=STEPS.filter(x=>(!SEEN.has(x)||undoneOf(x)>0)&&!open.some(o=>o.mp===x));
   const doneAll=STEPS.length&&!rest.length&&!open.length;
   const last=osp[osp.length-1]||{}, first=osp[0]||{};
   const VEN=D.vendors||[], MV=(D.moves||[]).slice(0,8);
@@ -371,13 +397,15 @@ function draw(){
     '</div>'+
     (STEPS.length?'<div class="steps">'+STEPS.map((x,i)=>{
       const o=open.find(y=>y.mp===x)||osp.slice().reverse().find(y=>y.mp===x)||{};
-      const d=SEEN.has(x), now=(!isHome()&&x===myMp)||(isHome()&&open.some(y=>y.mp===x));
+      const uq=undoneOf(x);
+      const d=SEEN.has(x)&&!uq, now=(!isHome()&&x===myMp)||(isHome()&&open.some(y=>y.mp===x));
       const nx=(!d&&!now&&x===rest[0]);
       const k=kindOfMp(x);
-      return '<div class="stp '+(now?'now':d?'done':nx?'next':'')+' '+(k==='사내'?'k-in':'k-out')+'">'+
-        '<i>'+(d?'✓':(i+1))+'</i><em>'+esc(x)+'</em>'+
+      return '<div class="stp '+(now?'now':d?'done':nx?'next':'')+' '+(k==='사내'?'k-in':'k-out')+'"'+
+        (uq?' title="미처리 반납 '+fmt(uq)+'개 — 이 공정을 다시 거쳐야 합니다"':'')+'>'+
+        '<i>'+(uq?'↩':d?'✓':(i+1))+'</i><em>'+esc(x)+'</em>'+
         '<span class="kk">'+(k==='사내'?'사내':'외주')+'</span>'+
-        '<small>'+esc(o.vendor||pName(x)||'')+'</small></div>';
+        '<small>'+esc(uq?'미처리 '+fmt(uq):(o.vendor||pName(x)||''))+'</small></div>';
     }).join('')+'</div>':'')+
   '</div>'+
 
@@ -408,7 +436,18 @@ function draw(){
       (isHome()?'<div class="fld"><label style="display:flex;align-items:center;gap:8px;font-size:14px;color:#16202b">'+
         '<input type="checkbox" id="inClose" checked style="width:22px;height:22px">'+
         '<b>전량</b> 사내 복귀 입고 (반출건 마감)</label>'+
-        '<div class="warn r" id="inCloseNote" style="display:none"></div></div>':'');
+        '<div class="warn r" id="inCloseNote" style="display:none"></div></div>'+
+      /* 가공을 안 하고 그대로 돌아온 물량을 일반 입고로 잡으면
+         그 공정이 완료로 표시되고 다음 공정으로 넘어가 버린다. */
+      '<div class="fld" id="inKindRow"><label>처리 유형</label>'+
+        '<select id="inKind">'+
+          '<option value="가공완료">가공완료 — 정상</option>'+
+          '<option value="미처리">미처리 반납 — 가공하지 않고 그대로 복귀</option>'+
+          '<option value="부분가공">일부만 가공</option></select>'+
+        '<div class="qtip" id="inKindTip"></div></div>'+
+      '<div class="fld" id="inUndRow" style="display:none"><label>미처리 수량</label>'+
+        '<input type="number" id="inUnd" inputmode="numeric" placeholder="가공되지 않은 수량">'+
+        '<div class="warn r" id="inUndW"></div></div>':'');
     })()+'</div>'+
 
     /* 출고 */
@@ -422,7 +461,8 @@ function draw(){
       '<div class="fld"><label>다음 공정</label><select id="outMp">'+
         (STEPS.length
           ? STEPS.map(x=>'<option value="'+esc(x)+'"'+(x===rest[0]?' selected':'')+'>'+esc(x)+
-              (pName(x)?' · '+esc(pName(x)):'')+(SEEN.has(x)?' ✓완료':'')+'</option>').join('')
+              (pName(x)?' · '+esc(pName(x)):'')+
+              (undoneOf(x)?' ↩미처리 '+fmt(undoneOf(x)):(SEEN.has(x)?' ✓완료':''))+'</option>').join('')
           : (D.procs||[]).map(p=>'<option value="'+esc(p.c)+'">'+esc(p.c)+' · '+esc(p.n)+'</option>').join(''))+
       '</select></div>'+
       '<div id="outKind" class="kbig"><span class="ic">🚚</span><span id="outKindT">외주 반출</span></div>'+
@@ -461,13 +501,17 @@ function draw(){
     '</div>'+
   '</div></div>'+
 
+  '<div class="card undo" id="undoBox" style="display:none"></div>'+
   '<div class="card"><h3>🕘 최근 기록</h3><div class="bd" style="padding-top:6px">'+
-    (MV.length?MV.map(v=>'<div class="hist"><div class="dt">'+esc(String(v.move_date||'').slice(5))+'</div>'+
-      '<div class="bd2"><span class="tag '+(v.io==='출고'?'t-out':(v.io==='기록'?'t-etc':'t-in'))+'">'+esc(v.io)+'</span>'+
+    (MV.length?MV.map(v=>'<div class="hist"'+(v.void?' style="opacity:.45;text-decoration:line-through"':'')+
+      '><div class="dt">'+esc(String(v.move_date||'').slice(5))+'</div>'+
+      '<div class="bd2"><span class="tag '+(v.void?'t-etc':v.io==='출고'?'t-out':(v.io==='기록'?'t-etc':'t-in'))+'">'+
+      esc(v.void?'취소':(num(v.undone_qty)?(num(v.undone_qty)>=num(v.in_qty)?'미처리':'일부가공'):v.io))+'</span>'+
       (v.io==='사내입고'?'':' '+kb(kindOfRow(v)))+' '+
       '<b>'+esc(v.mp||'')+'</b>'+(v.vendor?' · '+esc(v.vendor):'')+
       (num(v.in_qty)?' <b>'+fmt(v.in_qty)+'</b>':(num(v.out_qty)?' <b>'+fmt(v.out_qty)+'</b>':''))+
       (num(v.short_qty)>0?' <span class="neg">부족 '+fmt(v.short_qty)+'</span>':'')+
+      (num(v.undone_qty)>0&&!v.void?' <span class="neg">미처리 '+fmt(v.undone_qty)+'</span>':'')+
       (v.remark||v.worker?'<span class="mini">'+esc(v.remark||'')+(v.worker?' / '+esc(v.worker):'')+'</span>':'')+
       '</div></div>').join('')
     :'<div class="empty">기록이 없습니다.</div>')+
@@ -572,6 +616,50 @@ function draw(){
     stepper('[data-p="out"]','#outQty'); reset(); kindSync();
   }
 
+  /* 처리 유형 (경일FB 복귀 입고) */
+  if($('#inKind')){
+    const sync=()=>{
+      const k=$('#inKind').value, close=!!($('#inClose')&&$('#inClose').checked);
+      $('#inKindRow').style.display=close?'':'none';
+      $('#inUndRow').style.display=(close&&k==='부분가공')?'':'none';
+      if(k==='미처리') $('#inUnd').value=$('#inQty').value;
+      $('#inKindTip').textContent =
+        k==='미처리'   ? '이 공정은 완료로 잡히지 않습니다. 나중에 다시 반출해야 합니다.'
+      : k==='부분가공' ? '가공된 만큼만 다음 공정으로 넘어갑니다.'
+      :                  '정상 처리 — 이 공정이 완료됩니다.';
+    };
+    $('#inKind').addEventListener('change',sync);
+    $('#inQty').addEventListener('input',sync);
+    if($('#inClose')) $('#inClose').addEventListener('change',sync);
+    sync();
+  }
+
+  /* ── 방금 등록한 기록 취소 ──────────────────────────────
+     (a) 오등록 — 물건은 안 움직였는데 잘못 눌렀다 → 취소
+     (b) 미처리 반납 — 물건은 실제로 왔다 → 취소가 아니라 처리유형을 고쳐야 한다
+     그래서 <b>마지막 이동기록</b>일 때만 열어두고, 기록은 지우지 않고 표시만 바꾼다. */
+  (function(){
+    const m=undoable(); if(!m) return;
+    const box=$('#undoBox'); if(!box) return;
+    box.style.display='';
+    box.innerHTML='<div class="undo-t">방금 등록 : '+esc(m.io)+' '+esc(m.move_date||'')+
+      ' · '+fmt(m.in_qty)+'개'+(m.mp?' · '+esc(m.mp):'')+'</div>'+
+      '<button class="undo-b" id="undoAct">↩ 이 등록 취소</button>';
+    $('#undoAct').addEventListener('click',async()=>{
+      const b=$('#undoAct');
+      const why=prompt('잘못 등록한 경우에만 취소하세요.\n\n'+
+        '· 물건이 실제로 돌아왔다면 취소가 아니라 [처리 유형]을 미처리 반납으로 등록하세요.\n'+
+        '· 물건은 그대로 있는데 잘못 눌렀을 때만 취소합니다.\n\n취소 사유를 입력하세요.','오등록');
+      if(!why) return;
+      b.disabled=true; b.textContent='⏳ 처리 중...';
+      try{
+        await rpc('ki_scan_void',{p_move_id:Number(m.move_id), p_reason:why, p_worker:WORKER});
+        toast('↩ 취소되었습니다 — 직전 상태로 되돌아갔습니다.',1);
+        TAB=''; setTimeout(load,800);
+      }catch(e){ toast('❌ '+e.message); b.disabled=false; b.textContent='↩ 이 등록 취소'; }
+    });
+  })();
+
   /* 사내입고 */
   if($('#hQty')){
     const base=num(first.qty);
@@ -597,13 +685,22 @@ function draw(){
           return toast('❌ 부분 회수는 반출건을 마감할 수 없습니다. 잔량 '+fmt(base0)+'개 중 '+fmt(q0)+'개 입고입니다.');
         busy(b);
         try{
+          const kd=(close&&$('#inKind'))?$('#inKind').value:'가공완료';
+          let und=0;
+          if(kd==='미처리') und=q0;
+          else if(kd==='부분가공'){
+            und=num($('#inUnd').value);
+            if(und<=0||und>=q0){ b.disabled=false; b.innerHTML='📥 입고 등록';
+              return toast('❌ 미처리 수량을 확인하세요 (1 ~ '+fmt(q0-1)+'개).'); }
+          }
           const r=await rpc('ki_scan_arrive',{p_no:Number(o.no),
             p_vendor:isHome()?(o.vendor||''):MYVEN,
             p_date:$('#inDate').value||TODAY, p_qty:num($('#inQty').value),
             p_reason:($('#inRsn')&&$('#inRsn').value)||'', p_remark:$('#inRmk').value,
-            p_close:close, p_worker:WORKER});
-          toast(r.closed?'✓ 사내 복귀 입고 완료 — 반출건이 마감되었습니다.'
-                        :'✓ 입고 등록 완료'+(r.short?' (부족 '+fmt(r.short)+'개)':'')+' — 작업 후 출고하세요.',1);
+            p_close:close, p_worker:WORKER, p_kind:kd, p_undone:und});
+          toast(!r.closed?'✓ 입고 등록 완료'+(r.short?' (부족 '+fmt(r.short)+'개)':'')+' — 작업 후 출고하세요.'
+                : und?'↩ 미처리 반납 '+fmt(und)+'개로 등록 — 이 공정은 완료되지 않았습니다.'
+                     :'✓ 사내 복귀 입고 완료 — 반출건이 마감되었습니다.',1);
           TAB=''; setTimeout(load,800);
         }catch(e){ toast('❌ '+e.message); b.disabled=false; b.innerHTML='📥 입고 등록'; }
       });
