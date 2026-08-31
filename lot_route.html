@@ -120,6 +120,28 @@
 .lr-fold.open .fold-bd{display:block}
 .lr-fold.open>h5 .arw{transform:rotate(90deg)}
 
+/* ── 상단 툴바 버튼 (2차 팝업 호출) ──
+   본문은 요약(정보 · 흐름도 · 이동중)만 남기고
+   진행등록 · 현장기록 · 범례는 필요할 때만 꺼내 본다. */
+.lr-mh #mTtl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:52px}
+.lr-mh .hb{height:22px;padding:0 9px;border:1px solid rgba(255,255,255,.55);border-radius:3px;
+  background:rgba(255,255,255,.15);color:#fff;font:inherit;font-size:11px;font-weight:700;
+  cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.lr-mh .hb:hover{background:rgba(255,255,255,.34)}
+.lr-mh .hb i{font-style:normal;background:#fff;color:#1d568c;border-radius:8px;
+  padding:0 5px;font-size:10px;font-weight:800}
+.lr-mh .hb i:empty{display:none}
+.lr-mh #hOut{margin-left:auto}
+/* ── 2차 팝업 ── */
+.lr-dimS{z-index:70;background:rgba(30,40,50,.34)}
+.lr-moS{z-index:71;width:900px}
+.lr-moS .lr-open{margin:0}
+.lr-moS .lr-fold>h5{display:none}
+.lr-moS .lr-fold .fold-bd{display:block}
+.lr-moS #iLegend{display:flex;flex-direction:column;gap:8px;padding:4px 2px;
+  font-size:12px;color:#4d5a68}
+.lr-moS #iLegend i{width:11px;height:11px}
+
 /* ── 목록 미니 공정체인 ── */
 td.mini-chain{white-space:nowrap;overflow-x:auto;max-width:340px;padding:3px 5px !important}
 td.mini-chain::-webkit-scrollbar{height:5px}
@@ -189,6 +211,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   .lr-lot input{height:34px;font-size:15px}
   .lr-open h5{padding:9px 10px;font-size:12.5px}
   .lr-fold>h5 .cnt{font-size:11px}
+  /* 상단 툴바 버튼 : 터치 크기 확보 + 가로 스크롤 */
+  .lr-mh{gap:6px;overflow-x:auto;padding:0 8px}
+  .lr-mh .hb{height:32px;font-size:12px;padding:0 9px;flex:none}
+  .lr-moS{height:100%}
   /* 하단 버튼 : 고정 + 가로 스크롤 */
   .lr-mf{position:sticky;bottom:0;flex:none;padding:9px 10px;gap:7px;overflow-x:auto;z-index:3;
     box-shadow:0 -2px 8px rgba(20,40,60,.08)}
@@ -282,7 +308,11 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
 
   /* ── 진행등록 모달 ── */
   const dim=el('div','lr-dim'); const mo=el('div','lr-mo');
-  mo.innerHTML='<div class="lr-mh"><span id="mTtl">진행등록</span><button class="x" id="mX">✕</button></div>'+
+  mo.innerHTML='<div class="lr-mh"><span id="mTtl">진행등록</span>'+
+      '<button class="hb" id="hOut" title="다음 공정 진행등록 (반출)">📤 진행등록</button>'+
+      '<button class="hb" id="hMv" title="현장 기록 — 물류 흐름 · 특기사항">📝 현장기록<i id="hMvN"></i></button>'+
+      '<button class="hb" id="hLg" title="공정 흐름도 범례">❔ 범례</button>'+
+      '<button class="x" id="mX">✕</button></div>'+
     '<div class="lr-mb">'+
       '<div class="lr-info" id="infoBox">'+
         '<b>JOB</b><span id="iJob"></span><b>LOT</b><span id="iPart"></span>'+
@@ -292,6 +322,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       '</div>'+
       '<div class="lr-chain" id="iChain"></div>'+
       '<div id="openBox"></div>'+
+      /* 아래 3개는 평소 숨겨두고 상단 버튼으로 2차 팝업에 꺼내 쓴다 */
+      '<div id="subStore" style="display:none">'+
       '<div id="moveBox"></div>'+
       '<div class="lr-open lr-fold" id="outFold" style="margin-top:10px">'+
       '<h5><span class="arw">▶</span>📤 다음 공정 진행등록 (반출)'+
@@ -330,6 +362,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         '<th style="width:120px">수량</th><th style="width:38px"></th></tr></thead>'+
         '<tbody id="lotBody"></tbody></table></div>'+
       '</div></div></div>'+
+      '<div class="fx-lg" id="iLegend"></div>'+
+      '</div>'+                                   /* /subStore */
     '</div>'+
     '<div class="lr-mf"><span class="msg" id="mMsg" style="font-weight:700"></span>'+
       '<button class="btn" id="mRf" style="margin-left:auto">🔄 새로고침</button>'+
@@ -341,7 +375,56 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   document.body.appendChild(dim); document.body.appendChild(mo);
   mo.style.display='none';
   const dlD=el('datalist'); dlD.id='dlDept'; document.body.appendChild(dlD);
-  function close(){ dim.classList.remove('on'); mo.style.display='none'; sel=null; NEW=false; editNo=null; }
+
+  /* ── 2차 팝업 (진행등록 · 현장기록 · 범례) ────────────────────────────
+     본문에 전부 쌓아두면 화면이 길고 복잡해진다.
+     해당 블록을 통째로 옮겼다 되돌리는 방식이라 기존 이벤트·로직은 그대로 살아있다. */
+  const dimS=el('div','lr-dim lr-dimS'); const moS=el('div','lr-mo lr-moS');
+  moS.innerHTML='<div class="lr-mh"><span id="sTtl"></span><button class="x" id="sX">✕</button></div>'+
+    '<div class="lr-mb" id="sBody"></div>'+
+    '<div class="lr-mf"><span class="msg" id="sMsg" style="font-weight:700"></span>'+
+      '<button class="btn" id="sC" style="margin-left:auto">닫기</button>'+
+      '<button class="btn primary" id="sS" style="display:none">📤 반출 등록</button></div>';
+  document.body.appendChild(dimS); document.body.appendChild(moS);
+  moS.style.display='none';
+  const SUBP={ out:{id:'outFold', t:'📤 다음 공정 진행등록 (반출)'},
+               mv :{id:'moveBox', t:'📝 현장 기록 — 물류 흐름 · 특기사항'},
+               lg :{id:'iLegend', t:'❔ 공정 흐름도 범례'} };
+  let subKey=null;
+  function subShow(k){
+    const cfg=SUBP[k]; if(!cfg) return;
+    if(subKey) subHide();
+    const nd=$('#'+cfg.id); if(!nd) return;
+    nd.style.display='';
+    $('#sBody').appendChild(nd);
+    const fd=nd.classList.contains('lr-fold')?nd:nd.querySelector('.lr-fold');
+    if(fd) fd.classList.add('open');
+    $('#sTtl').textContent=cfg.t;
+    $('#sS').style.display=(k==='out'&&$('#mS').style.display!=='none')?'':'none';
+    subMsg();
+    subKey=k; dimS.classList.add('on'); moS.style.display=''; moS.scrollTop=0;
+    if(k==='out'){ const t=$('#fVen'); if(t) try{t.focus();}catch(e){} }
+  }
+  function subHide(){
+    if(!subKey) return;
+    const nd=$('#'+SUBP[subKey].id); if(nd) $('#subStore').appendChild(nd);
+    subKey=null; dimS.classList.remove('on'); moS.style.display='none';
+  }
+  function subMsg(){ const s=$('#sMsg'), m=$('#mMsg'); if(!s||!m) return;
+    s.className=m.className; s.innerHTML=m.innerHTML; }
+  $('#sX').addEventListener('click',subHide);
+  $('#sC').addEventListener('click',subHide);
+  dimS.addEventListener('click',subHide);
+  $('#sS').addEventListener('click',()=>$('#mS').click());
+  $('#hOut').addEventListener('click',()=>subShow('out'));
+  $('#hMv') .addEventListener('click',()=>subShow('mv'));
+  $('#hLg') .addEventListener('click',()=>subShow('lg'));
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&subKey) subHide(); });
+  /* 저장·오류 메시지는 2차 팝업 하단에도 그대로 비춘다 */
+  new MutationObserver(()=>{ if(subKey) subMsg(); })
+    .observe($('#mMsg'),{childList:true,subtree:true,characterData:true,attributes:true});
+
+  function close(){ subHide(); dim.classList.remove('on'); mo.style.display='none'; sel=null; NEW=false; editNo=null; }
   $('#mX').addEventListener('click',close); $('#mC').addEventListener('click',close);
   dim.addEventListener('click',close);
 
@@ -887,8 +970,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
               : '<span class="truck">🚚</span> '+esc(c.last.vendor||'')+' 반출중'+(wDate?' · '+md(wDate):''))
         :nx?'다음 공정':'대기')+vst);
     });
-    $('#iChain').innerHTML='<div class="fx">'+html+'</div>'+
-      '<div class="fx-lg">'+
+    $('#iChain').innerHTML='<div class="fx">'+html+'</div>';
+    /* 범례는 상단 [❔ 범례] 버튼으로 꺼내 본다 */
+    $('#iLegend').innerHTML=
       '<span><i class="g1"></i>현재 위치(사내 대기 · 출발/복귀 지점)</span>'+
       '<span><i class="g2"></i>공정 완료 (외주=사내복귀 · 사내=사내작업)</span>'+
       '<span><i class="g3"></i>반출중(외주 보유)</span>'+
@@ -896,11 +980,14 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       '<span style="color:#8b98a5">🚚 → 반출(사내→외주) · ← 🚚 복귀(외주→사내)</span>'+
       '<span><i class="g5"></i>사내 작업장 이동</span>'+
       '<span><i class="g4"></i>다음 공정</span>'+
-      '<span style="color:#1d568c">📦 그 외주처가 보유중인 이 품번 재고(다른 LOT 포함) — 올려두면 상세</span></div>';
+      '<span style="color:#1d568c">📦 그 외주처가 보유중인 이 품번 재고(다른 LOT 포함) — 올려두면 상세</span>';
   }
 
   function open(c){
+    subHide();
     sel=c; NEW=false; mode('ins');
+    $('#hMv').style.display=''; $('#hLg').style.display='';
+    $('#hMvN').textContent='';
     $('#infoBox').style.display=''; $('#iChain').style.display='';
     $('#fJob').value=c.job||''; $('#fJob').readOnly=true;
     const g1=$('#fJobGen'); if(g1) g1.style.display='none';
@@ -1016,6 +1103,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         ' — 나머지가 들어오면 다시 [사내입고]로 등록하세요.</span>';
     }
     { const fh=$('#outFold'); if(fh) fh.style.display=closed?'none':''; }
+    $('#hOut').style.display=closed?'none':'';     /* 종결 LOT은 반출 입력 자체를 막는다 */
     loadMoves(c.part);
     dim.classList.add('on'); mo.style.display='';
   }
@@ -1042,8 +1130,11 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
 
   function openNew(){
     if(!(CAN_S||CAN_E)) return KI.msg('❌ 등록 권한이 없습니다.');
+    subHide();
     sel=null; NEW=true; mode('ins');
     $('#mTtl').textContent='진행등록 — 신규';
+    /* 신규는 이력·흐름도가 없으므로 입력폼 버튼만 남긴다 */
+    $('#hOut').style.display=''; $('#hMv').style.display='none'; $('#hLg').style.display='none';
     /* 종결 LOT을 보고 난 뒤에도 입력폼이 숨겨진 채 열리지 않도록 복원 */
     { const fh=$('#outFold'); if(fh) fh.style.display=''; }
     $('#mMsg').textContent=''; $('#mMsg').className='msg';
@@ -1204,14 +1295,14 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       m.textContent='❌ 이미 사내입고 종결된 LOT입니다. 추가 반출을 등록할 수 없습니다.';
       return;
     }
-    /* 접혀 있으면 먼저 펼쳐 입력 내용을 보여준다 */
+    /* 입력폼이 닫혀 있으면 먼저 2차 팝업으로 열어 내용을 보여준다 */
     const fd=$('#outFold');
-    if(fd && !fd.classList.contains('open')){
-      setOutFold(true);
+    if(subKey!=='out'){
+      if(window.openOutForm) window.openOutForm();
       m.className='msg'; m.textContent='반출 정보를 확인한 뒤 다시 [반출 등록]을 누르세요.';
-      fd.scrollIntoView({block:'nearest'});
       return;
     }
+    if(fd && !fd.classList.contains('open')) setOutFold(true);
     const lots=lotList();
     if(!lots.length || lots.some(x=>!x.lot)){
       m.className='msg err'; m.textContent='반출 LOT 번호를 입력하세요.'; return; }
@@ -1504,7 +1595,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       const mv=await KI.get(OBJ.lotMove+'?select=*&part=eq.'+encodeURIComponent(part)+
                             '&order=move_date.asc,move_id.asc&limit=200');
       if(sel&&sel.part===part) drawFlow(sel,mv.filter(v=>!v.void));  /* 취소분 제외 */   /* 실제 입출고 일자로 다이어그램 갱신 */
-      if(!mv.length)return;
+      { const b=$('#hMvN'); if(b) b.textContent=mv.length?String(mv.length):''; }
+      if(!mv.length){
+        box.innerHTML='<div class="lr-open" style="padding:16px;color:#8894a0;font-size:12px">'+
+          '아직 등록된 현장 기록이 없습니다 — 반출 · 입고를 처리하면 여기에 쌓입니다.</div>';
+        return;
+      }
       const RM=flowMap(mv);
       const short=mv.filter(v=>Number(v.short_qty)>0).length;
       box.innerHTML='<div class="lr-open lr-fold" id="mvFold">'+
@@ -1646,9 +1742,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     setOutFold(false);
   })();
   /* 다른 곳에서 반출 등록을 유도할 때 자동으로 펼침 */
-  window.openOutForm=function(){ setOutFold(true);
-    const t=$('#fVen'); if(t) t.focus();
-  };
+  window.openOutForm=function(){ setOutFold(true); subShow('out'); };
   $('#mS').addEventListener('click',save);
   $('#mTag').addEventListener('click',()=>{ if(sel) window.open('lot_tag.html?lot='+encodeURIComponent(sel.part),'_blank'); });
   $('#mInh').addEventListener('click',()=>{ if(sel) inhouse(sel); });
