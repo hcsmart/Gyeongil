@@ -36,12 +36,14 @@ const TBL = {                      /* 편집 대상 원천 테이블 */
   toolRule:'ki_tool_rule', moldTool:'ki_mold_tool',
   toolAlert:'ki_tool_alert', notifyCfg:'ki_notify_config', errLogT:'ki_error_log',
   moldType:'ki_mold_type', material:'ki_material',
-  vendorT:'ki_vendor', stdRouteT:'machining_standard_routes', processT:'processes',
+  vendorT:'ki_vendor', stdRouteT:'ki_std_route', processT:'ki_process',
   /* 외주 LOT (원천 테이블) */
   lotReceipt:'ki_lot_receipt', lotMove:'ki_lot_move',
-  ospOrder:'outsourcing_order_status_rows',
-  ospRecv :'outsourcing_receipt_confirm_candidates',
-  lotProg :'machining_purchase_progress_rows'
+  /* GI MES 전용 테이블 — 같은 프로젝트의 다른 MES 와 데이터가 섞이지 않도록 분리했다.
+     (예전 레거시 공용 테이블 outsourcing_* · machining_* 은 더 이상 쓰지 않는다) */
+  ospOrder:'ki_osp_order',
+  ospRecv :'ki_osp_receipt',
+  lotProg :'ki_lot_progress'
 };
 const OBJ = {
   settings : P+'app_settings',
