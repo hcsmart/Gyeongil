@@ -131,8 +131,8 @@ function moldSpec(){
   const part= uniq(SC.part, colValues(9));
   const mat = firstOpt('#f_mat'), typ = firstOpt('#f_type');
   return [
-    {t:'click', el:()=>K.actBtn('새로입력'), label:'새로입력',
-     tip:'수정 중인 내용이 남아 있을 수 있으므로 신규 등록은 항상 <b>[새로입력]</b>부터 시작합니다.'},
+    {t:'click', el:()=>K.actBtn('신규등록'), label:'신규등록',
+     tip:'수정 중인 내용이 남아 있을 수 있으므로 신규 등록은 항상 <b>[＋ 신규등록]</b>부터 시작합니다.'},
     {t:'fill', el:'#f_no', value:no, label:'금형제번',
      tip:'금형을 식별하는 <b>키</b>. 저장 후에는 바꿀 수 없고, 금형대장 · 타발수 · 점검이력이 모두 이 번호로 묶입니다.'},
     typ ? {t:'fill', el:'#f_type', value:typ, label:'금형타입',

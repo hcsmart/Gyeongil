@@ -109,6 +109,9 @@ body.resizing{cursor:col-resize;user-select:none}
 .form-bar .st.ok{color:#15803d}.form-bar .st.err{color:#b91c1c}
 .btn.danger{background:linear-gradient(#fff,#fdecec);border-color:#daa;color:#b23030}
 .btn.danger:hover{background:#fbe0e0}
+/* 신규등록 : 저장(파랑) · 삭제(빨강)와 한눈에 구분되는 분홍 계열 */
+.btn.new{background:linear-gradient(#fff,#fdeaf3);border-color:#e2a8c4;color:#a4356b;font-weight:700}
+.btn.new:hover{background:#fbdcea;border-color:#d287ac}
 
 /* 점검기준 화면 */
 .ck-tb{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:7px;padding:7px 8px;

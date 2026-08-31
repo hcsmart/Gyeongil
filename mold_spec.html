@@ -19,7 +19,7 @@
   let TYPES=[], MATS=[], ROWS=[], key=null;      // key : 수정중인 금형제번
 
   const CAN_S=KI.can('mold-spec','save'), CAN_E=KI.can('mold-spec','edit'), CAN_D=KI.can('mold-spec','delete');
-  /* 저장 · 새로입력 · 삭제는 폼 하단 버튼에만 둔다 (상단 중복 제거 → 상단바 폭 확보)
+  /* 저장 · 신규등록 · 삭제는 폼 하단 버튼에만 둔다 (상단 중복 제거 → 상단바 폭 확보)
      엑셀 버튼 라벨은 다른 조회화면(KI.grid)과 같은 문자열을 쓴다 —
      드롭다운 우측 실행메뉴와 [?act=버튼명] 자동실행이 라벨로 매칭되기 때문이다. */
   const acts=[];
@@ -66,7 +66,7 @@
     '</div>'+
     '<div class="form-bar">'+
       '<button class="btn primary" id="b_save">💾 저장</button>'+
-      '<button class="btn" id="b_new">＋ 새로입력</button>'+
+      '<button class="btn new" id="b_new">＋ 신규등록</button>'+
       '<button class="btn danger" id="b_del">✕ 삭제</button>'+
       '<span class="st" id="f_msg"></span>'+
     '</div>';
