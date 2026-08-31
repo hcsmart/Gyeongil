@@ -1212,11 +1212,12 @@ async function grid(id, need){
     if(can(id,'edit'))   acts.push(['수정','',()=>{ if(!state.sel) return msg('수정할 행을 선택하세요.'); modal.open(state.sel); }]);
     if(can(id,'delete')) acts.push(['삭제','danger',()=>removeRow()]);
   }
-  acts.push(['초기화','',()=>{ sp.querySelectorAll('input').forEach(i=>i.value=''); sp.querySelectorAll('select').forEach(s=>s.selectedIndex=0); }]);
-  acts.push(['엑셀다운로드','',()=>csv(cur.it,def,state.rows)]);
+  acts.push(['초기화','',()=>{ sp.querySelectorAll('input').forEach(i=>i.value=''); sp.querySelectorAll('select').forEach(s=>s.selectedIndex=0);
+    state.sort={k:null,d:0,t:''}; syncSort(); if(state.rows.length) render(state.rows); }]);
+  acts.push(['엑셀다운로드','',()=>csv(cur.it,def,sortRows(state.rows))]);
   acts.push(['인쇄','',()=>window.print()]);
   const ui=page(cur,acts);
-  const state={rows:[],sel:null};
+  const state={rows:[],sel:null,sort:{k:null,d:0,t:''}};
   let modal=null, uploader=null;
   const editable = def.edit && (can(id,'save')||can(id,'edit'));
   if(editable) modal=makeModal(def, async(what)=>{ await run(null); msg('✓ '+what+'되었습니다.'); });
@@ -1247,7 +1248,23 @@ async function grid(id, need){
   const cnt=el('span','right','총 0건');
   tb.appendChild(src); tb.appendChild(cnt); gw.appendChild(tb);
   const tbl=el('table','grid'), thead=el('thead'), tr=el('tr');
-  def.cols.forEach(c=>{ const th=el('th',null,c[0]); if(c[1])th.style.width=c[1]+'px'; tr.appendChild(th); });
+  def.cols.forEach(c=>{
+    const th=el('th',null,c[0]); if(c[1])th.style.width=c[1]+'px';
+    /* 데이터 필드가 있는 컬럼만 정렬 대상 */
+    if(c[3]){
+      th.classList.add('sortable'); th.dataset.sk=c[3]; th.dataset.st=c[4]||'';
+      th.title='클릭 : 오름차순 → 내림차순 → 등록순';
+      const ar=el('span','sar','↕'); th.appendChild(ar);
+      th.addEventListener('click',()=>{
+        const k=c[3];
+        if(state.sort.k!==k) state.sort={k:k,d:1,t:c[4]||''};
+        else if(state.sort.d===1) state.sort={k:k,d:-1,t:c[4]||''};
+        else state.sort={k:null,d:0,t:''};
+        syncSort(); render(state.rows);
+      });
+    }
+    tr.appendChild(th);
+  });
   if(def.jump){ const th=el('th',null,'이동'); th.style.width='80px'; tr.appendChild(th); }
   thead.appendChild(tr); tbl.appendChild(thead);
   const tbody=el('tbody'); tbl.appendChild(tbody); gw.appendChild(tbl); ui.pg.appendChild(gw);
@@ -1255,6 +1272,49 @@ async function grid(id, need){
   /* 표 안내문 (행이 없을 때만) — 상태바 메시지는 msg() 사용 */
   function hint(t){ tbody.innerHTML=''; const r=el('tr'),d=el('td','center',t);
     d.colSpan=def.cols.length+(def.jump?1:0); d.style.cssText='color:#8894a0;height:60px'; r.appendChild(d); tbody.appendChild(r); }
+
+  /* ── 정렬 ── */
+  const NUMT={won:1,n0:1,days:1,w2:1};
+  function syncSort(){
+    [].forEach.call(thead.querySelectorAll('th.sortable'),th=>{
+      const on = state.sort.k===th.dataset.sk && state.sort.d;
+      th.classList.toggle('on',!!on);
+      th.querySelector('.sar').textContent = on ? (state.sort.d>0?'▲':'▼') : '↕';
+    });
+  }
+  function sortRows(rows){
+    const s=state.sort; if(!s.k||!s.d) return rows;
+    const num=!!NUMT[s.t];
+    return rows.map((r,i)=>({r:r,i:i})).sort((a,b)=>{
+      const x=a.r[s.k], y=b.r[s.k];
+      const ex=(x==null||x===''), ey=(y==null||y==='');
+      if(ex&&ey) return a.i-b.i;
+      if(ex) return 1; if(ey) return -1;          /* 빈값은 방향과 무관하게 항상 뒤로 */
+      let c;
+      if(num) c=(Number(x)||0)-(Number(y)||0);
+      else    c=String(x).localeCompare(String(y),'ko',{numeric:true,sensitivity:'base'});
+      return c ? s.d*c : a.i-b.i;                 /* 동일값은 조회(등록) 순서 유지 */
+    }).map(o=>o.r);
+  }
+
+  function render(rows){
+    tbody.innerHTML='';
+    if(!rows.length){ hint('조회 결과가 없습니다'); return; }
+    sortRows(rows).forEach(r=>{
+      const t=el('tr');
+      def.cols.forEach(c=>{ const td=el('td',c[2]||''); td.innerHTML=cell(r,c); td.title=td.textContent; t.appendChild(td); });
+      if(def.jump){
+        const td=el('td','center'); const b=el('button',null,def.jump[0]);
+        b.style.cssText='height:21px;padding:0 8px;border:1px solid #2e77bd;background:#2e77bd;color:#fff;border-radius:2px;font-size:11px;font-weight:700;cursor:pointer';
+        b.addEventListener('click',ev=>{ ev.stopPropagation(); location.href=def.jump[1](r); });
+        td.appendChild(b); t.appendChild(td);
+      }
+      t.addEventListener('click',()=>{ tbody.querySelectorAll('tr.sel').forEach(x=>x.classList.remove('sel')); t.classList.add('sel'); state.sel=r; });
+      if(editable && can(id,'edit')) t.addEventListener('dblclick',()=>modal.open(r));
+      if(state.sel && r===state.sel) t.classList.add('sel');
+      tbody.appendChild(t);
+    });
+  }
 
   async function run(btn){
     const old=btn?btn.textContent:''; if(btn){btn.textContent='조회중...';btn.disabled=true;}
@@ -1264,21 +1324,7 @@ async function grid(id, need){
       let rows=await get(q);
       rows = def.post ? POST[def.post](rows) : rows.map((r,i)=>Object.assign({_i:i+1},r));
       rows = applyFilter(rows, filters(sp));
-      state.rows=rows; tbody.innerHTML='';
-      if(!rows.length) hint('조회 결과가 없습니다');
-      else rows.forEach(r=>{
-        const t=el('tr');
-        def.cols.forEach(c=>{ const td=el('td',c[2]||''); td.innerHTML=cell(r,c); td.title=td.textContent; t.appendChild(td); });
-        if(def.jump){
-          const td=el('td','center'); const b=el('button',null,def.jump[0]);
-          b.style.cssText='height:21px;padding:0 8px;border:1px solid #2e77bd;background:#2e77bd;color:#fff;border-radius:2px;font-size:11px;font-weight:700;cursor:pointer';
-          b.addEventListener('click',ev=>{ ev.stopPropagation(); location.href=def.jump[1](r); });
-          td.appendChild(b); t.appendChild(td);
-        }
-        t.addEventListener('click',()=>{ tbody.querySelectorAll('tr.sel').forEach(x=>x.classList.remove('sel')); t.classList.add('sel'); state.sel=r; });
-        if(editable && can(id,'edit')) t.addEventListener('dblclick',()=>modal.open(r));
-        tbody.appendChild(t);
-      });
+      state.rows=rows; render(rows);
       cnt.textContent='총 '+rows.length.toLocaleString()+'건';
       msg(cur.path+' — '+rows.length.toLocaleString()+'건 조회되었습니다.');
     }catch(e){ hint('❌ '+e.message); msg('❌ '+e.message); cnt.textContent='총 0건'; }

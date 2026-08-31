@@ -191,6 +191,12 @@ table.grid{width:100%;border-collapse:collapse;table-layout:fixed}
   border-bottom:1px solid #91a0af;color:#4a5968;font-weight:800;text-align:center;padding:0 5px;
   white-space:nowrap;position:sticky;top:28px;z-index:2}
 .ck-tb + .grid-wrap .grid th{top:0}   /* 툴바가 표 밖일 때 머리 겹침/빈줄 방지 */
+/* 제목행 정렬 : 오름차순 ▲ → 내림차순 ▼ → 등록순 ↕ 로테이션 */
+.grid th.sortable{cursor:pointer;user-select:none;-webkit-user-select:none}
+.grid th.sortable:hover{background:linear-gradient(#eaf2fa,#d3e2f0)}
+.grid th.sortable .sar{margin-left:4px;font-size:9px;color:#a9b5c1;vertical-align:middle}
+.grid th.sortable.on{background:linear-gradient(#e6eff8,#cadcec);color:#1d568c}
+.grid th.sortable.on .sar{color:#1d568c}
 .grid td{height:26px;border-right:1px solid #d0d7de;border-bottom:1px solid #d9dfe5;padding:0 6px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .grid tr:nth-child(even) td{background:#fafbfc}
