@@ -18,7 +18,21 @@
 .lt-sc input[type=number]{width:78px;text-align:right}
 .lt-sc .gap{width:1px;height:20px;background:#dde4ea;margin:0 4px}
 .lt-sc .rt{margin-left:auto;display:flex;gap:5px}
-.lt-sc .btn{height:26px;padding:0 13px;font-weight:700}
+.lt-sc .btn{height:26px;padding:0 13px;font-weight:700;
+  transition:background .12s,border-color .12s,color .12s,transform .06s}
+/* 클릭 피드백 : 누르는 순간 + 실행 직후(.hit) 색이 바뀐다 */
+.lt-sc .btn:active{transform:translateY(1px)}
+.lt-sc .btn:not(.primary):active,
+.lt-sc .btn:not(.primary).hit{background:#d5e6f6;border-color:#5f92c6;color:#1d568c}
+.lt-sc .btn.primary:active,
+.lt-sc .btn.primary.hit{background:linear-gradient(#2a5c96,#1e4676);border-color:#173c66;color:#fff}
+/* 조회중 : 진한 색 + 커서 대기 */
+.lt-sc .btn.busy{background:linear-gradient(#7d8b99,#66727e);border-color:#5a6672;color:#fff;
+  cursor:progress}
+.lt-sc .btn .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#8fc7ff;
+  margin-right:5px;vertical-align:middle}
+.lt-sc .btn.busy .dot{background:#fff;animation:ltblink .7s linear infinite}
+@keyframes ltblink{50%{opacity:.25}}
 /* 이벤트 토글 칩 */
 .lt-chip{display:flex;flex-wrap:wrap;gap:4px}
 .lt-chip button{height:24px;padding:0 10px;border:1px solid #c3cdd7;background:#fff;border-radius:12px;
@@ -147,7 +161,8 @@
       '<span class="gap"></span>'+
       '<label>특기사항</label><input type="text" id="fRmk" placeholder="사유 · 비고 포함">'+
       '<span class="rt">'+
-        '<button class="btn primary" id="btnQ">🔎 조회</button>'+
+        '<button class="btn primary" id="btnQ"><span class="dot"></span>조회</button>'+
+        '<button class="btn" id="btnX">📥 엑셀다운로드</button>'+
         '<button class="btn" id="btnR">초기화</button></span>'+
     '</div>';
   ui.pg.appendChild(sc);
@@ -438,8 +453,19 @@
     const b=ev.target.closest('button'); if(!b) return;
     b.classList.toggle('on'); if(LOADED) draw();
   });
-  $('#btnQ').addEventListener('click',()=>load());
-  $('#btnR').addEventListener('click',()=>reset());
+  /* 클릭하면 잠깐 색이 바뀌어 눌린 것이 보이게 한다 */
+  function hit(b){ if(!b) return; b.classList.add('hit');
+    setTimeout(()=>b.classList.remove('hit'),260); }
+  $('#btnQ').addEventListener('click',async()=>{
+    const b=$('#btnQ'); if(b.classList.contains('busy')) return;
+    b.classList.add('busy'); b.disabled=true;
+    const t=b.lastChild; const old=t.nodeValue; t.nodeValue='조회중...';
+    try{ await load(); } finally {
+      b.classList.remove('busy'); b.disabled=false; t.nodeValue=old; hit(b);
+    }
+  });
+  $('#btnX').addEventListener('click',()=>{ hit($('#btnX')); csv(); });
+  $('#btnR').addEventListener('click',()=>{ hit($('#btnR')); reset(); });
   sc.addEventListener('keydown',ev=>{ if(ev.key==='Enter') load(); });
 
   function csv(){
