@@ -1196,9 +1196,14 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const rem=Math.max(restQ-inQ,0);                 /* 이번 입고 후 남는 수량 */
     let short=0, reason='';
     if(rem>0){
-      if(confirm('남은 '+rem.toLocaleString()+'EA 를 <부족(손실)>으로 처리하고 이 반출건을 마감할까요?\n\n'+
-                 '[확인] 부족 처리 후 마감\n[취소] 분납 — 나머지는 나중에 다시 입고 등록')){
-        short=rem; reason=prompt('부족 '+rem.toLocaleString()+' — 사유를 입력하세요 (불량 등)','불량')||'';
+      /* 수량이 모자란 대부분은 '나눠 보내는 중'이지 손실이 아니다 — 분할을 기본값으로 둔다 */
+      if(!confirm('남은 '+rem.toLocaleString()+'EA 는 나중에 들어올 예정인가요?\n\n'+
+                 '[확인] 분할 납품 — 잔량을 유지하고 나중에 다시 입고 등록  (기본)\n'+
+                 '[취소] 부족(손실) 처리 — 이 반출건을 지금 마감')){
+        short=rem;
+        reason=prompt('부족 '+rem.toLocaleString()+'EA 의 사유를 입력하세요.\n'+
+                      '(예: 불량 · 파손 · 분실 — 분할 납품이면 [취소]를 눌러 되돌리세요)','')||'';
+        if(!reason){ short=0; m.className='msg'; m.textContent='부족 처리를 취소했습니다 — 분할로 등록합니다.'; }
       }
     }
     const close2=(rem<=0)||short>0;                  /* 잔여가 없어야 반출건 마감 */
@@ -1255,9 +1260,13 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     let short=0, reason='';
     if(!close2){
       /* 남은 수량이 있으면 : 나머지가 더 들어올 예정인지 · 부족(손실)인지 확인 */
-      if(confirm('남은 '+rem.toLocaleString()+'EA 를 <부족(손실)>으로 처리하고 LOT을 종결할까요?\n\n'+
-                 '[확인] 부족 처리 후 종결\n[취소] 분납 — 나머지는 나중에 다시 입고 등록')){
-        short=rem; reason=prompt('부족 '+rem.toLocaleString()+' — 사유를 입력하세요 (불량 등)','불량')||'';
+      if(!confirm('남은 '+rem.toLocaleString()+'EA 는 나중에 들어올 예정인가요?\n\n'+
+                 '[확인] 분납 — 잔여를 남기고 나중에 다시 입고 등록  (기본)\n'+
+                 '[취소] 부족(손실) 처리 — LOT을 지금 종결')){
+        short=rem;
+        reason=prompt('부족 '+rem.toLocaleString()+'EA 의 사유를 입력하세요.\n'+
+                      '(예: 불량 · 파손 · 분실 — 분납이면 [취소]를 눌러 되돌리세요)','')||'';
+        if(!reason) short=0;
       }
     }
     const willClose = close2 || short>0;
@@ -1327,9 +1336,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         '<th style="width:84px">일자</th><th style="width:62px">구분</th>'+
         '<th style="width:150px">출고처</th><th style="width:18px"></th><th style="width:150px">입고처</th>'+
         '<th style="width:64px">수량</th><th style="width:52px">부족</th>'+
-        '<th style="width:110px">사유</th><th>특기사항</th></tr></thead><tbody>'+
+        '<th style="width:110px">사유</th><th>특기사항</th>'+
+        (CAN_E||CAN_D?'<th style="width:62px">정정</th>':'')+'</tr></thead><tbody>'+
         mv.map((v,i)=>{ const r=RM[v.move_id]||{};
-          return '<tr><td class="center" style="color:#8894a0;font-weight:700">'+(i+1)+'</td>'+
+          return '<tr data-mv="'+v.move_id+'"><td class="center" style="color:#8894a0;font-weight:700">'+(i+1)+'</td>'+
           '<td class="center nw">'+esc(v.move_date||'')+'</td>'+
           '<td class="center"><span class="badge '+(v.io==='입고'||v.io==='사내입고'?'b-done':v.io==='출고'?'b-run':'b-wait')+'">'+esc(v.io)+'</span></td>'+
           '<td>'+esc(r.f||'')+'</td>'+
@@ -1338,8 +1348,62 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           '<td class="num">'+(r.q==null?'':Number(r.q).toLocaleString())+'</td>'+
           '<td class="num"'+(Number(v.short_qty)>0?' style="color:#b23030;font-weight:800"':'')+'>'+
             (v.short_qty?Number(v.short_qty).toLocaleString():'')+'</td>'+
-          '<td>'+esc(v.reason||'')+'</td><td>'+esc(v.remark||'')+'</td></tr>'; }).join('')+
+          '<td>'+esc(v.reason||'')+'</td><td>'+esc(v.remark||'')+'</td>'+
+          (CAN_E||CAN_D?'<td class="center" style="white-space:nowrap">'+
+            (CAN_E?'<button class="lr-go" data-mve="'+v.move_id+'" title="수량 · 부족 · 사유 · 특기사항 정정" '+
+              'style="background:#fff;color:#1d568c;padding:0 5px">✎</button>':'')+
+            (CAN_D?'<button class="lr-go" data-mvx="'+v.move_id+'" title="이 기록 삭제" '+
+              'style="background:#fff;color:#a0505a;border-color:#c9a0a8;padding:0 5px;margin-left:3px">✕</button>':'')+
+            '</td>':'')+'</tr>'; }).join('')+
         '</tbody></table></div></div>';
+      /* ── 현장 기록 정정 ──
+         현장에서 사유를 잘못 고르거나 수량을 잘못 넣는 일이 있어 뒤늦게 고칠 수 있게 한다.
+         수량 · 부족을 고치면 공정별 집계(회수율 · 미회수)가 곧바로 다시 계산된다. */
+      box.querySelectorAll('[data-mve]').forEach(b=>b.addEventListener('click',()=>{
+        const id=b.dataset.mve, v=mv.find(x=>String(x.move_id)===String(id)); if(!v) return;
+        const tr=box.querySelector('tr[data-mv="'+id+'"]'); if(!tr||tr.dataset.edit) return;
+        tr.dataset.edit='1';
+        const q=(v.io==='출고')?v.out_qty:(v.in_qty!=null?v.in_qty:v.out_qty);
+        const inp=(id2,val,w,ph)=>'<input id="'+id2+'" value="'+esc(val==null?'':val)+'" '+
+          'placeholder="'+(ph||'')+'" style="width:'+w+';height:24px;border:1px solid #aeb9c4;padding:0 5px;font:inherit">';
+        tr.children[6].innerHTML=inp('e_q',q,'56px');
+        tr.children[7].innerHTML=inp('e_s',v.short_qty||'','48px');
+        tr.children[8].innerHTML=
+          '<select id="e_r" style="width:100%;height:24px;border:1px solid #aeb9c4;font:inherit">'+
+          ['','분할 납품','불량','파손','분실','수량 오등록','기타']
+            .map(x=>'<option'+(String(v.reason||'')===x?' selected':'')+'>'+esc(x)+'</option>').join('')+
+          '</select>';
+        tr.children[9].innerHTML=inp('e_m',v.remark||'','100%');
+        tr.lastElementChild.innerHTML=
+          '<button class="lr-go" id="e_ok" style="background:#2f7d4d;border-color:#2f7d4d;padding:0 5px">💾</button>'+
+          '<button class="lr-go" id="e_no" style="background:#fff;color:#41556a;padding:0 5px;margin-left:3px">✕</button>';
+        $('#e_no').addEventListener('click',()=>loadMoves(part));
+        $('#e_ok').addEventListener('click',async()=>{
+          const nq=Number(String($('#e_q').value).replace(/[^0-9.]/g,''));
+          const ns=Number(String($('#e_s').value).replace(/[^0-9.]/g,''))||0;
+          const body={short_qty:ns, reason:$('#e_r').value||null, remark:$('#e_m').value.trim()||null};
+          if(!isNaN(nq)&&nq>0){ if(v.io==='출고') body.out_qty=nq; else body.in_qty=nq; }
+          try{
+            await KI.upd(TBL.lotMove,'move_id=eq.'+id,body);
+            KI.msg('✓ 현장 기록 '+id+' 정정되었습니다.');
+            await load();                       /* 집계 · 흐름도 다시 계산 */
+            const c2=ROWS.map(calc).find(x=>x.part===part); if(c2&&sel) open(c2);
+            else loadMoves(part);
+          }catch(e){ alert('❌ '+e.message); }
+        });
+      }));
+      box.querySelectorAll('[data-mvx]').forEach(b=>b.addEventListener('click',async()=>{
+        const id=b.dataset.mvx, v=mv.find(x=>String(x.move_id)===String(id)); if(!v) return;
+        if(!confirm('현장 기록 '+id+' 을(를) 삭제할까요?\n\n'+
+            (v.move_date||'')+' · '+(v.io||'')+' · '+(v.mp||'')+' '+(v.vendor||'')+'\n\n'+
+            '잘못 등록된 기록을 지울 때만 사용하세요. 되돌릴 수 없습니다.')) return;
+        try{
+          await KI.del(TBL.lotMove,'move_id=eq.'+id);
+          KI.msg('✓ 현장 기록 '+id+' 삭제되었습니다.');
+          await load();
+          const c2=ROWS.map(calc).find(x=>x.part===part); if(c2&&sel) open(c2); else loadMoves(part);
+        }catch(e){ alert('❌ '+e.message); }
+      }));
       const fd=$('#mvFold'), h5=fd.querySelector('h5');
       h5.addEventListener('click',()=>{
         const on=fd.classList.toggle('open');
