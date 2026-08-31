@@ -432,6 +432,20 @@ body.navdrop .module.open{background:#e5edf5;color:var(--blue-dark);box-shadow:i
 .pg-act.top .btn,.pg-act.top a.btn{flex:0 0 auto;white-space:nowrap;line-height:22px}
 .top1 .user{flex:0 0 auto}
 .pg-act.top:empty{display:none}
+/* 상단 실행버튼 오버플로 : [⋯] 더보기 */
+.pg-act.top .btn.act-more{padding:0 9px;font-size:15px;line-height:1;color:#41556a}
+.pg-act.top .btn.act-more.on{background:#dbe8f4;border-color:#6e8fb3;color:#1d568c}
+.act-menu{position:fixed;z-index:60;display:none;flex-direction:column;min-width:158px;
+  padding:4px 0;background:#fff;border:1px solid #8f9ca8;
+  box-shadow:0 6px 18px rgba(20,40,60,.25)}
+.act-menu.on{display:flex}
+.act-menu .btn{width:100%;height:auto;min-height:30px;padding:7px 14px;border:0;border-radius:0;
+  background:none;color:#2c3e50;font-weight:700;text-align:left;white-space:nowrap;box-shadow:none}
+.act-menu .btn:hover{background:#e5eef6;color:#1d568c;border:0}
+.act-menu .btn.primary{background:none;color:#1d568c}
+.act-menu .btn.danger{background:none;color:#a8332c}
+.act-menu .btn.green{background:none;color:#1f7a44}
+@media print{ .act-menu{display:none} }
 body.slim .top1 .user{margin-left:0;border-left:1px solid #d5dce2}
 body.slim .page > .note{display:none}
 body.slim .page > .pg-head{display:none}

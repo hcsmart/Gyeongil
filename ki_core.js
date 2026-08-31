@@ -567,6 +567,50 @@ function actList(id){
   }
   try{ return JSON.parse(localStorage.getItem(ACT_LS+id)||'[]'); }catch(e){ return []; }
 }
+/* ---------- 상단 실행버튼 오버플로 (⋯ 더보기) ----------
+   버튼이 상단바 폭을 넘으면 뒤에서부터 [⋯] 메뉴로 접는다.
+   화면마다 버튼 수가 달라도 실제 폭으로 판단하므로 별도 설정이 필요 없다.
+   · 접힌 버튼은 원래 순서를 유지한 채 메뉴에 세로로 나열
+   · 나중에 추가되는 버튼([🎬 등록예제 안내] 등)도 자동 반영 */
+function actOverflow(act){
+  if(!act || act.dataset.ovf) return; act.dataset.ovf='1';
+  const more=el('button','btn act-more','⋯');
+  more.type='button'; more.title='더보기'; more.style.display='none';
+  const menu=el('div','act-menu'); document.body.appendChild(menu);
+  let busy=false, open=false;
+  const close=()=>{ open=false; menu.classList.remove('on'); more.classList.remove('on'); };
+  more.addEventListener('click',ev=>{
+    ev.stopPropagation();
+    if(open) return close();
+    open=true; menu.classList.add('on'); more.classList.add('on');
+    const r=more.getBoundingClientRect();
+    menu.style.top=(r.bottom+4)+'px';
+    menu.style.left=Math.max(6,Math.min(r.left, window.innerWidth-menu.offsetWidth-6))+'px';
+  });
+  menu.addEventListener('click',()=>setTimeout(close,0));
+  document.addEventListener('click',close);
+  window.addEventListener('resize',()=>{ close(); layout(); });
+  function layout(){
+    if(busy) return; busy=true;
+    try{
+      /* 접었던 버튼을 모두 되돌린 뒤 다시 계산한다 */
+      while(menu.firstChild) act.insertBefore(menu.firstChild, more);
+      more.style.display='none';
+      const fits=()=>act.scrollWidth<=act.clientWidth+1;
+      if(!act.clientWidth || fits()) return;
+      more.style.display='';
+      let btns=[].slice.call(act.children).filter(b=>b!==more);
+      while(btns.length>1 && !fits()) menu.insertBefore(btns.pop(), menu.firstChild);
+      if(!menu.children.length) more.style.display='none';
+    } finally { busy=false; }
+  }
+  act.appendChild(more);
+  try{ new MutationObserver(()=>{ if(!busy) layout(); })
+        .observe(act,{childList:true}); }catch(e){}
+  setTimeout(layout,0); setTimeout(layout,700);   /* 폰트 로딩 · 늦게 붙는 버튼 대응 */
+  return layout;
+}
+
 function page(cur, actions){
   const it = cur.it || cur;
   const ws=el('div','workspace'), pg=el('div','page');
@@ -578,6 +622,7 @@ function page(cur, actions){
   (actions||[]).forEach(([label,cls,fn])=>{ const b=el('button','btn'+(cls?' '+cls:''),label);
     b.addEventListener('click',fn); act.appendChild(b); });
   if(!SLIM){ h.appendChild(act); pg.appendChild(h); }
+  else actOverflow(act);          /* 상단바에 붙는 경우만 접기 처리 */
   ws.appendChild(pg); document.body.appendChild(ws);
   /* 화면별 실행버튼 목록 저장 (드롭다운 우측 메뉴용) */
   try{ if(it.id) localStorage.setItem(ACT_LS+it.id,
