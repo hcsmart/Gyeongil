@@ -776,7 +776,7 @@ function cell(row,col){
     }
     case 'st':{
       const s=String(v==null?'':v); if(!s)return '';
-      const k = /지연|취소|불합격|고온|저온|고습|저습|발생|경고|점검필요|무신호|고장/.test(s) ? 'b-late'
+      const k = /지연|취소|폐기|만료|불합격|고온|저온|고습|저습|발생|경고|점검필요|무신호|고장/.test(s) ? 'b-late'
               : /대기|임박|주의|조건부|조치중|정지/.test(s) ? 'b-wait'
               : /완료|확인|정상|합격|여유|가동|해제/.test(s) ? 'b-done' : 'b-run';
       return '<span class="badge '+k+'">'+esc(s)+'</span>';

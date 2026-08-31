@@ -16,13 +16,13 @@ button{cursor:pointer}
 /* ===== 1차 : 모듈 ===== */
 .top1{position:fixed;inset:0 0 auto 0;height:var(--top1);display:flex;align-items:center;
   background:linear-gradient(#fafbfc,#edf1f4);border-bottom:1px solid #b2bdc6;z-index:20}
-.logo{width:258px;height:100%;display:flex;align-items:baseline;padding-left:22px;font-size:22px;font-weight:900;
+.logo{width:258px;flex:0 0 auto;height:100%;display:flex;align-items:baseline;padding-left:22px;font-size:22px;font-weight:900;
   font-style:italic;color:#265eb8;letter-spacing:-1px;border-right:1px solid #c8d0d7;white-space:nowrap;
   text-decoration:none}
 .logo b{margin-right:7px;font-size:28px}
 .logo i{margin-left:7px;font-size:14px;font-style:normal;font-weight:700;letter-spacing:0;color:#6b8bb5}
-.modules{height:100%;display:flex;overflow-x:auto}
-.module{height:100%;min-width:92px;padding:0 14px;border:0;border-right:1px solid #d5dce2;background:transparent;
+.modules{height:100%;flex:0 0 auto;display:flex;overflow:visible}
+.module{height:100%;min-width:92px;flex:0 0 auto;padding:0 14px;border:0;border-right:1px solid #d5dce2;background:transparent;
   color:#546270;font-weight:700;white-space:nowrap}
 .module:hover,.module.on{background:#e5edf5;color:var(--blue-dark)}
 .module.on{box-shadow:inset 0 -3px 0 var(--blue)}
@@ -422,7 +422,13 @@ body.navdrop .module.open{background:#e5edf5;color:var(--blue-dark);box-shadow:i
 .pg-title{flex:0 0 auto;padding:0 14px 0 16px;color:#41556a;font-size:14px;font-weight:800;
   white-space:nowrap;border-left:1px solid #d5dce2}
 .pg-title:empty{display:none}
-.pg-act.top{display:flex;align-items:center;gap:4px;margin-left:auto;padding-right:10px}
+.pg-act.top{display:flex;align-items:center;gap:4px;margin-left:auto;padding-right:10px;
+  flex:0 1 auto;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+.pg-act.top::-webkit-scrollbar{height:5px}
+.pg-act.top::-webkit-scrollbar-thumb{background:#c3ccd5;border-radius:3px}
+/* 버튼은 절대 찌그러지거나 두 줄로 접히지 않게 */
+.pg-act.top .btn,.pg-act.top a.btn{flex:0 0 auto;white-space:nowrap;line-height:22px}
+.top1 .user{flex:0 0 auto}
 .pg-act.top:empty{display:none}
 body.slim .top1 .user{margin-left:0;border-left:1px solid #d5dce2}
 body.slim .page > .note{display:none}
