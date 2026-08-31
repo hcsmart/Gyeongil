@@ -403,6 +403,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   /* ── 제품의 현재 물리적 위치 ───────────────────────────────
      외주는 [사내 → 1공정 → 사내복귀 → 2공정 → 사내복귀 …] 로 왕복하므로
      공정을 마친 시점의 위치는 그 공정이 아니라 <b>사내</b>다.
+     사내 이동은 애초에 공장을 벗어나지 않으므로 '복귀' 개념이 없다.
+     작업 중에도 위치는 계속 'home' 이고, 완료 문구도 '사내작업'으로 표시한다.
        'recv' 사내입고 종결 / 'wip' 외주 보유(반출중) / 'home' 사내 보유
      · wipMp2 : 반출중인 공정 (이미 완료한 공정으로 재반출한 경우 포함) */
   const ospOf = part => OSP.filter(o=>String(o.part||'')===String(part) ||
@@ -540,6 +542,17 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const outOf=x=>mv.filter(v=>v.mp===x&&v.io==='출고')
                   .sort((a,b)=>String(b.move_date||'').localeCompare(String(a.move_date||'')))[0];
     const inh=mv.find(v=>v.io==='사내입고');
+    /* 이 공정이 사내 이동이었는지 판정 — 반출건 우선, 없으면 현장 기록으로 보완
+       · 외주 : 공장 밖으로 나갔다 돌아옴 → '사내복귀'
+       · 사내 : 애초에 공장을 벗어나지 않음 → '사내작업' (복귀 개념 없음) */
+    const kindOf=x=>{
+      const o=ospOf(c.part).filter(v=>v.mp===x)
+              .sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0];
+      if(o) return String(o.move_kind||'외주')==='사내'?'사내':'외주';
+      const m=mv.filter(v=>v.mp===x)
+              .sort((a,b)=>String(b.move_date||'').localeCompare(String(a.move_date||'')))[0];
+      return (m&&String(m.move_kind||'외주')==='사내')?'사내':'외주';
+    };
     const node=(cls,cur,t,n2,st2)=>'<div class="fx-node '+cls+(cur?' st-cur':'')+'">'+
       '<div class="t">'+t+'</div>'+(n2?'<div class="n">'+n2+'</div>':'')+
       (st2?'<div class="s">'+st2+'</div>':'')+'</div>';
@@ -584,7 +597,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         curPos==='wip:'+x,
         esc(x), esc(pName(x)||''),
         inw?'🏭 '+esc(inVen||'사내 작업장')+' 작업중'
-        :done?'✓ 완료 · 사내복귀'+(dVen?' · '+esc(dVen):'')+(dDate?' · '+md(dDate):'')
+        :done?'✓ 완료 · '+(kindOf(x)==='사내'?'사내작업':'사내복귀')+
+              (dVen?' · '+esc(dVen):'')+(dDate?' · '+md(dDate):'')
         :wip?((arr(null,x)||c.seen.has(x))
               ? '🏭 '+esc((a2&&a2.vendor)||c.last.vendor||'')+' 작업중'+(dDate?' · 도착 '+md(dDate):'')
               : '<span class="truck">🚚</span> '+esc(c.last.vendor||'')+' 반출중'+(wDate?' · '+md(wDate):''))
@@ -593,7 +607,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     $('#iChain').innerHTML='<div class="fx">'+html+'</div>'+
       '<div class="fx-lg">'+
       '<span><i class="g1"></i>현재 위치(사내 보유 · 출발/복귀 지점)</span>'+
-      '<span><i class="g2"></i>공정 완료 · 사내복귀</span>'+
+      '<span><i class="g2"></i>공정 완료 (외주=사내복귀 · 사내=사내작업)</span>'+
       '<span><i class="g3"></i>반출중(외주 보유)</span>'+
       '<span><i class="g5"></i>사내 작업장 이동</span>'+
       '<span><i class="g4"></i>다음 공정</span></div>';
