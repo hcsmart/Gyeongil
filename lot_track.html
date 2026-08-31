@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>LOT 추적 — GI MES</title>
+<link rel="stylesheet" href="ki_style.css" />
+<style>
+/* ===== 검색 조건 ===== */
+.lt-sc{background:#fff;border:1px solid #dde4ea;border-radius:6px;margin:7px 7px 0;padding:9px 10px}
+.lt-sc .row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:6px}
+.lt-sc .row:last-child{margin-bottom:0}
+.lt-sc label{font-size:11.5px;font-weight:800;color:#526171;white-space:nowrap}
+.lt-sc input,.lt-sc select{height:26px;border:1px solid #aeb9c4;padding:0 6px;font:inherit;font-size:12.5px;
+  background:#fff;color:#2c3e50}
+.lt-sc input[type=text]{width:126px}
+.lt-sc input[type=date]{width:132px}
+.lt-sc input[type=number]{width:78px;text-align:right}
+.lt-sc .gap{width:1px;height:20px;background:#dde4ea;margin:0 4px}
+.lt-sc .rt{margin-left:auto;display:flex;gap:5px}
+.lt-sc .btn{height:26px;padding:0 13px;font-weight:700}
+/* 이벤트 토글 칩 */
+.lt-chip{display:flex;flex-wrap:wrap;gap:4px}
+.lt-chip button{height:24px;padding:0 10px;border:1px solid #c3cdd7;background:#fff;border-radius:12px;
+  font:inherit;font-size:11.5px;font-weight:800;color:#66737f;cursor:pointer}
+.lt-chip button.on{border-color:#2e6497;background:#2e6497;color:#fff}
+.lt-chip button.on.osp{border-color:#2e77bd;background:#2e77bd}
+.lt-chip button.on.inh{border-color:#c96f1a;background:#e8862e}
+.lt-chip button.on.done{border-color:#2a6b42;background:#2f7d4d}
+.lt-chip button.on.tok{border-color:#6b5aa8;background:#7a68bb}
+
+/* ===== 요약 ===== */
+.lt-kpi{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin:7px 7px 0}
+.lt-k{background:#fff;border:1px solid #dde4ea;border-radius:6px;padding:8px 10px}
+.lt-k b{display:block;font-size:19px;font-weight:900;letter-spacing:-.6px;color:#22537f;line-height:1.25}
+.lt-k b em{font-style:normal;font-size:11px;font-weight:800;margin-left:2px;opacity:.7}
+.lt-k span{font-size:11px;color:#7b8794;font-weight:700}
+.lt-k.warn b{color:#b23030}.lt-k.hold b{color:#b06a12}.lt-k.ok b{color:#1f8a4c}
+
+/* ===== 결과 표 ===== */
+.lt-list{margin:7px;flex:1;min-height:260px;display:flex;flex-direction:column;
+  border:1px solid #8494a4;background:#fff}
+.lt-list .grid-wrap{margin:0;border:0;flex:1;overflow:auto}
+.grid tr.clk{cursor:pointer}
+.grid tr.clk:hover td{background:#eef5fc}
+.grid tr.sel2 td{background:#e3eefa}
+.lt-ev{display:inline-block;min-width:62px;text-align:center;padding:1px 7px;border-radius:3px;
+  font-size:11px;font-weight:800}
+.ev-out{background:#e9f2fc;color:#1d568c}      /* 반출 · 출고 */
+.ev-arr{background:#eef4fa;color:#41556a}      /* 도착 */
+.ev-in{background:#e2f0e6;color:#1f7a44}       /* 입고 */
+.ev-home{background:#fdf3e6;color:#a4600f}     /* 사내입고 */
+.ev-tok{background:#efeafa;color:#5b4a99}      /* 이동표 발행 */
+.ev-memo{background:#f1f3f5;color:#6b7681}     /* 기록 */
+.kd{display:inline-block;padding:1px 6px;border-radius:2px;font-size:10.5px;font-weight:800}
+.kd-o{background:#e9f2fc;color:#2e77bd}.kd-i{background:#fdf0e2;color:#c96f1a}
+.lt-age{display:inline-block;min-width:38px;text-align:center;padding:1px 6px;border-radius:10px;
+  font-size:11px;font-weight:800}
+.a0{background:#eef4fa;color:#41556a}.a1{background:#fdf3e6;color:#a4600f}
+.a2{background:#fdeceb;color:#b23030}.a3{background:#b23030;color:#fff}
+.neg{color:#b23030;font-weight:800}
+.lot{font-weight:800;color:#22537f}
+.mut{color:#96a2ad}
+/* 하단 LOT 요약(그룹) */
+.lt-sum{border-top:1px solid #cfd9e2;background:#f7fafc;padding:7px 9px;font-size:11.5px;
+  color:#41556a;font-weight:700;display:flex;flex-wrap:wrap;gap:12px}
+.lt-sum b{color:#1d568c}
+
+@media (max-width:900px){
+  .lt-kpi{grid-template-columns:repeat(3,1fr)}
+  .lt-sc input[type=text]{width:100%;flex:1;min-width:120px}
+  .lt-sc .rt{margin-left:0;width:100%}
+  .lt-list .grid-wrap{-webkit-overflow-scrolling:touch}
+  .lt-list table.grid{min-width:1020px}
+}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+(async function(){
+  const $=KI.$, el=KI.el, esc=KI.esc;
+  const num=v=>Number(v)||0, fmt=v=>num(v).toLocaleString();
+  if(!await KI.guard('lot-track'))return;
+  const cur=KI.chrome('lot-track');
+  const TODAY=new Date().toISOString().slice(0,10);
+  const dAgo=n=>{const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10);};
+
+  const ui=KI.page(cur,[
+    ['조회','primary',()=>load()],
+    ['조건 초기화','',()=>reset()],
+    ['엑셀다운로드','',()=>csv()],
+    ['인쇄','',()=>window.print()]
+  ]);
+
+  const nt=el('div','note');
+  nt.innerHTML='LOT 하나의 <b>전 생애 이력</b>을 한 화면에서 추적합니다. '+
+    '반출등록 · QR 도착 · 출고 · 가공입고 · 사내입고 · 이동표 발행을 <b>시간순으로 합쳐</b> 보여줍니다.<br>'+
+    '조건을 조합해 <b>어느 업체에서 며칠 머물렀는지</b>, <b>부족수량이 어디서 발생했는지</b>를 찾을 수 있습니다. '+
+    '표 제목행을 누르면 <b>오름차순 → 내림차순 → 등록순</b>으로 정렬됩니다.';
+  ui.pg.appendChild(nt);
+
+  /* ── 검색 조건 ── */
+  const sc=el('div','lt-sc');
+  sc.innerHTML=
+    '<div class="row">'+
+      '<label>LOT</label><input type="text" id="fLot" placeholder="포함 검색">'+
+      '<label>JOB</label><input type="text" id="fJob" placeholder="포함 검색">'+
+      '<label>품번</label><input type="text" id="fMap" placeholder="포함 검색">'+
+      '<span class="gap"></span>'+
+      '<label>이동처</label><select id="fVen"><option value="">전체</option></select>'+
+      '<label>가공공정</label><select id="fMp"><option value="">전체</option></select>'+
+      '<label>표준공정</label><select id="fRt"><option value="">전체</option></select>'+
+    '</div>'+
+    '<div class="row">'+
+      '<label>기간</label>'+
+      '<select id="fQuick">'+
+        '<option value="">직접 지정</option><option value="7">최근 7일</option>'+
+        '<option value="30" selected>최근 30일</option><option value="90">최근 90일</option>'+
+        '<option value="365">최근 1년</option><option value="all">전체</option></select>'+
+      '<input type="date" id="fFrom"> ~ <input type="date" id="fTo">'+
+      '<span class="gap"></span>'+
+      '<label>이동구분</label><select id="fKind">'+
+        '<option value="">전체</option><option value="외주">🚚 외주</option>'+
+        '<option value="사내">🏭 사내</option></select>'+
+      '<label>수량</label><input type="number" id="fQmin" placeholder="최소">'+
+        ' ~ <input type="number" id="fQmax" placeholder="최대">'+
+      '<span class="gap"></span>'+
+      '<label>부족</label><select id="fShort">'+
+        '<option value="">전체</option><option value="y">부족 발생분만</option>'+
+        '<option value="n">부족 없음</option></select>'+
+      '<label>체류</label><select id="fAge">'+
+        '<option value="">전체</option><option value="7">7일 이상</option>'+
+        '<option value="14">14일 이상</option><option value="30">30일 이상</option></select>'+
+    '</div>'+
+    '<div class="row">'+
+      '<label>이벤트</label><div class="lt-chip" id="fEv">'+
+        '<button data-e="반출" class="on osp">반출등록</button>'+
+        '<button data-e="도착" class="on">QR 도착</button>'+
+        '<button data-e="출고" class="on osp">QR 출고</button>'+
+        '<button data-e="입고" class="on done">가공입고</button>'+
+        '<button data-e="사내입고" class="on inh">사내입고</button>'+
+        '<button data-e="기록" class="on">특기사항</button>'+
+        '<button data-e="이동표" class="tok">이동표 발행</button>'+
+      '</div>'+
+      '<span class="gap"></span>'+
+      '<label>특기사항</label><input type="text" id="fRmk" placeholder="사유 · 비고 포함">'+
+      '<span class="rt">'+
+        '<button class="btn primary" id="btnQ">🔎 조회</button>'+
+        '<button class="btn" id="btnR">초기화</button></span>'+
+    '</div>';
+  ui.pg.appendChild(sc);
+
+  const kpi=el('div','lt-kpi'); ui.pg.appendChild(kpi);
+
+  /* ── 결과 표 ── */
+  const L=el('div','lt-list');
+  const gw=el('div','grid-wrap'); const tbl=el('table','grid');
+  tbl.innerHTML='<thead><tr>'+
+    '<th style="width:92px"  data-sk="date">일자</th>'+
+    '<th style="width:52px"  data-sk="time">시각</th>'+
+    '<th style="width:82px"  data-sk="ev">이벤트</th>'+
+    '<th style="width:52px"  data-sk="kind">구분</th>'+
+    '<th style="width:104px" data-sk="part">LOT</th>'+
+    '<th style="width:110px" data-sk="job">JOB</th>'+
+    '<th style="width:100px" data-sk="map_part">품번</th>'+
+    '<th style="width:128px" data-sk="mpFull">가공공정</th>'+
+    '<th style="width:120px" data-sk="vendor">이동처(보유처)</th>'+
+    '<th style="width:78px"  data-sk="qty"   data-st="num">수량</th>'+
+    '<th style="width:66px"  data-sk="short" data-st="num">부족</th>'+
+    '<th style="width:62px"  data-sk="age"   data-st="num">체류일</th>'+
+    '<th style="width:74px"  data-sk="worker">등록자</th>'+
+    '<th data-sk="remark">특기사항 · 사유</th>'+
+    '</tr></thead><tbody></tbody>';
+  gw.appendChild(tbl); L.appendChild(gw);
+  const sum=el('div','lt-sum'); L.appendChild(sum);
+  ui.pg.appendChild(L);
+  const tbody=tbl.querySelector('tbody');
+
+  /* 제목행 정렬 (공용 헬퍼) */
+  const SORT=KI.sortHead(tbl, ()=>draw());
+
+  let EV=[], PROC=[], RT=[], LOADED=false;
+  const pName=c=>{const p=PROC.find(x=>x.process_code===c); return p?p.process_name:'';};
+  const ageCls=d=>d>=30?'a3':d>=14?'a2':d>=7?'a1':'a0';
+  const dday=(a,b)=>{ if(!a||!b) return null;
+    const x=new Date(a+'T00:00:00'), y=new Date(b+'T00:00:00');
+    return Math.round((y-x)/86400000); };
+
+  const EVCLS={'반출':'ev-out','출고':'ev-out','도착':'ev-arr','입고':'ev-in',
+               '사내입고':'ev-home','이동표':'ev-tok','기록':'ev-memo'};
+
+  /* ── 이벤트 합치기 ── */
+  function build(prog, osp, mv, rcpt, tok){
+    /* LOT → JOB · 품번 · 표준공정 색인 (진행행 · 반출건 양쪽에서 보강) */
+    const info={};
+    const put=(part,job,map,rt)=>{
+      if(!part) return; const k=String(part);
+      const o=info[k]||(info[k]={part:k,job:'',map_part:'',route:''});
+      if(job&&!o.job) o.job=job;
+      if(map&&!o.map_part) o.map_part=map;
+      if(rt&&!o.route) o.route=rt;
+    };
+    prog.forEach(p=>put(p.part,p.job,'',''));
+    osp.forEach(o=>put(o.part,o.job,o.map_part,o.route_no));
+    const inf=p=>info[String(p)]||{job:'',map_part:'',route:''};
+
+    /* 반출건 색인 : QR 이벤트에 표준공정 · 납기 · 반출일 보강 */
+    const ospNo={}; osp.forEach(o=>{ ospNo[o.no]=o; });
+
+    const rows=[];
+    const push=(r)=>{
+      const i=inf(r.part);
+      r.job = r.job || i.job || '';
+      r.map_part = r.map_part || i.map_part || '';
+      r.route = r.route || i.route || '';
+      r.mpFull = r.mp ? (r.mp + (pName(r.mp)?' · '+pName(r.mp):'')) : '';
+      r.qty = r.qty==null ? null : num(r.qty);
+      r.short = num(r.short);
+      rows.push(r);
+    };
+
+    /* 1) 반출등록 (지시) */
+    osp.forEach(o=>{
+      if(!o.sdate) return;
+      push({date:o.sdate, time:'', ev:'반출', kind:o.move_kind||'외주',
+        part:o.part, job:o.job, map_part:o.map_part, mp:o.mp, vendor:o.vendor||'',
+        qty:o.qty, short:0, osp_no:o.no, due:o.edate||'', route:o.route_no,
+        age:(o.idate?dday(o.sdate,o.idate):dday(o.sdate,TODAY)),
+        worker:'', src:'등록',
+        remark:(o.edate?'납기 '+o.edate:'')+(o.idate?' · 입고완료 '+o.idate:' · 미입고')});
+    });
+    /* 2) 가공완료 입고 (반출건 종결) */
+    osp.forEach(o=>{
+      if(!o.idate) return;
+      push({date:o.idate, time:'', ev:'입고', kind:o.move_kind||'외주',
+        part:o.part, job:o.job, map_part:o.map_part, mp:o.mp, vendor:o.vendor||'',
+        qty:o.qty, short:0, osp_no:o.no, due:o.edate||'', route:o.route_no,
+        age:dday(o.sdate,o.idate), worker:'', src:'등록',
+        remark:'반출 '+(o.sdate||'-')+' → 입고 (체류 '+(dday(o.sdate,o.idate)==null?'-':dday(o.sdate,o.idate))+'일)'});
+    });
+    /* 3) QR 스캔 이벤트 */
+    mv.forEach(m=>{
+      const o=ospNo[m.osp_no]||null;
+      const d=m.move_date||String(m.created_at||'').slice(0,10);
+      push({date:d, time:String(m.created_at||'').replace('T',' ').substring(11,16),
+        ev:m.io||'기록', kind:m.move_kind||'외주',
+        part:m.part, job:'', map_part:'', mp:m.mp, vendor:m.vendor||'',
+        qty:(m.io==='출고'? m.out_qty : (m.in_qty!=null?m.in_qty:m.out_qty)),
+        short:m.short_qty, osp_no:m.osp_no, due:o?(o.edate||''):'',
+        route:o?o.route_no:'', age:(o&&o.sdate?dday(o.sdate,d):null),
+        worker:m.worker||'', src:m.source||'QR',
+        remark:[m.reason,m.remark].filter(Boolean).join(' | ')});
+    });
+    /* 4) 사내입고(종결) */
+    rcpt.forEach(r=>{
+      push({date:r.in_date, time:String(r.created_at||'').replace('T',' ').substring(11,16),
+        ev:'사내입고', kind:'사내', part:r.part, job:r.job, map_part:'', mp:'',
+        vendor:'경일FB', qty:r.qty, short:r.short_qty, osp_no:null, due:'', route:'',
+        age:null, worker:r.worker||'', src:'등록',
+        remark:[r.reason,r.remark].filter(Boolean).join(' | ')});
+    });
+    /* 5) 이동표(QR) 발행 */
+    tok.forEach(t=>{
+      push({date:String(t.issued_at||'').slice(0,10),
+        time:String(t.issued_at||'').replace('T',' ').substring(11,16),
+        ev:'이동표', kind:'외주', part:t.part, job:t.job, map_part:'', mp:'',
+        vendor:'', qty:null, short:0, osp_no:null, due:'', route:'', age:null,
+        worker:t.issued_by||'', src:'발행',
+        remark:'상태 '+(t.status||'')+(t.expires_at?' · 만료 '+String(t.expires_at).slice(0,10):'')+
+               ' · 사용 '+num(t.use_count)+'회'});
+    });
+
+    /* 최신순 기본 정렬 (등록순 = 이 순서) */
+    rows.sort((a,b)=> String(b.date||'').localeCompare(String(a.date||''))
+                   || String(b.time||'').localeCompare(String(a.time||'')));
+    rows.forEach((r,i)=>r._i=i+1);
+    return rows;
+  }
+
+  /* ── 조건 필터 ── */
+  function evOn(){ return [].slice.call($('#fEv').querySelectorAll('button'))
+      .filter(b=>b.classList.contains('on')).map(b=>b.dataset.e); }
+  function filtered(){
+    const lot=($('#fLot').value||'').trim().toLowerCase();
+    const job=($('#fJob').value||'').trim().toLowerCase();
+    const map=($('#fMap').value||'').trim().toLowerCase();
+    const ven=$('#fVen').value, mp=$('#fMp').value, rt=$('#fRt').value;
+    const f=$('#fFrom').value, t=$('#fTo').value, kd=$('#fKind').value;
+    const qmin=$('#fQmin').value===''?null:num($('#fQmin').value);
+    const qmax=$('#fQmax').value===''?null:num($('#fQmax').value);
+    const sh=$('#fShort').value, ag=num($('#fAge').value);
+    const rmk=($('#fRmk').value||'').trim().toLowerCase();
+    const evs=evOn();
+    return EV.filter(r=>{
+      if(evs.indexOf(r.ev)<0) return false;
+      if(lot && String(r.part||'').toLowerCase().indexOf(lot)<0) return false;
+      if(job && String(r.job||'').toLowerCase().indexOf(job)<0) return false;
+      if(map && String(r.map_part||'').toLowerCase().indexOf(map)<0) return false;
+      if(ven && r.vendor!==ven) return false;
+      if(mp  && r.mp!==mp) return false;
+      if(rt  && String(r.route||'')!==rt) return false;
+      if(kd  && r.kind!==kd) return false;
+      if(f && String(r.date||'')<f) return false;
+      if(t && String(r.date||'')>t) return false;
+      if(qmin!=null && !(num(r.qty)>=qmin)) return false;
+      if(qmax!=null && !(num(r.qty)<=qmax)) return false;
+      if(sh==='y' && !(num(r.short)>0)) return false;
+      if(sh==='n' && num(r.short)>0) return false;
+      if(ag && !(num(r.age)>=ag)) return false;
+      if(rmk && String(r.remark||'').toLowerCase().indexOf(rmk)<0) return false;
+      return true;
+    });
+  }
+
+  /* ── 그리기 ── */
+  function draw(){
+    const list=filtered();
+    tbody.innerHTML='';
+    if(!list.length){
+      tbody.innerHTML='<tr><td colspan="14" class="center" style="height:56px;color:#8894a0">'+
+        (LOADED?'조건에 맞는 이력이 없습니다.':'상단 [🔎 조회]를 눌러 조회하세요.')+'</td></tr>';
+      kpiDraw([]); sumDraw([]); return;
+    }
+    SORT.apply(list).forEach(r=>{
+      const t=el('tr','clk');
+      t.innerHTML=
+        '<td class="center">'+esc(r.date||'')+'</td>'+
+        '<td class="center mut">'+esc(r.time||'')+'</td>'+
+        '<td class="center"><span class="lt-ev '+(EVCLS[r.ev]||'ev-memo')+'">'+esc(r.ev)+'</span></td>'+
+        '<td class="center"><span class="kd '+(r.kind==='사내'?'kd-i':'kd-o')+'">'+esc(r.kind)+'</span></td>'+
+        '<td class="lot">'+esc(r.part||'')+'</td>'+
+        '<td>'+esc(r.job||'')+'</td>'+
+        '<td>'+esc(r.map_part||'')+'</td>'+
+        '<td>'+(r.mpFull?esc(r.mpFull):'<span class="mut">-</span>')+'</td>'+
+        '<td>'+(r.vendor?esc(r.vendor):'<span class="mut">-</span>')+'</td>'+
+        '<td class="num">'+(r.qty==null?'<span class="mut">-</span>':fmt(r.qty))+'</td>'+
+        '<td class="num">'+(num(r.short)>0?'<span class="neg">'+fmt(r.short)+'</span>':'0')+'</td>'+
+        '<td class="center">'+(r.age==null?'<span class="mut">-</span>'
+            :'<span class="lt-age '+ageCls(num(r.age))+'">'+num(r.age)+'일</span>')+'</td>'+
+        '<td class="center">'+esc(r.worker||'')+'</td>'+
+        '<td title="'+esc(r.remark||'')+'">'+esc(r.remark||'')+'</td>';
+      /* 행 클릭 : 같은 LOT만 좁혀 보기 */
+      t.addEventListener('click',()=>{ $('#fLot').value=r.part||''; draw(); });
+      tbody.appendChild(t);
+    });
+    kpiDraw(list); sumDraw(list);
+  }
+
+  function kpiDraw(list){
+    const lots=new Set(list.map(r=>r.part).filter(Boolean));
+    const vens=new Set(list.filter(r=>r.vendor&&r.vendor!=='경일FB').map(r=>r.vendor));
+    const out=list.filter(r=>r.ev==='반출').reduce((s,r)=>s+num(r.qty),0);
+    const inq=list.filter(r=>r.ev==='입고').reduce((s,r)=>s+num(r.qty),0);
+    const sht=list.reduce((s,r)=>s+num(r.short),0);
+    const ages=list.map(r=>num(r.age)).filter(v=>v>0);
+    const avg=ages.length?Math.round(ages.reduce((a,b)=>a+b,0)/ages.length):0;
+    const K=[['이벤트',fmt(list.length),'건',''],['LOT',fmt(lots.size),'개',''],
+             ['이동처',fmt(vens.size),'곳',''],['반출수량',fmt(out),'EA','hold'],
+             ['가공입고',fmt(inq),'EA','ok'],['부족합계',fmt(sht),'EA',sht>0?'warn':'']];
+    kpi.innerHTML=K.map(k=>'<div class="lt-k'+(k[3]?' '+k[3]:'')+'"><b>'+k[1]+
+      '<em>'+k[2]+'</em></b><span>'+k[0]+'</span></div>').join('');
+    kpi.title='평균 체류 '+avg+'일';
+  }
+  function sumDraw(list){
+    if(!list.length){ sum.innerHTML=''; return; }
+    const by={};
+    list.forEach(r=>{ const k=r.part||'-'; (by[k]||(by[k]={n:0,last:'',ven:''})).n++;
+      if(String(r.date||'')>String(by[k].last||'')){ by[k].last=r.date||''; by[k].ven=r.vendor||''; } });
+    const top=Object.keys(by).sort((a,b)=>by[b].n-by[a].n).slice(0,8);
+    sum.innerHTML='<span>LOT별 이력수 —</span>'+top.map(k=>
+      '<span><b>'+esc(k)+'</b> '+by[k].n+'건 · 최근 '+esc(by[k].last||'-')+
+      (by[k].ven?' ('+esc(by[k].ven)+')':'')+'</span>').join('')+
+      (Object.keys(by).length>8?'<span class="mut">외 '+(Object.keys(by).length-8)+'개</span>':'');
+  }
+
+  /* ── 조회 ── */
+  async function load(){
+    KI.msg('조회중...');
+    try{
+      const [prog,osp,mv,rcpt,tok,proc,ven,rt]=await Promise.all([
+        KI.get(OBJ.lotProg+'?select=*&order=no.asc&limit=5000'),
+        KI.get(OBJ.ospOrder+'?select=*&order=no.desc&limit=5000'),
+        KI.get(OBJ.lotMove+'?select=*&order=created_at.desc&limit=5000'),
+        KI.get(OBJ.lotReceipt+'?select=*&order=created_at.desc&limit=5000'),
+        KI.get(OBJ.lotToken+'?select=*&order=issued_at.desc&limit=5000'),
+        KI.get(OBJ.process+'?select=process_code,process_name&order=sort_order.asc'),
+        KI.get(OBJ.vendor+'?select=vendor_name&order=vendor_name.asc'),
+        KI.get(OBJ.stdRoute+'?select=standard_process_no,standard_process_name&order=standard_process_no.asc')
+      ]);
+      PROC=proc||[]; RT=rt||[];
+      /* 선택 목록 채우기 (최초 1회) */
+      if(!LOADED){
+        const vs=new Set((ven||[]).map(v=>v.vendor_name).filter(Boolean));
+        (osp||[]).forEach(o=>{ if(o.vendor) vs.add(o.vendor); });
+        $('#fVen').innerHTML='<option value="">전체</option>'+
+          [].concat(Array.from(vs)).sort((a,b)=>String(a).localeCompare(String(b),'ko'))
+            .map(v=>'<option>'+esc(v)+'</option>').join('');
+        $('#fMp').innerHTML='<option value="">전체</option>'+
+          PROC.map(p=>'<option value="'+esc(p.process_code)+'">'+esc(p.process_code)+
+            ' · '+esc(p.process_name)+'</option>').join('');
+        $('#fRt').innerHTML='<option value="">전체</option>'+
+          RT.map(r=>'<option value="'+esc(r.standard_process_no)+'">'+
+            esc(r.standard_process_name)+'</option>').join('');
+      }
+      EV=build(prog||[], osp||[], mv||[], rcpt||[], tok||[]);
+      LOADED=true; draw();
+      KI.msg(cur.path+' — 이력 '+EV.length.toLocaleString()+'건을 불러왔습니다.');
+    }catch(e){
+      tbody.innerHTML='<tr><td colspan="14" class="center" style="height:56px;color:#b23030">❌ '+
+        esc(e.message)+'</td></tr>';
+      KI.msg('❌ '+e.message);
+    }
+  }
+
+  function reset(){
+    ['fLot','fJob','fMap','fRmk','fQmin','fQmax','fFrom','fTo'].forEach(id=>$('#'+id).value='');
+    ['fVen','fMp','fRt','fKind','fShort','fAge'].forEach(id=>$('#'+id).selectedIndex=0);
+    $('#fQuick').value='30'; quick();
+    [].forEach.call($('#fEv').querySelectorAll('button'),b=>
+      b.classList.toggle('on', b.dataset.e!=='이동표'));
+    SORT.reset(); draw();
+  }
+  function quick(){
+    const v=$('#fQuick').value;
+    if(v==='all'){ $('#fFrom').value=''; $('#fTo').value=''; }
+    else if(v){ $('#fFrom').value=dAgo(num(v)); $('#fTo').value=TODAY; }
+  }
+
+  /* ── 이벤트 바인딩 ── */
+  ['fLot','fJob','fMap','fRmk','fQmin','fQmax'].forEach(id=>
+    $('#'+id).addEventListener('input',()=>{ if(LOADED) draw(); }));
+  ['fVen','fMp','fRt','fKind','fShort','fAge','fFrom','fTo'].forEach(id=>
+    $('#'+id).addEventListener('change',()=>{ if(LOADED) draw(); }));
+  $('#fQuick').addEventListener('change',()=>{ quick(); if(LOADED) draw(); });
+  $('#fEv').addEventListener('click',ev=>{
+    const b=ev.target.closest('button'); if(!b) return;
+    b.classList.toggle('on'); if(LOADED) draw();
+  });
+  $('#btnQ').addEventListener('click',()=>load());
+  $('#btnR').addEventListener('click',()=>reset());
+  sc.addEventListener('keydown',ev=>{ if(ev.key==='Enter') load(); });
+
+  function csv(){
+    const list=SORT.apply(filtered());
+    if(!list.length){ alert('내보낼 데이터가 없습니다.'); return; }
+    const head=['일자','시각','이벤트','구분','LOT','JOB','품번','가공공정','이동처',
+                '수량','부족','체류일','등록자','출처','반출건','특기사항'];
+    const body=list.map(r=>[r.date,r.time,r.ev,r.kind,r.part,r.job,r.map_part,r.mpFull,r.vendor,
+        (r.qty==null?'':r.qty),r.short,(r.age==null?'':r.age),r.worker,r.src,(r.osp_no||''),r.remark]
+      .map(v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"').join(','));
+    const a=el('a');
+    a.href=URL.createObjectURL(new Blob(['\ufeff'+head.join(',')+'\n'+body.join('\n')],{type:'text/csv'}));
+    a.download='LOT추적_'+TODAY+'.csv'; a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  /* 다른 화면에서 ?lot=Lot1234 로 넘어오면 해당 LOT으로 바로 조회 */
+  const qs=new URLSearchParams(location.search);
+  if(qs.get('lot')) $('#fLot').value=qs.get('lot');
+  $('#fQuick').value='30'; quick();
+  await load();
+})();
+</script>
+</body>
+</html>

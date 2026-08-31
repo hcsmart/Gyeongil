@@ -1202,6 +1202,53 @@ function makeUpload(def, title, getRows, onSaved){
 }
 
 /* ---------- 그리드 화면 ---------- */
+/* ---------- 표 제목행 정렬 (공용) ----------
+   · 대상 : th[data-sk="필드명"]  (data-st 에 숫자형 타입이면 숫자 비교)
+   · 클릭 로테이션 : 오름차순 ▲ → 내림차순 ▼ → 등록순 ↕
+   · valOf(row,key) 를 넘기면 파생값(중첩 객체 등)도 정렬 가능
+   사용 : const S=KI.sortHead(tbl, ()=>draw());  ... S.apply(rows) */
+const SORT_NUM={won:1,n0:1,days:1,w2:1,num:1,int:1};
+function sortHead(tbl, redraw, valOf){
+  const S={k:null,d:0,t:''};
+  const ths=[].slice.call(tbl.querySelectorAll('th[data-sk]'));
+  const val=valOf || ((r,k)=>r[k]);
+  function sync(){
+    ths.forEach(th=>{
+      const on = S.k===th.dataset.sk && S.d;
+      th.classList.toggle('on',!!on);
+      const a=th.querySelector('.sar'); if(a) a.textContent = on ? (S.d>0?'▲':'▼') : '↕';
+    });
+  }
+  function apply(rows){
+    if(!S.k||!S.d||!rows||!rows.length) return rows||[];
+    const num=!!SORT_NUM[S.t];
+    return rows.map((r,i)=>({r:r,i:i})).sort((a,b)=>{
+      const x=val(a.r,S.k), y=val(b.r,S.k);
+      const ex=(x==null||x===''), ey=(y==null||y==='');
+      if(ex&&ey) return a.i-b.i;
+      if(ex) return 1; if(ey) return -1;            /* 빈값은 방향과 무관하게 항상 뒤로 */
+      const c = num ? (Number(x)||0)-(Number(y)||0)
+                    : String(x).localeCompare(String(y),'ko',{numeric:true,sensitivity:'base'});
+      return c ? S.d*c : a.i-b.i;                   /* 동일값은 조회(등록) 순서 유지 */
+    }).map(o=>o.r);
+  }
+  ths.forEach(th=>{
+    th.classList.add('sortable');
+    if(!th.title) th.title='클릭 : 오름차순 → 내림차순 → 등록순';
+    if(!th.querySelector('.sar')) th.appendChild(el('span','sar','↕'));
+    th.addEventListener('click',()=>{
+      const k=th.dataset.sk, t=th.dataset.st||'';
+      if(S.k!==k){ S.k=k; S.d=1; S.t=t; }
+      else if(S.d===1){ S.d=-1; }
+      else { S.k=null; S.d=0; S.t=''; }
+      sync(); if(redraw) redraw();
+    });
+  });
+  sync();
+  return {apply:apply, sync:sync, state:S,
+          reset:()=>{ S.k=null; S.d=0; S.t=''; sync(); }};
+}
+
 async function grid(id, need){
   if(!await guard(id))return;
   const cur=chrome(id), def=VIEWS[id];
@@ -1213,11 +1260,11 @@ async function grid(id, need){
     if(can(id,'delete')) acts.push(['삭제','danger',()=>removeRow()]);
   }
   acts.push(['초기화','',()=>{ sp.querySelectorAll('input').forEach(i=>i.value=''); sp.querySelectorAll('select').forEach(s=>s.selectedIndex=0);
-    state.sort={k:null,d:0,t:''}; syncSort(); if(state.rows.length) render(state.rows); }]);
-  acts.push(['엑셀다운로드','',()=>csv(cur.it,def,sortRows(state.rows))]);
+    SORT.reset(); if(state.rows.length) render(state.rows); }]);
+  acts.push(['엑셀다운로드','',()=>csv(cur.it,def,SORT.apply(state.rows))]);
   acts.push(['인쇄','',()=>window.print()]);
   const ui=page(cur,acts);
-  const state={rows:[],sel:null,sort:{k:null,d:0,t:''}};
+  const state={rows:[],sel:null};
   let modal=null, uploader=null;
   const editable = def.edit && (can(id,'save')||can(id,'edit'));
   if(editable) modal=makeModal(def, async(what)=>{ await run(null); msg('✓ '+what+'되었습니다.'); });
@@ -1250,19 +1297,8 @@ async function grid(id, need){
   const tbl=el('table','grid'), thead=el('thead'), tr=el('tr');
   def.cols.forEach(c=>{
     const th=el('th',null,c[0]); if(c[1])th.style.width=c[1]+'px';
-    /* 데이터 필드가 있는 컬럼만 정렬 대상 */
-    if(c[3]){
-      th.classList.add('sortable'); th.dataset.sk=c[3]; th.dataset.st=c[4]||'';
-      th.title='클릭 : 오름차순 → 내림차순 → 등록순';
-      const ar=el('span','sar','↕'); th.appendChild(ar);
-      th.addEventListener('click',()=>{
-        const k=c[3];
-        if(state.sort.k!==k) state.sort={k:k,d:1,t:c[4]||''};
-        else if(state.sort.d===1) state.sort={k:k,d:-1,t:c[4]||''};
-        else state.sort={k:null,d:0,t:''};
-        syncSort(); render(state.rows);
-      });
-    }
+    /* 데이터 필드가 있는 컬럼만 정렬 대상 (sortHead 가 자동 인식) */
+    if(c[3]){ th.dataset.sk=c[3]; th.dataset.st=c[4]||''; }
     tr.appendChild(th);
   });
   if(def.jump){ const th=el('th',null,'이동'); th.style.width='80px'; tr.appendChild(th); }
@@ -1273,34 +1309,13 @@ async function grid(id, need){
   function hint(t){ tbody.innerHTML=''; const r=el('tr'),d=el('td','center',t);
     d.colSpan=def.cols.length+(def.jump?1:0); d.style.cssText='color:#8894a0;height:60px'; r.appendChild(d); tbody.appendChild(r); }
 
-  /* ── 정렬 ── */
-  const NUMT={won:1,n0:1,days:1,w2:1};
-  function syncSort(){
-    [].forEach.call(thead.querySelectorAll('th.sortable'),th=>{
-      const on = state.sort.k===th.dataset.sk && state.sort.d;
-      th.classList.toggle('on',!!on);
-      th.querySelector('.sar').textContent = on ? (state.sort.d>0?'▲':'▼') : '↕';
-    });
-  }
-  function sortRows(rows){
-    const s=state.sort; if(!s.k||!s.d) return rows;
-    const num=!!NUMT[s.t];
-    return rows.map((r,i)=>({r:r,i:i})).sort((a,b)=>{
-      const x=a.r[s.k], y=b.r[s.k];
-      const ex=(x==null||x===''), ey=(y==null||y==='');
-      if(ex&&ey) return a.i-b.i;
-      if(ex) return 1; if(ey) return -1;          /* 빈값은 방향과 무관하게 항상 뒤로 */
-      let c;
-      if(num) c=(Number(x)||0)-(Number(y)||0);
-      else    c=String(x).localeCompare(String(y),'ko',{numeric:true,sensitivity:'base'});
-      return c ? s.d*c : a.i-b.i;                 /* 동일값은 조회(등록) 순서 유지 */
-    }).map(o=>o.r);
-  }
+  /* 제목행 정렬 (공용 헬퍼) */
+  const SORT=sortHead(tbl, ()=>render(state.rows));
 
   function render(rows){
     tbody.innerHTML='';
     if(!rows.length){ hint('조회 결과가 없습니다'); return; }
-    sortRows(rows).forEach(r=>{
+    SORT.apply(rows).forEach(r=>{
       const t=el('tr');
       def.cols.forEach(c=>{ const td=el('td',c[2]||''); td.innerHTML=cell(r,c); td.title=td.textContent; t.appendChild(td); });
       if(def.jump){
@@ -1352,5 +1367,6 @@ return {CFG:C, $:$, el:el, esc:esc,
         me:()=>ME, loginError:loginError, isAdmin:isAdmin, clearCache:cacheClear, can:can, session:session, guard:guard,
         header:chrome, chrome:chrome, page:page, masters:masters, M:M, msg:msg,
         grid:grid, csv:csv, makeUpload:makeUpload, POST:POST, cell:cell, LK:LK, emailOf:emailOf,
+        sortHead:sortHead,
         isPhone:isPhone, openPop:openPop};
 })();

@@ -223,10 +223,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     '<span class="sp" id="cnt"></span>';
   const gw=el('div','grid-wrap'); const tbl=el('table','grid');
   tbl.innerHTML='<thead><tr>'+
-    '<th style="width:110px" class="sortable" data-sk="job" title="클릭 : 오름차순 → 내림차순 → 등록순">JOB<span class="sar">↕</span></th>'+
-    '<th style="width:104px" class="sortable" data-sk="map" title="클릭 : 오름차순 → 내림차순 → 등록순">품번<span class="sar">↕</span></th>'+
-    '<th style="width:104px" class="sortable" data-sk="part" title="클릭 : 오름차순 → 내림차순 → 등록순">LOT<span class="sar">↕</span></th>'+
-    '<th style="width:120px" class="sortable" data-sk="std" title="클릭 : 오름차순 → 내림차순 → 등록순">표준공정<span class="sar">↕</span></th>'+
+    '<th style="width:110px" data-sk="job">JOB</th>'+
+    '<th style="width:104px" data-sk="map">품번</th>'+
+    '<th style="width:104px" data-sk="part">LOT</th>'+
+    '<th style="width:120px" data-sk="std">표준공정</th>'+
     '<th style="width:340px">공정 진행</th>'+
     '<th style="width:126px">현재 위치(보유처)</th><th style="width:92px">이동일자</th>'+
     '<th style="width:120px">진척</th>'+
@@ -236,38 +236,11 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   ['q','fs'].forEach(id=>$('#'+id).addEventListener('input',draw));
   $('#btnQ').addEventListener('click',()=>load());
 
-  /* ── 제목행 정렬 : 오름차순 ▲ → 내림차순 ▼ → 등록순 ↕ 로테이션 ── */
-  let SORT={k:'',d:0};
-  const sortVal=(c,k)=> k==='job' ? (c.job||'')
-                      : k==='map' ? (c.map_part||'')
-                      : k==='part'? (c.part||'')
-                      : (c.std?c.std.standard_process_name:'');
-  function sortList(list){
-    if(!SORT.k||!SORT.d) return list;
-    return list.map((c,i)=>({c:c,i:i})).sort((a,b)=>{
-      const x=String(sortVal(a.c,SORT.k)||''), y=String(sortVal(b.c,SORT.k)||'');
-      if(!x&&y) return 1; if(x&&!y) return -1;          /* 빈값은 항상 뒤로 */
-      const r=x.localeCompare(y,'ko',{numeric:true,sensitivity:'base'});
-      return r ? SORT.d*r : a.i-b.i;                     /* 동일값은 등록순 유지 */
-    }).map(o=>o.c);
-  }
-  function syncSort(){
-    [].forEach.call(tbl.querySelectorAll('thead th[data-sk]'),th=>{
-      const on = SORT.k===th.getAttribute('data-sk') && SORT.d;
-      th.classList.toggle('on',!!on);
-      th.querySelector('.sar').textContent = on ? (SORT.d>0?'▲':'▼') : '↕';
-    });
-  }
-  [].forEach.call(tbl.querySelectorAll('thead th[data-sk]'),th=>{
-    th.addEventListener('click',()=>{
-      const k=th.getAttribute('data-sk');
-      if(SORT.k!==k) SORT={k:k,d:1};
-      else if(SORT.d===1) SORT={k:k,d:-1};
-      else SORT={k:'',d:0};
-      syncSort(); draw();
-    });
-  });
-  syncSort();
+  /* ── 제목행 정렬 : 공용 헬퍼 (오름차순 ▲ → 내림차순 ▼ → 등록순 ↕) ── */
+  const SORT=KI.sortHead(tbl, ()=>draw(), (c,k)=>
+      k==='job' ? (c.job||'') : k==='map' ? (c.map_part||'')
+    : k==='part'? (c.part||'') : (c.std?c.std.standard_process_name:''));
+  const sortList=rows=>SORT.apply(rows);
 
   /* ── 진행등록 모달 ── */
   const dim=el('div','lr-dim'); const mo=el('div','lr-mo');
