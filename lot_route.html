@@ -292,7 +292,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
             'style="height:26px;padding:0 9px;border:1px solid #9aa8b6;'+
             'background:linear-gradient(#fff,#e1e7ec);color:#405163;white-space:nowrap;font-weight:700">자동생성</button>'+
         '</span>'+
-        '<label>품번</label><input type="text" id="fMap" list="dlMap" autocomplete="off" placeholder="제품번호 입력 후 선택">'+
+        '<label>품번</label><select id="fMap"><option value="">선택</option></select>'+
         '<label>표준공정 *</label><select id="fRoute"></select>'+
         '<label>가공공정 *</label><select id="fMp"></select>'+
         '<label>이동 구분 *</label><select id="fKind">'+
@@ -329,7 +329,6 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       '<button class="btn primary" id="mS">📤 반출 등록</button></div>';
   document.body.appendChild(dim); document.body.appendChild(mo);
   mo.style.display='none';
-  const dl=el('datalist'); dl.id='dlMap'; document.body.appendChild(dl);
   const dlD=el('datalist'); dlD.id='dlDept'; document.body.appendChild(dlD);
   function close(){ dim.classList.remove('on'); mo.style.display='none'; sel=null; NEW=false; editNo=null; }
   $('#mX').addEventListener('click',close); $('#mC').addEventListener('click',close);
@@ -851,8 +850,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const e=new Date(); e.setDate(e.getDate()+7); $('#fEdate').value=e.toISOString().slice(0,10);
     $('#fQuote').value='';
     const prev=ospOf(c.part).filter(o=>(o.map_part||o.mold_no))[0];
-    $('#fMap').value=c.map_part||(prev?(prev.map_part||(MOLDS.find(x=>x.mold_no===prev.mold_no)||{}).part_no||''):'');
-    syncMap();
+    setMap(c.map_part||(prev?(prev.map_part||(MOLDS.find(x=>x.mold_no===prev.mold_no)||{}).part_no||''):''));
     /* 출발지 : 미입고 반출건이 있으면 그 건에서 이관(자동), 없으면 사내 신규 반출.
        미입고 건이 2개 이상일 때만 선택이 필요하므로 그때만 노출한다. */
     $('#fFrom').innerHTML='<option value="">사내 → 외주 (신규 반출)</option>'+
@@ -936,7 +934,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     $('#fKind').value='외주'; syncKind();
     $('#fSdate').value=TODAY;
     const e=new Date(); e.setDate(e.getDate()+7); $('#fEdate').value=e.toISOString().slice(0,10);
-    $('#fQuote').value=''; $('#fMap').value=''; syncMap();
+    $('#fQuote').value=''; setMap('');
     $('#fFrom').innerHTML='<option value="">사내 → 외주 (신규 반출)</option>'; showFrom(false); fromNote();
     lotBody.innerHTML=''; lotRow('','');
     $('#mS').style.display='';
@@ -978,7 +976,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     if($('#fKind').value==='사내') $('#fDept').value=o.vendor||''; else $('#fVen').value=o.vendor||'';
     $('#fSdate').value=o.sdate||''; $('#fEdate').value=o.edate||'';
     $('#fQuote').value=o.quote==null?'':o.quote;
-    $('#fMap').value=o.map_part||(MOLDS.find(x=>x.mold_no===o.mold_no)||{}).part_no||''; syncMap();
+    setMap(o.map_part||(MOLDS.find(x=>x.mold_no===o.mold_no)||{}).part_no||'');
     const L=Array.isArray(o.lots)&&o.lots.length ? o.lots
           : (o.lot?String(o.lot).split(',').map(x=>({lot:x.trim(),qty:null})):[{lot:o.part,qty:o.qty}]);
     lotBody.innerHTML=''; L.forEach(x=>lotRow(x.lot,x.qty));
@@ -1014,6 +1012,20 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
 
   /* 품번(제품번호) → 기준정보 › 금형정보 기준으로 금형제번 자동 매칭 */
   const moldOf = v => MOLDS.find(x=>String(x.part_no||'')===String(v));
+  /* 품번 선택 목록 재구성 — keep 은 금형정보에 없는 기존값(예전 데이터)도 유지하기 위한 것 */
+  function fillMap(keep){
+    const sel2=$('#fMap'); if(!sel2) return;
+    const list=[...new Set(MOLDS.map(m=>String(m.part_no||'').trim()).filter(Boolean))]
+      .sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}));
+    const k=String(keep==null?'':keep).trim();
+    sel2.innerHTML='<option value="">선택</option>'+
+      list.map(p=>{ const m=MOLDS.find(x=>String(x.part_no||'').trim()===p)||{};
+        return '<option value="'+esc(p)+'">'+esc(p)+(m.mold_no?' · '+esc(m.mold_no):'')+'</option>'; }).join('')+
+      (k&&list.indexOf(k)<0?'<option value="'+esc(k)+'">'+esc(k)+' (금형정보 미등록)</option>':'');
+    sel2.value=k;
+  }
+  /* 값 지정 : 목록에 없는 품번이면 임시 항목으로 추가한 뒤 선택 */
+  function setMap(v){ fillMap(v); syncMap(); }
   function syncMap(){
     const v=$('#fMap').value.trim();
     const m=moldOf(v);
@@ -1021,7 +1033,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         '</b>'+(m.asset_owner?' · 자산처 '+esc(m.asset_owner):'')
       : (v?'<span style="color:#b05c12">⚠ 금형정보에 등록되지 않은 품번입니다.</span>':'');
   }
-  $('#fMap').addEventListener('input',syncMap);
+  $('#fMap').addEventListener('change',syncMap);
   $('#fFrom').addEventListener('change',fromNote);
 
   /* ── 반출 LOT · 수량 (다건) ── */
@@ -1507,8 +1519,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       .map(o=>String(o.vendor||'').trim()).filter(Boolean))].sort();
     const dd=$('#dlDept'); if(dd) dd.innerHTML=deps.map(d=>'<option>'+esc(d)+'</option>').join('');
     rs.value=rv; vn.value=vv; fillMp(rv,mv);
-    dl.innerHTML=MOLDS.filter(m=>m.part_no).map(m=>'<option value="'+esc(m.part_no)+'">'+
-      esc(m.mold_no||'')+(m.asset_owner?' · '+esc(m.asset_owner):'')+'</option>').join('');
+    /* 품번 선택 목록 : 기준정보 › 금형정보에 <b>매칭품번</b>이 등록된 것만
+       (자유입력을 막아 오타 · 미등록 품번이 들어오지 않게 한다) */
+    fillMap($('#fMap').value);
     draw();
     KI.msg('LOT '+ROWS.length+'건 · 외주 반출중 '+OSP.filter(o=>o.sdate&&!o.idate).length+'건');
   }
