@@ -434,8 +434,11 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       rc={part:r.part, job:lastR.job, in_date:lastR.in_date, qty:q, short_qty:sh,
           reason:lastR.reason, worker:lastR.worker, remark:lastR.remark, n:rcs.length};
       /* 목표(최초 투입) 대비 아직 덜 들어왔고 부족 처리도 안 했으면 종결이 아니다 */
-      const f0=ospOf(r.part).slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0];
-      const goal=Number(f0&&f0.qty)||0;
+      /* 목표 = 1단계 누적 반출 (부분반출 시 첫 반출건 수량은 투입량이 아니다) */
+      const mp0=sd[0]||'';
+      const osA=ospOf(r.part).filter(o=>o.sdate);
+      const goal=(mp0?osA.filter(o=>o.mp===mp0).reduce((s2,o)=>s2+(Number(o.qty)||0),0):0)
+        || (Number((osA.slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0]||{}).qty)||0);
       recvOpen = goal>0 && (q+sh)<goal;
     }else{
       rc=MVIN.find(x=>String(x.part||'')===String(r.part))||null;
@@ -498,14 +501,21 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       (q.lost?' · 부족 '+nf(q.lost):'')+(q.open?' · 미회수 '+nf(q.open):' · 완료'));
     return L.join('\n');
   }
-  /* 이 반출건에서 아직 돌아오지 않은 수량 */
+  /*«trace-core»*/
+  /* 이 반출건에서 아직 돌아오지 않은 수량
+     · 기준은 반출수량이 아니라 <b>도착확인 수량</b>이다.
+       운송 중 파손·분실분(도착 시 부족)은 이미 없어진 물량이므로
+       업체 보유 잔량으로 잡으면 "돌아오지 않은 물량"이 영원히 남는다. */
   const openQtyOf = o => {
     if(!o || !o.sdate) return 0;
     if(o.idate) return 0;                      /* 마감된 반출건은 잔여 없음 */
-    const ins=((MVQ[String(o.part||'')])||[])
-      .filter(v=>v.io==='입고' && String(v.osp_no||'')===String(o.no));
-    const got=ins.reduce((s2,v)=>s2+(Number(v.in_qty)||0)+(Number(v.short_qty)||0),0);
-    return Math.max((Number(o.qty)||0)-got,0);
+    const mv=((MVQ[String(o.part||'')])||[])
+      .filter(v=>String(v.osp_no||'')===String(o.no));
+    const arr=mv.filter(v=>v.io==='도착').slice(-1)[0];
+    const base=arr?(Number(arr.in_qty)||0):(Number(o.qty)||0);
+    const got=mv.filter(v=>v.io==='입고')
+      .reduce((s2,v)=>s2+(Number(v.in_qty)||0)+(Number(v.short_qty)||0),0);
+    return Math.max(base-got,0);
   };
 
   /* ── 제품의 현재 물리적 위치 ───────────────────────────────
@@ -553,15 +563,33 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     Object.keys(byVen).forEach(v=>out.push({who:v, qty:byVen[v], home:false}));
     return out;
   };
-  /* 사내에 남아 있는 수량 : 전체 입고합계 − 전체 반출합계 (음수는 0) */
+  /* ── 목표(최초 투입) 수량 ──────────────────────────────────
+     첫 반출건의 수량을 투입량으로 보면 <b>부분반출</b>일 때 실제보다 작아진다.
+     (1,000개를 600 + 400 으로 나눠 보내면 목표가 600으로 잡혀 조기 종결된다)
+     모든 물량은 표준공정 1단계를 반드시 한 번 통과하므로
+     [1단계 누적 반출수량]을 목표로 쓴다. 표준공정 미매칭이면 종전 방식으로 폴백. */
+  const goalOf = c => {
+    const mp0=((c&&c.std&&c.std.steps)||[])[0]||'';
+    const os=ospOf(c.part).filter(o=>o.sdate);
+    const g=mp0?os.filter(o=>o.mp===mp0).reduce((s,o)=>s+(Number(o.qty)||0),0):0;
+    if(g) return g;
+    const f0=os.slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0];
+    return Number(f0&&f0.qty)||0;
+  };
+  /* 확정 손실(부족) 누계 — 도착·입고 기록의 부족수량 */
+  const lostOf = c => ((MVQ[String(c.part||'')])||[])
+    .reduce((s,v)=>s+(Number(v.short_qty)||0),0);
+  /* 사내에 남아 있는 수량
+     = 투입 − 외주 보유분 − 사내입고 종결분 − 확정 손실
+     · <b>사내 미결건(사내 이동중·작업중)은 차감하지 않는다</b> — 제품이 경일FB 안에 있다.
+     · 확정 손실은 어디에도 없는 물량이므로 사내 재고로 남겨두면 안 된다. */
   const homeQty = c => {
     const os=ospOf(c.part).filter(o=>o.sdate);
     if(!os.length) return 0;
-    const first=os.slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0];
-    const base=Number(first.qty)||0;                       /* 최초 투입 수량 */
-    const outQ=os.reduce((s,o)=>s+openQtyOf(o),0);   /* 아직 밖에 있는 수량 */
+    const outQ=os.filter(o=>String(o.move_kind||'외주')!=='사내')
+                 .reduce((s,o)=>s+openQtyOf(o),0);         /* 아직 협력사에 있는 수량 */
     const recvQ=Number(c.recv&&c.recv.qty)||0;             /* 이미 사내입고 종결분 */
-    return Math.max(base-outQ-recvQ,0);
+    return Math.max(goalOf(c)-outQ-recvQ-lostOf(c),0);
   };
   /* 목록 · CSV 의 [현재 위치(보유처)] */
   const holderOf = c => {
@@ -582,6 +610,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     if(openIn(c))  return '사내 작업중';
     return c.std&&!c.rest.length?'사내입고 대기':'사내 보유';
   };
+  /*«/trace-core»*/
   function ospState(part){
     const o=ospOf(part).filter(x=>x.sdate&&!x.idate);
     if(o.length) return {t:'반출중', n:o.length, rows:o};
@@ -895,8 +924,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         ' — 종결된 LOT이라 추가 반출·입고를 할 수 없습니다.</span>';
       setOutFold(false);
     }else if(partRecv){
-      const f0=ospOf(c.part).slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0]||{};
-      const goal=Number(f0.qty)||0;
+      const goal=goalOf(c);
       $('#mMsg').className='msg';
       $('#mMsg').innerHTML='<span style="color:#8a5a12">◐ 분납 입고중 · 누적 '+rq.toLocaleString()+
         (goal?' / '+goal.toLocaleString():'')+(c.recv.n>1?' ('+c.recv.n+'회)':'')+
@@ -1267,8 +1295,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     if(c.wip||c.moving) return alert('외주 반출중인 건이 있어 종결할 수 없습니다. 먼저 입고 처리하세요.');
     const last=ospOf(c.part).slice().sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0]||{};
     /* 목표 수량 = 최초 투입 수량, 남은 수량 = 목표 − 이미 사내입고된 누적 */
-    const first=ospOf(c.part).slice().sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0))[0]||{};
-    const goalQ=Number(first.qty)||Number(last.qty)||0;
+    const goalQ=goalOf(c)||Number(last.qty)||0;
     const gotQ =Number(c.recv&&c.recv.qty)||0;
     const baseQ=goalQ?Math.max(goalQ-gotQ,0):(Number(last.qty)||0);
     const inS=prompt('['+c.part+'] 사내입고 수량을 입력하세요'+
