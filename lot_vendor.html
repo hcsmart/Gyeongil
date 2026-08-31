@@ -169,7 +169,8 @@ function gate(){
   $('#meBtn').style.display='none';
   wrap.innerHTML='<div class="card"><div class="bd gate">'+
     '<h2>🏭 우리 업체는?</h2>'+
-    '<p>한 번만 고르면 이 휴대폰에 저장됩니다.<br>다음부터는 바로 스캔 화면이 열립니다.</p>'+
+    '<p>보통은 고를 필요가 없습니다 — <b>QR을 찍으면 자동으로 인식</b>됩니다.<br>'+
+    '이동표를 잃어버렸거나 업체를 바꿀 때만 여기서 지정하세요.</p>'+
     '<div class="vl" id="vl">'+
       VENS.map(v=>'<button data-v="'+esc(v)+'"'+(v===MYVEN?' class="on"':'')+'>🏢 '+esc(v)+'</button>').join('')+
       (HOMEOK?'<button data-v="'+esc(HOME)+'"'+(MYVEN===HOME?' class="on"':'')+'>🏠 '+esc(HOME)+'</button>':'')+
@@ -181,7 +182,9 @@ function gate(){
     pick=b.dataset.v; wrap.querySelectorAll('#vl button').forEach(x=>x.classList.toggle('on',x===b));
   }));
   bar.style.display='block';
-  bar.innerHTML='<button class="go2" id="gGo">✅ 저장하고 시작</button>';
+  bar.innerHTML='<button class="go2" id="gGo">✅ 저장하고 시작</button>'+
+    (MYVEN?'<button class="go2" id="gBack" style="background:#eef1f4;color:#41556a;margin-top:6px">↩ 취소</button>':'');
+  const bk=$('#gBack'); if(bk) bk.addEventListener('click',()=>home());
   $('#gGo').addEventListener('click',()=>{
     const wk=$('#gWk').value.trim();
     if(!pick) return toast('업체를 선택하세요.');
@@ -196,12 +199,16 @@ function gate(){
 function home(){
   bar.style.display='none';
   $('#meBtn').style.display='';
-  $('#meBtn').innerHTML='🏢 '+esc(MYVEN)+' ▾';
+  $('#meBtn').innerHTML = MYVEN ? ('🏢 '+esc(MYVEN)+' ▾') : '🏢 업체 설정 ▾';
   wrap.innerHTML=
   '<div class="scan" id="btScan">'+
     '<div class="ring">📷</div><h2>QR 스캔</h2>'+
     '<p>공정이동표의 QR을 찍어 입고 · 출고를 등록하세요</p>'+
   '</div>'+
+  (MYVEN?'':'<div class="card"><div class="bd" style="padding:12px 14px;color:#4a5968;font-size:13px">'+
+    '<b>처음이신가요?</b><br>업체를 고를 필요 없이 <b>공정이동표의 QR만 찍으면</b> 됩니다. '+
+    '우리 업체는 이동표를 읽는 순간 자동으로 인식되어 이 휴대폰에 저장됩니다.'+
+    '</div></div>')+
   (REC.length?'<div class="card"><h3>🕘 최근 스캔한 LOT</h3><div class="bd" style="padding-top:4px">'+
     REC.map(x=>'<div class="rec" data-t="'+esc(x.t)+'"><div class="ic">📦</div>'+
       '<b>'+esc(x.p||'(LOT)')+'</b><span class="dt">'+esc(x.d||'')+'</span><span class="go">›</span></div>').join('')+
@@ -295,7 +302,9 @@ if(/^kiPop_/.test(window.name||'')){
 
 (async function init(){
   try{ VENS=await rpc('ki_vendor_list',{}); }catch(e){ VENS=[]; }
-  if(!MYVEN) gate(); else home();
+  /* 업체를 미리 고르게 하지 않는다 — QR 을 찍으면 이동표가 보유 업체를 알려주므로
+     첫 화면부터 바로 스캔이다. 업체는 스캔한 뒤 자동으로 정해져 이 휴대폰에 저장된다. */
+  home();
 })();
 })();
 </script>

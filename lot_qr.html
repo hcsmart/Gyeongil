@@ -227,26 +227,52 @@ const kindOfMp = mp => {
 const kindOfRow = o => (o&&o.move_kind==='사내')?'사내':'외주';
 const kb = k => '<span class="kb'+(k==='사내'?' in':'')+'">'+(k==='사내'?'🏭 사내':'🚚 외주')+'</span>';
 
-/* ── 업체 선택 ── */
-function gate(){
-  const list=(D&&D.vendors?D.vendors:[]).slice();
+/* ── 이 이동표를 지금 들고 있는 곳 (자동 판정용) ──
+   미입고 반출건의 업체가 곧 현재 보유처다. 한 곳뿐이면 고를 필요가 없다. */
+function holders(){
+  const open=((D&&D.osp)||[]).filter(o=>o.sdate&&!o.idate);
+  const seen=[]; open.forEach(o=>{ const v=o.vendor||''; if(v&&seen.indexOf(v)<0) seen.push(v); });
+  return seen;
+}
+
+/* ── 업체 선택 ──
+   opts.only : 후보만 보여준다 (분할로 두 곳이 나눠 가진 경우)
+   opts.workerOnly : 업체는 이미 자동 판정됐고 담당자 성함만 받는다 */
+function gate(opts){
+  opts=opts||{};
+  const cand=opts.only||null;
+  const list=cand||((D&&D.vendors?D.vendors:[]).slice());
   /* 사내 작업장(부서)도 선택 대상 — 사내 이동 구간을 현장에서 직접 찍을 수 있게 한다 */
-  const sites=(D&&D.sites?D.sites:[]).filter(v=>v&&list.indexOf(v)<0);
+  const sites=cand?[]:((D&&D.sites?D.sites:[]).filter(v=>v&&list.indexOf(v)<0));
+  const showHome=!cand && (/[?&]home=1\b/.test(location.search) || MYVEN===HOME);
   $('#meBtn').style.display='none'; bar.style.display='none';
   wrap.innerHTML='<div class="card"><div class="bd gate">'+
-    '<h2>🏭 우리 작업장 · 업체는?</h2>'+
-    '<p>한 번만 고르면 이 휴대폰에 저장됩니다.<br>다음부터는 QR을 찍는 즉시 우리 기준으로 열립니다.</p>'+
+    (opts.workerOnly
+      ? '<h2>👤 담당자 성함</h2>'+
+        '<p>이 이동표는 <b>'+esc(MYVEN)+'</b> 보유분입니다.<br>'+
+        '기록에 남길 성함만 한 번 입력하면 끝입니다.</p>'
+      : cand
+      ? '<h2>🏭 어느 쪽에서 찍으셨나요?</h2>'+
+        '<p>이 LOT은 물량이 나뉘어 <b>'+cand.length+'곳</b>에 있습니다.<br>지금 계신 곳을 골라 주세요.</p>'
+      : '<h2>🏭 우리 작업장 · 업체는?</h2>'+
+        '<p>보통은 고를 필요가 없습니다 — <b>QR을 찍으면 자동으로 인식</b>됩니다.<br>'+
+        '업체를 바꿀 때만 여기서 지정하세요.</p>')+
+    (opts.workerOnly ? '' :
     '<div class="vl" id="vl">'+
       list.map(v=>'<button data-v="'+esc(v)+'"'+(v===MYVEN?' class="on"':'')+'>🚚 '+esc(v)+'</button>').join('')+
       sites.map(v=>'<button data-v="'+esc(v)+'"'+(v===MYVEN?' class="on"':'')+'>🏭 '+esc(v)+' <small>(사내)</small></button>').join('')+
-      '<button data-v="'+esc(HOME)+'"'+(MYVEN===HOME?' class="on"':'')+'>🏠 '+esc(HOME)+'</button>'+
+      (showHome?'<button data-v="'+esc(HOME)+'"'+(MYVEN===HOME?' class="on"':'')+'>🏠 '+esc(HOME)+'</button>':'')+
     '</div>'+
+    (cand?'<div class="note" style="margin-top:8px"><a href="#" id="gAll" '+
+      'style="color:#1d568c;font-weight:700">여기에 없습니다 — 전체 목록에서 고르기</a></div>':''))+
     '<div class="fld"><label>담당자 성함</label><input id="gWk" value="'+esc(WORKER)+'" placeholder="기록에 남습니다"></div>'+
   '</div></div>';
-  let pick=MYVEN;
+  let pick=opts.workerOnly?MYVEN:(cand&&cand.length===1?cand[0]:MYVEN);
   wrap.querySelectorAll('#vl button').forEach(b=>b.addEventListener('click',()=>{
     pick=b.dataset.v; wrap.querySelectorAll('#vl button').forEach(x=>x.classList.toggle('on',x===b));
   }));
+  const all=$('#gAll');
+  if(all) all.addEventListener('click',ev=>{ ev.preventDefault(); gate({}); });
   bar.style.display=''; bar.innerHTML='<button class="go in" id="gGo">✅ 저장하고 시작</button>';
   $('#gGo').addEventListener('click',()=>{
     const wk=$('#gWk').value.trim();
@@ -263,7 +289,22 @@ async function load(){
   catch(e){ bar.style.display='none';
     wrap.innerHTML='<div class="errbox">'+esc(e.message)+'<br><br>'+
     '<span style="font-weight:400;color:#6b7a89;font-size:13px">폐기되었거나 만료된 이동표입니다.<br>발주처 담당자에게 재발행을 요청하세요.</span></div>'; return; }
-  if(!MYVEN) gate(); else draw();
+  if(MYVEN){ draw(); return; }
+  /* ── 업체 자동 판정 ──
+     이동표가 보유처를 알려주므로 협력사는 목록에서 고를 필요가 없다.
+       보유처 1곳 → 그 업체로 확정 (담당자 성함만 1회)
+       보유처 2곳 이상(분할) → 그 후보만 보여주고 선택
+       보유처 없음(사내 보유 · 미반출) → 전체 목록 */
+  const hs=holders();
+  if(hs.length===1){
+    MYVEN=hs[0];
+    try{ localStorage.setItem('ki_qr_vendor',MYVEN); }catch(e){}
+    if(WORKER){ toast('🏢 '+MYVEN+' 으로 확인했습니다.',1); draw(); }
+    else gate({workerOnly:true});
+    return;
+  }
+  if(hs.length>1){ gate({only:hs}); return; }
+  gate({});
 }
 
 function draw(){
@@ -598,7 +639,7 @@ function draw(){
   action();
 }
 
-document.getElementById('meBtn').addEventListener('click',()=>gate());
+document.getElementById('meBtn').addEventListener('click',()=>gate({}));
 load();
 })();
 </script>
