@@ -780,13 +780,17 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           '<td class="num">'+d+'일</td>'+
           '<td class="center" style="white-space:nowrap">'+
           '<button class="lr-go" data-ed="'+o.no+'" style="background:#fff;color:#1d568c;margin-right:4px">✎ 수정</button>'+
-          '<button class="lr-go" data-in="'+o.no+'" style="background:#2f7d4d;border-color:#2f7d4d">📦 입고</button></td></tr>';
+          '<button class="lr-go" data-in="'+o.no+'" style="background:#2f7d4d;border-color:#2f7d4d;margin-right:4px">📦 입고</button>'+
+          (CAN_D?'<button class="lr-go" data-rm="'+o.no+'" title="잘못 등록된 반출건 삭제" '+
+            'style="background:#fff;color:#a0505a;border-color:#c9a0a8">✕</button>':'')+'</td></tr>';
         }).join('')+'</tbody></table></div></div>'
       : '';
     $('#openBox').querySelectorAll('[data-in]').forEach(b=>
       b.addEventListener('click',()=>receive(b.dataset.in)));
     $('#openBox').querySelectorAll('[data-ed]').forEach(b=>
       b.addEventListener('click',()=>editOrder(b.dataset.ed)));
+    $('#openBox').querySelectorAll('[data-rm]').forEach(b=>
+      b.addEventListener('click',()=>delOrder(b.dataset.rm)));
     /* 표준공정 · 다음 공정 기본값 */
     $('#fRoute').value=c.std?String(c.std.standard_process_no):'';
     fillMp($('#fRoute').value, c.rest[0]||'');
@@ -893,6 +897,24 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   }
 
   /* ── 기존 반출건 수정 ── */
+  /* 미입고 반출건 1건 삭제 — 중복 등록 · 오등록 정정용 (입고된 건은 삭제 불가) */
+  async function delOrder(no){
+    if(!CAN_D) return KI.msg('❌ 삭제 권한이 없습니다.');
+    const o=OSP.find(x=>String(x.no)===String(no)); if(!o) return;
+    if(o.idate) return alert('이미 입고 처리된 반출건은 삭제할 수 없습니다.');
+    if(!confirm('반출번호 '+o.no+' 을(를) 삭제할까요?\n\n'+
+        (o.mp||'')+' · '+(o.vendor||'')+' · '+(Number(o.qty)||0).toLocaleString()+'EA · '+(o.sdate||'')+'\n\n'+
+        '중복 등록이나 오등록을 정정할 때만 사용하세요. 되돌릴 수 없습니다.')) return;
+    try{
+      await KI.del(TBL.ospOrder,'no=eq.'+no);
+      /* 이 반출건에 딸린 이동기록도 함께 정리 (없으면 무시) */
+      await KI.del(TBL.lotMove,'osp_no=eq.'+no).catch(()=>{});
+      KI.msg('✓ 반출번호 '+no+' 삭제되었습니다.');
+      const keep=sel?sel.part:'';
+      await load();
+      const c=ROWS.map(calc).find(x=>x.part===keep); if(c) open(c);
+    }catch(e){ alert('❌ '+e.message); }
+  }
   function editOrder(no){
     const o=OSP.find(x=>String(x.no)===String(no)); if(!o) return;
     if(!(CAN_S||CAN_E)) return KI.msg('❌ 수정 권한이 없습니다.');
@@ -983,8 +1005,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   };
   $('#fAdd').addEventListener('click',()=>lotRow('',''));
 
+  let SAVING=false;                       /* 중복 클릭 방지 플래그 */
   async function save(){
     const m=$('#mMsg');
+    const B=$('#mS');
+    /* PC 더블클릭 · 엔터 연타로 같은 반출건이 두 번 등록되던 문제 방지 */
+    if(SAVING){ KI.msg('· 등록 처리중입니다. 잠시만 기다리세요.'); return; }
     if(!sel && !NEW && !editNo) return;
     if(sel && sel.recv && !editNo){
       m.className='msg err';
@@ -1020,6 +1046,24 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       lot:lots.map(x=>x.lot).join(','), qty:qty||null, lots:lots,
       sdate:$('#fSdate').value||null, edate:$('#fEdate').value||null,
       quote:q===''?null:Number(q), st:'진행', move_kind:kind};
+    /* 같은 내용의 반출건이 방금 등록돼 있으면 되묻는다 (새로고침 전 중복 등록 방어) */
+    if(!editNo){
+      const dup=ospOf(part).find(o=>String(o.mp||'')===String(mp)
+        && String(o.vendor||'')===String(ven)
+        && String(o.sdate||'')===String(body.sdate||'')
+        && (Number(o.qty)||0)===(Number(qty)||0)
+        && !o.idate);
+      if(dup && !confirm('같은 내용의 미입고 반출건이 이미 있습니다.\n\n'+
+          '반출번호 '+dup.no+' · '+(dup.mp||'')+' · '+(dup.vendor||'')+
+          ' · '+(Number(dup.qty)||0).toLocaleString()+'EA · '+(dup.sdate||'')+'\n\n'+
+          '분할 반출이 맞다면 [확인], 실수라면 [취소]를 누르세요.')){
+        m.className='msg'; m.textContent='중복 등록을 취소했습니다.';
+        return;
+      }
+    }
+    SAVING=true;
+    const oldTxt=B?B.textContent:'';
+    if(B){ B.disabled=true; B.textContent='⏳ 등록중...'; }
     m.className='msg'; m.textContent=editNo?'저장중...':'등록중...';
     try{
       if(editNo){
@@ -1066,6 +1110,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       const c=ROWS.map(calc).find(x=>x.part===part);
       if(c) open(c); else { NEW=true; lotBody.innerHTML=''; lotRow(part,''); }
     }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
+    finally{ SAVING=false; if(B){ B.disabled=false; B.textContent=oldTxt||'📤 반출 등록'; } }
   }
   async function delRow(c){
     if(!CAN_D) return KI.msg('❌ 삭제 권한이 없습니다.');
