@@ -11,6 +11,11 @@
 .lr-list .grid-wrap{margin:0;border:0;flex:1}
 .grid tr.clk{cursor:pointer}
 .grid tr.clk:hover td{background:#eef5fc}
+.grid thead th.sortable{cursor:pointer;user-select:none;-webkit-user-select:none}
+.grid thead th.sortable:hover{background:#e4edf6}
+.grid thead th.sortable .sar{margin-left:4px;font-size:9px;color:#b3bec9;vertical-align:middle}
+.grid thead th.sortable.on{background:#dbe8f4}
+.grid thead th.sortable.on .sar{color:#1d568c}
 .lr-bar{height:9px;background:#eef1f4;border:1px solid #dbe1e7;position:relative;min-width:52px}
 .lr-bar i{position:absolute;left:0;top:0;bottom:0;background:#5b9bd5}
 .lr-bar i.full{background:#2f7d4d}
@@ -223,8 +228,11 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     '<span class="sp" id="cnt"></span>';
   const gw=el('div','grid-wrap'); const tbl=el('table','grid');
   tbl.innerHTML='<thead><tr>'+
-    '<th style="width:110px">JOB</th><th style="width:104px">품번</th><th style="width:104px">LOT</th>'+
-    '<th style="width:120px">표준공정</th><th style="width:340px">공정 진행</th>'+
+    '<th style="width:110px" class="sortable" data-sk="job" title="클릭 : 오름차순 → 내림차순 → 등록순">JOB<span class="sar">↕</span></th>'+
+    '<th style="width:104px" class="sortable" data-sk="map" title="클릭 : 오름차순 → 내림차순 → 등록순">품번<span class="sar">↕</span></th>'+
+    '<th style="width:104px" class="sortable" data-sk="part" title="클릭 : 오름차순 → 내림차순 → 등록순">LOT<span class="sar">↕</span></th>'+
+    '<th style="width:120px" class="sortable" data-sk="std" title="클릭 : 오름차순 → 내림차순 → 등록순">표준공정<span class="sar">↕</span></th>'+
+    '<th style="width:340px">공정 진행</th>'+
     '<th style="width:126px">현재 위치(보유처)</th><th style="width:92px">이동일자</th>'+
     '<th style="width:120px">진척</th>'+
     '<th style="width:64px">삭제</th></tr></thead><tbody></tbody>';
@@ -232,6 +240,39 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   const tbody=tbl.querySelector('tbody');
   ['q','fs'].forEach(id=>$('#'+id).addEventListener('input',draw));
   $('#btnQ').addEventListener('click',()=>load());
+
+  /* ── 제목행 정렬 : 오름차순 ▲ → 내림차순 ▼ → 등록순 ↕ 로테이션 ── */
+  let SORT={k:'',d:0};
+  const sortVal=(c,k)=> k==='job' ? (c.job||'')
+                      : k==='map' ? (c.map_part||'')
+                      : k==='part'? (c.part||'')
+                      : (c.std?c.std.standard_process_name:'');
+  function sortList(list){
+    if(!SORT.k||!SORT.d) return list;
+    return list.map((c,i)=>({c:c,i:i})).sort((a,b)=>{
+      const x=String(sortVal(a.c,SORT.k)||''), y=String(sortVal(b.c,SORT.k)||'');
+      if(!x&&y) return 1; if(x&&!y) return -1;          /* 빈값은 항상 뒤로 */
+      const r=x.localeCompare(y,'ko',{numeric:true,sensitivity:'base'});
+      return r ? SORT.d*r : a.i-b.i;                     /* 동일값은 등록순 유지 */
+    }).map(o=>o.c);
+  }
+  function syncSort(){
+    [].forEach.call(tbl.querySelectorAll('thead th[data-sk]'),th=>{
+      const on = SORT.k===th.getAttribute('data-sk') && SORT.d;
+      th.classList.toggle('on',!!on);
+      th.querySelector('.sar').textContent = on ? (SORT.d>0?'▲':'▼') : '↕';
+    });
+  }
+  [].forEach.call(tbl.querySelectorAll('thead th[data-sk]'),th=>{
+    th.addEventListener('click',()=>{
+      const k=th.getAttribute('data-sk');
+      if(SORT.k!==k) SORT={k:k,d:1};
+      else if(SORT.d===1) SORT={k:k,d:-1};
+      else SORT={k:'',d:0};
+      syncSort(); draw();
+    });
+  });
+  syncSort();
 
   /* ── 진행등록 모달 ── */
   const dim=el('div','lr-dim'); const mo=el('div','lr-mo');
@@ -472,7 +513,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   function draw(){
     const q=$('#q').value.trim().toLowerCase(), f=$('#fs').value;
     tbody.innerHTML='';
-    const list=ROWS.map(calc).filter(c=>{
+    const list=sortList(ROWS.map(calc).filter(c=>{
       if(q && ![c.part,c.job,c.map_part,c.last.vendor].some(v=>String(v||'').toLowerCase().includes(q))) return false;
       const os=ospState(c.part).t;
       if(f==='외주 반출중') return os==='반출중';
@@ -482,7 +523,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       if(f==='미매칭')    return !c.std;
       if(f==='진행중')    return c.std && c.rest.length;
       return true;
-    });
+    }));
     list.forEach(c=>{
       const os=ospState(c.part);
       const t=el('tr','clk');
@@ -1104,7 +1145,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         const v=venOf(mp); return mp+(v?'('+v+')':'')+(c.seen.has(mp)?'✓':(c.wipMp===mp?'▶':''));
       })).join(' → ');
     };
-    const body=ROWS.map(calc).map(c=>[c.job,c.map_part,c.part,c.std?c.std.standard_process_name:'(미매칭)',
+    const body=sortList(ROWS.map(calc)).map(c=>[c.job,c.map_part,c.part,c.std?c.std.standard_process_name:'(미매칭)',
       chainTxt(c),c.last.mp,holderOf(c),c.last.date,stateOf(c),
       c.done,c.total,c.rate+'%']
       .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
