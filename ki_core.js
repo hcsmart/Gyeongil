@@ -152,11 +152,68 @@ async function guard(menuId){
 }
 
 /* ---------- Supabase REST ---------- */
+/* ============================================================
+   오류 로그 — 화면에서 난 오류를 DB(ki_error_log)에 남긴다.
+   · 나중에 [시스템 › 오류로그]에서 화면 · 사용자 · 메시지로 추적한다.
+   · 로그 기록 자체가 실패해도 화면 동작을 막지 않는다(조용히 포기).
+============================================================ */
+let ERRBUSY=false;                      /* 로그 기록 중 재귀 방지 */
+const ERRSEEN=new Set();                /* 같은 오류 반복 저장 방지 */
+function curMenuId(){
+  try{
+    const f=(location.pathname.split('/').pop()||'').toLowerCase();
+    const id=Object.keys(FLAT).find(k=>String(FLAT[k].it.f).split('?')[0].toLowerCase()===f);
+    return id||'';
+  }catch(e){ return ''; }
+}
+async function logErr(message, opt){
+  opt=opt||{};
+  try{
+    if(ERRBUSY || !SESS) return;                       /* 미로그인 · 재귀는 건너뜀 */
+    const msg=String(message||'').slice(0,500);
+    if(!msg) return;
+    const key=(opt.kind||'')+'|'+msg;
+    if(ERRSEEN.has(key)) return; ERRSEEN.add(key);     /* 같은 화면에서 1회만 */
+    ERRBUSY=true;
+    await send('POST','ki_error_log',[{
+      level: opt.level||'error', kind: opt.kind||'app',
+      menu:  opt.menu||curMenuId()||null,
+      page:  (location.pathname.split('/').pop()||''),
+      emp_no:(ME&&ME.emp_no)||null, emp_name:(ME&&ME.emp_name)||null,
+      message: msg,
+      detail: opt.detail?String(opt.detail).slice(0,2000):null,
+      url: String(location.href).slice(0,500),
+      user_agent: String(navigator.userAgent||'').slice(0,300)
+    }],'return=minimal').catch(()=>{});
+  }catch(e){ /* 로그 실패는 무시 */ }
+  finally{ ERRBUSY=false; }
+}
+/* 잡히지 않은 오류 · 프라미스 거부 자동 수집 */
+if(typeof window!=='undefined'){
+  window.addEventListener('error',ev=>{
+    if(!ev||!ev.message) return;
+    logErr(ev.message,{kind:'js',
+      detail:(ev.filename||'')+':'+(ev.lineno||0)+' '+((ev.error&&ev.error.stack)||'')});
+  });
+  window.addEventListener('unhandledrejection',ev=>{
+    const r=ev&&ev.reason;
+    logErr((r&&r.message)||String(r||'unhandled rejection'),
+      {kind:'js', detail:(r&&r.stack)||''});
+  });
+}
+
 async function get(path){
   let r=await fetch(C.SUPABASE_URL+'/rest/v1/'+path,{headers:HDR()});
   if(r.status===401&&await refresh()) r=await fetch(C.SUPABASE_URL+'/rest/v1/'+path,{headers:HDR()});
-  if(r.status===401||r.status===403) throw new Error('접근 권한이 없습니다. 관리자에게 권한을 요청하세요.');
-  if(!r.ok) throw new Error('조회 실패 ('+r.status+')');
+  if(r.status===401||r.status===403){
+    logErr('조회 권한 없음 ('+r.status+')',{kind:'api',detail:path});
+    throw new Error('접근 권한이 없습니다. 관리자에게 권한을 요청하세요.');
+  }
+  if(!r.ok){
+    const t=await r.text().catch(()=>'');
+    logErr('조회 실패 ('+r.status+')',{kind:'api',detail:path+'\n'+t.slice(0,600)});
+    throw new Error('조회 실패 ('+r.status+')');
+  }
   return await r.json();
 }
 async function send(method,path,body,prefer){
@@ -165,11 +222,21 @@ async function send(method,path,body,prefer){
       body:body===undefined?undefined:JSON.stringify(body)});
   let r=await fetch(C.SUPABASE_URL+'/rest/v1/'+path,build());
   if(r.status===401&&await refresh()) r=await fetch(C.SUPABASE_URL+'/rest/v1/'+path,build());
-  if(r.status===401||r.status===403) throw new Error('권한이 없습니다. (관리자에게 권한 요청)');
-  if(!r.ok) throw new Error('처리 실패 ('+r.status+') '+(await r.text()).slice(0,120));
+  if(r.status===401||r.status===403){
+    if(path.indexOf('ki_error_log')<0) logErr('처리 권한 없음 ('+r.status+')',{kind:'api',detail:method+' '+path});
+    throw new Error('권한이 없습니다. (관리자에게 권한 요청)');
+  }
+  if(!r.ok){
+    const t=await r.text().catch(()=>'');
+    if(path.indexOf('ki_error_log')<0)
+      logErr('처리 실패 ('+r.status+')',{kind:'api',detail:method+' '+path+'\n'+t.slice(0,600)});
+    throw new Error('처리 실패 ('+r.status+') '+t.slice(0,120));
+  }
   return method==='DELETE'?true:await r.json().catch(()=>true);
 }
 const ins    = (t,b)=>send('POST',t,b);
+/* RPC 호출 : KI.rpc('함수명',{인자}) — 반환값을 그대로 돌려준다 */
+const rpc    = (fn,args)=>send('POST','rpc/'+String(fn).replace(/^rpc\//,''), args||{});
 const upd    = (t,f,b)=>send('PATCH',t+'?'+f,b);
 const del    = (t,f)=>send('DELETE',t+'?'+f,undefined,'return=minimal');
 const upsert = (t,b)=>send('POST',t,b,'resolution=merge-duplicates,return=representation');
@@ -803,6 +870,9 @@ const POST={
       _in: ih.length? ih.length+'단계' : '-',
       _steps: st.map(x=>ih.indexOf(x)>=0?('🏭'+x):x).join(' → ')
     }); }),
+  errlog: rows=>rows.map((r,i)=>Object.assign({_i:i+1},r,{
+    /* 등급 뱃지 : error 는 붉게, warn 은 주의색으로 (cell 의 'st' 규칙 활용) */
+    level: r.level==='error'?'발생':(r.level==='warn'?'주의':'정상') })),
   proc: rows=>rows.map((r,i)=>Object.assign({_i:i+1},r,{
     _up: r.use_progress===false?'미사용':'사용',
     _pl: r.use_plan?'사용':'미사용' }))
@@ -1438,5 +1508,5 @@ return {CFG:C, $:$, el:el, esc:esc,
         header:chrome, chrome:chrome, page:page, masters:masters, M:M, msg:msg,
         grid:grid, csv:csv, makeUpload:makeUpload, POST:POST, cell:cell, LK:LK, emailOf:emailOf,
         sortHead:sortHead,
-        isPhone:isPhone, openPop:openPop};
+        isPhone:isPhone, openPop:openPop, logErr:logErr, rpc:rpc};
 })();

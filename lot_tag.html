@@ -85,7 +85,7 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
 
   /* QR : 일회성 토큰 발행 — 로그인 없이 이 LOT만 열람·기록 가능 */
   let tok='';
-  try{ tok=await KI.POST('rpc/ki_lot_token_issue',{p_part:part,p_days:365}); }
+  try{ tok=await KI.rpc('ki_lot_token_issue',{p_part:part,p_days:365}); }
   catch(e){ tok=''; }
   const base=location.href.replace(/[^/]*(\?.*)?$/,'');
   const url = tok ? base+'lot_qr.html?t='+encodeURIComponent(tok)
@@ -213,7 +213,7 @@ body{font:12px/1.5 'Malgun Gothic','맑은 고딕',sans-serif;color:#1d2833;back
   if(rb) rb.addEventListener('click',async()=>{
     if(!KI.can('lot-route','edit')&&!KI.isAdmin()) return alert('재발행 권한이 없습니다.');
     if(!confirm('기존 공정이동표 QR을 폐기하고 새로 발행합니다.\n(분실 · 훼손 시에만 사용)\n계속할까요?'))return;
-    try{ await KI.POST('rpc/ki_lot_token_revoke',{p_part:part}); location.reload(); }
+    try{ await KI.rpc('ki_lot_token_revoke',{p_part:part}); location.reload(); }
     catch(e){ alert('❌ '+e.message); }
   });
 })().catch(e=>{ document.getElementById('sheet').textContent='❌ '+e.message; });

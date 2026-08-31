@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GI MES</title>
+<link rel="stylesheet" href="ki_style.css">
+<style>
+/* 상세(스택 · 응답본문)는 길어서 줄바꿈해 보여준다 */
+.grid td:last-child{white-space:normal;word-break:break-all;color:#6b7a89;font-size:11px}
+</style>
+<script src="ki_config.js"></script>
+<script src="ki_core.js"></script>
+</head>
+<body>
+<script>
+KI.grid('err-log', []);
+
+/* 오래된 로그 정리 — 상단 실행버튼에 덧붙인다 (삭제 권한자만) */
+(function(){
+  if(!KI.can('err-log','delete')) return;
+  let n=0;
+  (function tick(){
+    const act=document.querySelector('#kiAct')||document.querySelector('.pg-act');
+    if(!act || !act.querySelector('button')){ if(n++<80) return setTimeout(tick,150); return; }
+    if(document.getElementById('elPurge')) return;
+    const b=document.createElement('button');
+    b.className='btn'; b.id='elPurge'; b.type='button'; b.textContent='오래된 로그 정리';
+    b.title='지정한 일수보다 오래된 오류로그를 삭제합니다';
+    b.addEventListener('click',async()=>{
+      const d=prompt('며칠보다 오래된 로그를 지울까요?\n\n예) 90 을 넣으면 90일 이전 기록이 삭제됩니다.','90');
+      if(d===null) return;
+      const days=Number(String(d).replace(/[^0-9]/g,''))||0;
+      if(days<1) return alert('1 이상의 숫자를 입력하세요.');
+      if(!confirm(days+'일 이전의 오류로그를 삭제합니다.\n되돌릴 수 없습니다. 진행할까요?')) return;
+      b.disabled=true; const old=b.textContent; b.textContent='정리중...';
+      try{
+        const cnt=await KI.rpc('ki_error_log_purge',{p_days:days});
+        KI.msg('✓ 오래된 오류로그 '+Number(cnt||0).toLocaleString()+'건을 삭제했습니다.');
+        const q=[].slice.call(act.querySelectorAll('button')).find(x=>x.textContent.trim()==='조회');
+        if(q) q.click();
+      }catch(e){ alert('❌ '+e.message); }
+      finally{ b.disabled=false; b.textContent=old; }
+    });
+    act.appendChild(b);
+  })();
+})();
+</script>
+</body>
+</html>

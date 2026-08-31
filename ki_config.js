@@ -34,7 +34,7 @@ const TBL = {                      /* 편집 대상 원천 테이블 */
   wash:'ki_wash', washStep:'ki_wash_step', inspPlan:'ki_insp_plan',
   cycleRule:'ki_cycle_rule', moldLoc:'ki_mold_location',
   toolRule:'ki_tool_rule', moldTool:'ki_mold_tool',
-  toolAlert:'ki_tool_alert', notifyCfg:'ki_notify_config',
+  toolAlert:'ki_tool_alert', notifyCfg:'ki_notify_config', errLogT:'ki_error_log',
   moldType:'ki_mold_type', material:'ki_material',
   vendorT:'ki_vendor', stdRouteT:'machining_standard_routes', processT:'processes',
   /* 외주 LOT (원천 테이블) */
@@ -56,6 +56,7 @@ const OBJ = {
   lotReceipt : P+'v_lot_receipt', lotMove : P+'v_lot_move',
   lotToken : P+'v_lot_token', venStock : P+'v_vendor_stock',
   vendor   : P+'v_vendor',     process  : P+'v_process',
+  errLog   : P+'v_error_log',
   /* 트윈팩토리 */
   factory  : P+'v_factory',    zone     : P+'v_zone',
   asset    : P+'v_asset',      assetSt  : P+'v_asset_status',
@@ -213,7 +214,8 @@ const MENU = [
       { name:'시스템', items:[
         {id:'settings',  f:'settings.html',  n:'비밀번호 설정', d:'마스터 / 사용자 PIN'},
         {id:'user-info', f:'user_info.html', n:'사용자정보',   d:'사용자 등록 · 권한 매트릭스'},
-        {id:'notify-cfg',f:'notify_config.html', n:'알림 설정(ntfy)', d:'안돈 · ntfy 서버 · 토픽'}
+        {id:'notify-cfg',f:'notify_config.html', n:'알림 설정(ntfy)', d:'안돈 · ntfy 서버 · 토픽'},
+        {id:'err-log',   f:'error_log.html', n:'오류로그', d:'화면 오류 · 조회 실패 추적'}
       ]}
     ]}
   ]},
@@ -441,6 +443,20 @@ const VIEWS = {
         ['표준공정명',160,'','standard_process_name'],['단계수',60,'num','_cnt'],
         ['사내',52,'center','_in'],
         ['가공공정 순서',0,'','_steps','chain']]
+},
+'err-log':{
+  table:OBJ.errLog, order:'occurred_at.desc', post:'errlog',
+  note:'화면에서 발생한 <b>오류가 자동으로 쌓이는 곳</b>입니다. 사용자가 따로 신고하지 않아도 '+
+       '어느 화면 · 누구 · 언제 · 무슨 메시지였는지 남습니다.<br>'+
+       '<b>구분</b> — js(화면 스크립트 오류) · api(조회 · 저장 실패) · app(직접 기록). '+
+       '자세한 내용은 행을 더블클릭해 <b>상세</b> 열에서 확인하세요.',
+  search:[['일시','date2','occurred_at'],['화면','text','menu'],
+          ['구분','sel','kind',['전체','js','api','rpc','app']],
+          ['사용자','text','emp_name'],['메시지','text','message']],
+  cols:[['일시',140,'center','occurred_at','dt'],['구분',56,'center','kind'],
+        ['등급',56,'center','level','st'],['화면',110,'','menu'],
+        ['파일',130,'','page'],['사용자',80,'center','emp_name'],
+        ['메시지',260,'','message'],['상세',0,'','detail']]
 },
 'process':{
   table:OBJ.process, order:'sort_order.asc,process_code.asc', post:'proc',
