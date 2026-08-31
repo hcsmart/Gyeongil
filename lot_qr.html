@@ -406,7 +406,9 @@ function draw(){
       '<div class="fld"><label>입고일</label><input type="date" id="inDate" value="'+TODAY+'"></div>'+
       '<div class="fld"><label>특기사항</label><textarea id="inRmk" placeholder="선택 입력"></textarea></div>'+
       (isHome()?'<div class="fld"><label style="display:flex;align-items:center;gap:8px;font-size:14px;color:#16202b">'+
-        '<input type="checkbox" id="inClose" checked style="width:22px;height:22px">사내 복귀 입고 (반출건 마감)</label></div>':'');
+        '<input type="checkbox" id="inClose" checked style="width:22px;height:22px">'+
+        '<b>전량</b> 사내 복귀 입고 (반출건 마감)</label>'+
+        '<div class="warn r" id="inCloseNote" style="display:none"></div></div>':'');
     })()+'</div>'+
 
     /* 출고 */
@@ -508,7 +510,22 @@ function draw(){
     const sync=()=>{ const base=remainOf(inCur()), q=num($('#inQty').value), sh=Math.max(base-q,0);
       const w=$('#inShort');
       w.className='warn r'+(sh>0?' on':''); w.textContent=sh>0?'⚠ 부족 '+fmt(sh)+'개 — 사유는 선택 입력':'';
-      $('#inRsnRow').style.display=sh>0?'':'none'; };
+      $('#inRsnRow').style.display=sh>0?'':'none';
+      /* 부분 회수면 [전량 사내 복귀]를 잠근다 — 마감하면 남은 수량이 미결로 남지 않는다 */
+      const cb=$('#inClose'), note=$('#inCloseNote');
+      if(cb){
+        const partial = q>0 && base>0 && q<base;
+        if(partial){ cb.checked=false; cb.disabled=true; }
+        else cb.disabled=false;
+        if(note){
+          note.style.display=partial?'':'none';
+          note.className='warn r'+(partial?' on':'');
+          note.innerHTML=partial
+            ? '⚠ 잔량 '+fmt(base)+'개 중 '+fmt(q)+'개만 입고 — 부분 회수라 마감할 수 없습니다. '+
+              '남은 '+fmt(base-q)+'개는 나중에 다시 등록하세요.'
+            : '';
+        }
+      } };
     const reset=()=>{ const o=inCur(), base=remainOf(o);
       $('#inQty').value=base||''; $('#inFrom').value=fromOf(o); chips('#inTip','#inQty',base); sync(); };
     $('#inNo').addEventListener('change',reset);
@@ -573,9 +590,13 @@ function draw(){
       bar.style.display='';
       bar.innerHTML='<button class="go in" id="act">📥 입고 등록</button>';
       $('#act').addEventListener('click',async()=>{
-        const b=$('#act'), o=inCur(); busy(b);
+        const b=$('#act'), o=inCur();
+        const base0=remainOf(o), q0=num($('#inQty').value);
+        const close=isHome()?!!($('#inClose')&&$('#inClose').checked):false;
+        if(close && base0>0 && q0<base0)
+          return toast('❌ 부분 회수는 반출건을 마감할 수 없습니다. 잔량 '+fmt(base0)+'개 중 '+fmt(q0)+'개 입고입니다.');
+        busy(b);
         try{
-          const close=isHome()?!!($('#inClose')&&$('#inClose').checked):false;
           const r=await rpc('ki_scan_arrive',{p_no:Number(o.no),
             p_vendor:isHome()?(o.vendor||''):MYVEN,
             p_date:$('#inDate').value||TODAY, p_qty:num($('#inQty').value),

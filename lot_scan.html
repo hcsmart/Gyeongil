@@ -253,7 +253,9 @@ try{
         '<div class="row" id="inRsnRow" style="display:none"><label>부족사유</label><input id="inRsn" placeholder="불량 · 파손 등 (선택)"></div>'+
         '<div class="row"><label>특기사항</label><textarea id="inRmk" placeholder="현장 특기사항을 기록하세요"></textarea></div>'+
         '<div class="row"><label>사내 복귀</label><label style="font-weight:400;font-size:13px">'+
-          '<input type="checkbox" id="inClose" style="width:auto;margin-right:6px">사내로 복귀한 입고 (반출건 마감)</label></div>'+
+          '<input type="checkbox" id="inClose" style="width:auto;margin-right:6px">'+
+          '<b>전량</b> 사내로 복귀한 입고 (반출건 마감)</label></div>'+
+        '<div class="dnote" id="inCloseNote" style="display:none;margin:-4px 0 8px 100px"></div>'+
         '<div class="dnote dup" id="inDup" style="display:none"></div>'+
         '<button class="bt in" id="btIn">📥 도착확인 등록</button>'
         :'<div style="color:#8894a0;padding:8px 0">도착확인 대기 중인 반출건이 없습니다.</div>')+
@@ -366,14 +368,33 @@ try{
                  : '↩ 이미 도착확인된 건입니다 — <b>사내 복귀 입고</b>로 등록됩니다.')
           : '';
       };
-      $('#inNo').addEventListener('change',syncArr);
+      /* 부분 회수(입고수량 < 잔량)면 [사내 복귀]를 잠근다 —
+         마감해 버리면 남은 수량이 미결로 남지 않아 추적이 끊긴다 */
+      const syncClose=()=>{
+        const o=cur(), base=remainOf(o), inQ=num($('#inQty').value);
+        const cb=$('#inClose'), note=$('#inCloseNote');
+        const partial = inQ>0 && base>0 && inQ<base;
+        if(partial){ cb.checked=false; cb.disabled=true; }
+        else cb.disabled=false;
+        note.style.display=partial?'':'none';
+        note.innerHTML=partial
+          ? '⚠ 잔량 <b>'+fmtN(base)+'</b> 중 <b>'+fmtN(inQ)+'</b> 만 입고됩니다 — '+
+            '부분 회수라 반출건을 마감할 수 없습니다.<br>남은 <b>'+fmtN(base-inQ)+'</b> 은 '+
+            '나중에 들어올 때 다시 등록하세요. (전량이 들어오면 체크할 수 있습니다)'
+          : '';
+        syncArr();
+      };
+      $('#inNo').addEventListener('change',syncClose);
+      $('#inQty').addEventListener('input',syncClose);
       $('#inClose').addEventListener('change',syncArr);
-      syncArr();
+      syncClose();
       $('#btIn').addEventListener('click',async()=>{
         const B=$('#btIn'); if(B.disabled) return;
         const o=cur(), base=remainOf(o), inQ=num($('#inQty').value);
         const sh=Math.max(base-inQ,0), closeIt=$('#inClose').checked;
         if(!inQ) return msg('입고수량을 입력하세요.');
+        if(closeIt && base>0 && inQ<base)
+          return msg('❌ 부분 회수는 반출건을 마감할 수 없습니다. 잔량 '+fmtN(base)+' 중 '+fmtN(inQ)+' 입고입니다.');
         if(arrivedOf(o) && !closeIt) return msg('이미 도착확인된 반출건입니다.');
         if(!confirm((closeIt?'[사내 복귀 입고]':'[도착확인]')+' 등록하시겠습니까?\n\n'+
             'LOT : '+PART+'\n'+
