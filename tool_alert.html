@@ -35,7 +35,7 @@
     ['지금 점검','primary',()=>KI_ALERT.scan()],
     ['ntfy 테스트','',async()=>{ const r=await KI_ALERT.ntfyTest(); alert(r.msg); }],
     ['기준 초기화','',()=>resetBase()],
-    ['엑셀(CSV)','',()=>csv()]
+    ['엑셀다운로드','',()=>csv()]
   ]);
 
   const nt=el('div','note');

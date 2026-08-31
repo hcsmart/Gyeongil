@@ -45,11 +45,11 @@
   const ui=KI.page(cur, MODE==='plan-cal' ? [
     ['조회','primary',()=>loadPlan()],
     ['📅 계획표 자동생성','green',()=>autoPlan()],
-    ['엑셀(CSV)','',()=>csv()],
+    ['엑셀다운로드','',()=>csv()],
     ['인쇄','',()=>window.print()]
   ] : [
     ['조회','primary',()=>load()],
-    ['엑셀(CSV)','',()=>csv()],
+    ['엑셀다운로드','',()=>csv()],
     ['인쇄','',()=>window.print()]
   ]);
   const nt=el('div','note');

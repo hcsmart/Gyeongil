@@ -22,7 +22,7 @@
     ['💾 점검 등록','primary',()=>save()],
     ['전체 합격','',()=>{ document.querySelectorAll('input[data-ok="1"]').forEach(r=>r.checked=true); calc(); }],
     ['새로고침','',()=>load()],
-    ['엑셀(CSV)','',()=>csv()]
+    ['엑셀다운로드','',()=>csv()]
   ]);
   const nt=el('div','note');
   nt.innerHTML='등급별 정기점검 등록입니다. 좌측 <b>도래현황</b>에서 금형을 고르면 누적 타발수가 자동으로 들어오고, '+
