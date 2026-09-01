@@ -823,9 +823,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
          · 전량 회수(done)  → 복귀 완료 (초록 · 왼쪽)
          · 일부 회수(part)  → 복귀 중   (주황 깜빡임 · 왼쪽)
          · 반출중(wip)      → 나가는 중 (파랑 깜빡임 · 오른쪽) */
-      const back=(done||part);
-      html+='<span class="cv'+(inw?' in':(back?(part?' back go':' back ok'):(wip?' go':'')))+
-            '" title="'+(back?(part?'외주처 → 사내 복귀 중 (일부 회수)':'외주처 → 사내 복귀 완료')
+      /* 협력사가 [본사 반송]을 등록한 물량 — 상세 흐름도와 같게 왼쪽(←) 주황 깜빡임 */
+      const trQ=wip?transitAtMp(c,mp):0;
+      const back=(done||part||trQ>0);
+      html+='<span class="cv'+(inw?' in':(back?((part||trQ>0)?' back go':' back ok'):(wip?' go':'')))+
+            '" title="'+(trQ>0?'외주처 → 사내 반송 중 (운송 '+nf(trQ)+')'
+                        :back?(part?'외주처 → 사내 복귀 중 (일부 회수)':'외주처 → 사내 복귀 완료')
                              :(wip?'사내 → 외주처 반출 중':'사내 → 외주처 이동'))+'">'+
             (inw?'🏭':'🚚')+'</span>';
       const v=venOf(mp);
@@ -833,8 +836,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         (dateOf(mp)?' / '+esc(dateOf(mp)):'')+
         (q.rounds.length?'\n'+esc(roundsTip(q)):'');
       html+='<span class="cn'+(done?' ok':(part?' part':(wip?' wip':(inw?' inw':''))))+
-            '" title="'+tip2+'">'+(done?'✓ ':(part?'◐ ':''))+esc(mp)+
-            (part?'<em>'+nf(q.in)+'/'+nf(q.out)+'</em>':(v?'<em>'+esc(v)+'</em>':''))+
+            '" title="'+tip2+(trQ>0?'\n본사 반송중 '+nf(trQ):'')+'">'+(done?'✓ ':(part?'◐ ':''))+esc(mp)+
+            (part?'<em>'+nf(q.in)+'/'+nf(q.out)+'</em>'
+             :trQ>0?'<em>🚚 반송중 '+nf(trQ)+'</em>'
+             :(v?'<em>'+esc(v)+'</em>':''))+
             (part?'<i class="cbar" style="width:'+Math.min(q.rate,100)+'%"></i>':'')+'</span>';
     });
     return html;
