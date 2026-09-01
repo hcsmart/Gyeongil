@@ -451,6 +451,7 @@ body.navdrop .module.open{background:#e5edf5;color:var(--blue-dark);box-shadow:i
 .act-menu .btn:hover{background:#e5eef6;color:#1d568c;border:0}
 .act-menu .btn.primary{background:none;color:#1d568c}
 .act-menu .btn.danger{background:none;color:#a8332c}
+.act-menu .btn.new{background:none;color:#a4356b}
 .act-menu .btn.green{background:none;color:#1f7a44}
 @media print{ .act-menu{display:none} }
 body.slim .top1 .user{margin-left:0;border-left:1px solid #d5dce2}
