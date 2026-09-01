@@ -195,6 +195,10 @@ const HOME='사내 (발주처)';
 const BACKTO='경일FB (본사)';   /* 모든 외주 반출의 복귀처 — 협력사 간 직접이동 금지 */
 let D=null, WORKER='', MYVEN='', TAB=(['in','out','memo','home'].indexOf(WANTTAB)>=0?WANTTAB:'');
 try{ WORKER=localStorage.getItem('ki_qr_worker')||''; MYVEN=localStorage.getItem('ki_qr_vendor')||''; }catch(e){}
+/* ?home=1 로 열리면(본사 전용 입구) 저장된 업체와 상관없이 본사 모드로 고정한다 */
+if(/[?&]home=1\b/.test(location.search) && MYVEN!==HOME){
+  MYVEN=HOME; try{ localStorage.setItem('ki_qr_vendor',HOME); }catch(e){}
+}
 const isHome=()=>MYVEN===HOME;
 
 async function rpc(fn,args){
@@ -800,6 +804,11 @@ function draw(){
       bar.innerHTML='<button class="go in" id="act">📥 입고 등록</button>';
       $('#act').addEventListener('click',async()=>{
         const b=$('#act'), o=inCur();
+        /* 협력사 화면인데 이미 본사로 반송 등록된 건이면 도착확인을 막는다.
+           (본사 담당자 폰이 협력사 모드로 남아 있으면 도착으로 기록돼 복귀입고가 안 된다) */
+        if(!isHome() && transitOf(o)>0)
+          return toast('❌ 이 건은 이미 본사로 반송 등록됐습니다 ('+fmt(transitOf(o))+'개). '+
+                       '복귀입고는 본사 전용 화면에서 등록하세요.');
         const tr=isHome()?transitOf(o):0;                 /* 협력사가 반송 등록한 운송 중 수량 */
         const base0=tr>0?tr:remainOf(o), q0=num($('#inQty').value);
         const close=isHome()?!!($('#inClose')&&$('#inClose').checked):false;

@@ -132,6 +132,12 @@ const HOMEOK = /[?&]home=1\b/.test(location.search) ||
 let MYVEN='', WORKER='', VENS=[], REC=[];
 try{
   MYVEN=localStorage.getItem('ki_qr_vendor')||'';
+  /* qr_office.html(본사 전용) 로 들어오면 무조건 본사 모드로 전환한다.
+     예전에 협력사로 테스트한 폰이면 저장된 업체가 남아 있어, 본사 화면인 줄 알고
+     도착확인(io='도착')을 눌러 복귀입고가 안 되는 사고가 난다. */
+  if(/[?&]home=1\b/.test(location.search) && MYVEN!==HOME){
+    MYVEN=HOME; try{ localStorage.setItem('ki_qr_vendor',HOME); }catch(e){}
+  }
   WORKER=localStorage.getItem('ki_qr_worker')||'';
   REC=JSON.parse(localStorage.getItem('ki_qr_recent')||'[]');
 }catch(e){ REC=[]; }
@@ -276,7 +282,8 @@ async function openTok(tok,tab){
     const info=await rpc('ki_scan_info',{p_token:tok});
     saveRec(tok,info&&info.part);
     const t=tab||WANTTAB;
-    location.href='lot_qr.html?t='+encodeURIComponent(tok)+(t?'&tab='+t:'');
+    location.href='lot_qr.html?t='+encodeURIComponent(tok)+(t?'&tab='+t:'')+
+      (MYVEN===HOME?'&home=1':'');
   }catch(e){ toast('❌ '+e.message); }
 }
 
