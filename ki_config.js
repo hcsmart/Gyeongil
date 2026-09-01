@@ -470,17 +470,15 @@ const VIEWS = {
     ['process_name','공정명','text',null,'req'],
     ['process_group','공정그룹','sel',['가공','조립','설계','기타']],
     ['sort_order','정렬순서','num'],
-    ['completion_progress','완료 진척률(%)','num'],
-    ['use_progress','진척 사용','bool',{def:true}],
-    ['use_plan','계획 사용','bool',{def:false}],
+    /* 완료 진척률 · 진척 사용 · 계획 사용은 아직 계산에 반영되지 않아 화면에서 감춘다.
+       (컬럼은 ki_process 에 그대로 남아 있으므로 나중에 되살릴 수 있다) */
     ['remark','비고','text']
   ]},
   search:[['공정코드','text','process_code'],['공정명','text','process_name'],
           ['공정그룹','sel','process_group',['전체','가공','조립','설계','기타']]],
   cols:[['No',46,'center','_i'],['공정코드',90,'center','process_code'],
         ['공정명',180,'','process_name'],['공정그룹',80,'center','process_group'],
-        ['정렬순서',70,'num','sort_order'],['완료 진척률',90,'num','completion_progress'],
-        ['진척 사용',72,'center','_up'],['계획 사용',72,'center','_pl'],
+        ['정렬순서',70,'num','sort_order'],
         ['비고',0,'','remark']]
 },
 'vendor':{

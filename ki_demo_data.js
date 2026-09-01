@@ -113,11 +113,8 @@ function process(){
      tip:'<b>가공</b>만 LOT 반출의 공정 목록에 나옵니다. 설계 · 조립은 집계용으로만 쓰입니다.'},
     {t:'fill', el:'#e_sort_order', value:String(next), label:'정렬순서',
      tip:'선택 목록에 나오는 순서입니다. <b>실제 가공 흐름 순</b>으로 번호를 주면 반출 등록이 빨라집니다.'},
-    {t:'fill', el:'#e_completion_progress', value:'30', label:'완료 진척률(%)',
-     tip:'이 공정을 마쳤을 때의 공정률입니다. 비워 두면 단계 수로만 진척을 계산합니다.'},
-    wait('진척 사용 · 계획 사용',
-         '<b>진척 사용</b>을 끄면 진척률 계산에서 빠지고, <b>계획 사용</b>은 생산계획 화면에서 쓰입니다. '+
-         '단순 관리용 코드라면 둘 다 꺼두세요.', '#e_use_progress'),
+    {t:'fill', el:'#e_remark', value:'', label:'비고',
+     tip:'현장 약어의 원래 이름, 대체 공정 등 <b>사람이 헷갈릴 만한 것</b>을 적어두면 좋습니다.'},
     wait('저장은 직접',
          '<b>[저장]</b>을 누르면 등록됩니다. 저장 후 표준 공정경로에서 이 코드를 단계로 쓸 수 있습니다.', '#eSave')
   ];
@@ -131,8 +128,8 @@ function moldSpec(){
   const part= uniq(SC.part, colValues(9));
   const mat = firstOpt('#f_mat'), typ = firstOpt('#f_type');
   return [
-    {t:'click', el:()=>K.actBtn('신규등록'), label:'신규등록',
-     tip:'수정 중인 내용이 남아 있을 수 있으므로 신규 등록은 항상 <b>[＋ 신규등록]</b>부터 시작합니다.'},
+    {t:'click', el:()=>K.actBtn('새로입력'), label:'새로입력',
+     tip:'수정 중인 내용이 남아 있을 수 있으므로 신규 등록은 항상 <b>[새로입력]</b>부터 시작합니다.'},
     {t:'fill', el:'#f_no', value:no, label:'금형제번',
      tip:'금형을 식별하는 <b>키</b>. 저장 후에는 바꿀 수 없고, 금형대장 · 타발수 · 점검이력이 모두 이 번호로 묶입니다.'},
     typ ? {t:'fill', el:'#f_type', value:typ, label:'금형타입',
