@@ -1,5 +1,5 @@
 /* ============================================================
-   GI MES 공통 코어 : 인증 · 헤더 · Supabase · 그리드 엔진
+   SCM Smart 공통 코어 : 인증 · 헤더 · Supabase · 그리드 엔진
 ============================================================ */
 const KI = (function(){
 const C = KI_CFG;
@@ -321,7 +321,7 @@ function chrome(curId){
   /* 1차 */
   const t1=el('div','top1');
   t1.innerHTML =
-    '<a class="logo" href="'+(KI_CFG.LANDING||'lot_route.html')+'"><b>GI</b>MES</a>'+
+    '<a class="logo" href="'+(KI_CFG.LANDING||'lot_route.html')+'"><b>SCM</b>Smart</a>'+
     '<nav class="modules" id="kiMod"></nav>'+
     '<div class="pg-act top" id="kiAct"></div>'+
     '<div class="user">'+
@@ -571,7 +571,7 @@ function mobileNav(curId,cur){
 
   const bar=el('div','mob-bar'); bar.id='kiMobBar';
   bar.innerHTML='<button class="mob-ham" id="kiHam" aria-label="메뉴">☰</button>'+
-    '<span class="mob-lg"><b>GI</b>MES</span>'+
+    '<span class="mob-lg"><b>SCM</b>Smart</span>'+
     '<span class="mob-ttl">'+esc(it.n)+'</span>'+
     '<button class="mob-usr" id="kiMobOut">🔒</button>';
   document.body.insertBefore(bar,document.body.firstChild);

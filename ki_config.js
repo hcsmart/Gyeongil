@@ -1,9 +1,9 @@
 /* ============================================================
-   GI MES 공통 설정
+   SCM Smart 공통 설정
    · 이전 시 아래 SUPABASE 2줄과 DB_PREFIX만 변경
 ============================================================ */
 const KI_CFG = {
-  APP_NAME : 'GI MES',
+  APP_NAME : 'SCM Smart',
   VER      : 'v13.3',
   SUPABASE_URL : 'https://ipggvrzxfcryzryileuv.supabase.co',
   SUPABASE_KEY : 'sb_publishable_CHO-dAOU00HNwno52255mg_H3C1_vew',
@@ -39,7 +39,7 @@ const TBL = {                      /* 편집 대상 원천 테이블 */
   vendorT:'ki_vendor', stdRouteT:'ki_std_route', processT:'ki_process',
   /* 외주 LOT (원천 테이블) */
   lotReceipt:'ki_lot_receipt', lotMove:'ki_lot_move',
-  /* GI MES 전용 테이블 — 같은 프로젝트의 다른 MES 와 데이터가 섞이지 않도록 분리했다.
+  /* SCM Smart 전용 테이블 — 같은 프로젝트의 다른 MES 와 데이터가 섞이지 않도록 분리했다.
      (예전 레거시 공용 테이블 outsourcing_* · machining_* 은 더 이상 쓰지 않는다) */
   ospOrder:'ki_osp_order',
   ospRecv :'ki_osp_receipt',
