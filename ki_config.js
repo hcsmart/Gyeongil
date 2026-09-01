@@ -134,11 +134,11 @@ const MENU = [
   { key:'osp', name:'LOT관리', second:[
     { key:'o-lot', name:'LOT 추적', icon:'🔎', groups:[
       { name:'추적', items:[
-        {id:'lot-route', f:'lot_route.html', n:'LOT 진행등록',
+        {id:'lot-route', f:'lot_route.html', n:'물류등록',
          d:'진척 · 다음공정 반출 · 입고 등록'},
         {id:'lot-track', f:'lot_track.html', n:'LOT 추적(통합조회)',
          d:'반출 · QR · 입고 · 사내입고 통합 이력 검색'},
-        {id:'lot-trace', f:'lot_trace.html', n:'LOT 이동이력', d:'외주업체 경유 이력'},
+        {id:'lot-trace', f:'lot_trace.html', n:'물류이력', d:'외주업체 경유 이력'},
         {id:'lot-move',  f:'lot_move.html',  n:'QR 입출고 이력', d:'QR 스캔 · 부족수량 · 특기사항'},
         {id:'lot-token', f:'lot_token.html', n:'공정이동표 발행이력', d:'QR 토큰 · 유효 · 폐기'}
       ]},
@@ -253,7 +253,7 @@ const HIDE = {
      화면 정의 · 권한 · 파일은 그대로 두므로, 다시 쓰려면 이 배열에서 지우면 된다.
        lot-move  : QR 입출고 이력  → 통합조회 이벤트 [QR 도착 · QR 출고 · 가공입고]
        lot-token : 이동표 발행이력 → 통합조회 이벤트 [이동표 발행]
-     lot-trace(LOT 이동이력)는 경유단계 체인 요약을 제공하므로 메뉴에 유지한다. */
+     lot-trace(물류이력)는 경유단계 체인 요약을 제공하므로 메뉴에 유지한다. */
   item: ['lot-move','lot-token']
 };
 
@@ -483,7 +483,7 @@ const VIEWS = {
 },
 'vendor':{
   table:OBJ.vendor, order:'sort_order.asc,vendor_name.asc',
-  note:'<b>협력사(외주업체) 기준정보</b>입니다. 여기 등록된 업체가 LOT 진행등록 · QR 입출고 · 외주발주의 '+
+  note:'<b>협력사(외주업체) 기준정보</b>입니다. 여기 등록된 업체가 물류등록 · QR 입출고 · 외주발주의 '+
        '<b>외주처 선택 목록</b>과 <b>공정이동표의 연락처</b>로 사용됩니다.<br>'+
        '외주업체 계정의 소속(dept)에 <b>업체명을 그대로 입력</b>하면 QR 입출고 화면에서 해당 업체 LOT이 자동 표시됩니다. '+
        '외주가공 · 밀링 플래그가 모두 꺼지거나 미사용 처리하면 목록에서 제외됩니다.',

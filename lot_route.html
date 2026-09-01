@@ -122,7 +122,7 @@
 
 /* ── 상단 툴바 버튼 (2차 팝업 호출) ──
    본문은 요약(정보 · 흐름도 · 이동중)만 남기고
-   진행등록 · 현장기록 · 범례는 필요할 때만 꺼내 본다. */
+   반출등록 · 현장기록 · 범례는 필요할 때만 꺼내 본다. */
 .lr-mh #mTtl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:52px;
   flex:0 1 auto;max-width:230px}
 .lr-mh .x{flex:none}
@@ -317,10 +317,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     : k==='part'? (c.part||'') : (c.std?c.std.standard_process_name:''));
   const sortList=rows=>SORT.apply(rows);
 
-  /* ── 진행등록 모달 ── */
+  /* ── 물류등록 모달 ── */
   const dim=el('div','lr-dim'); const mo=el('div','lr-mo');
-  mo.innerHTML='<div class="lr-mh"><span id="mTtl">진행등록</span>'+
-      '<button class="hb" id="hOut" title="다음 공정 진행등록 (반출)">📤 진행등록</button>'+
+  mo.innerHTML='<div class="lr-mh"><span id="mTtl">물류등록</span>'+
+      '<button class="hb" id="hOut" title="다음 공정 반출 등록">📤 반출등록</button>'+
       '<button class="hb" id="hMv" title="현장 기록 — 물류 흐름 · 특기사항">📝 현장기록<i id="hMvN"></i></button>'+
       '<button class="hb" id="hLg" title="공정 흐름도 범례">❔ 범례</button>'+
       '<span class="hsep"></span>'+
@@ -342,7 +342,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       '<div id="subStore" style="display:none">'+
       '<div id="moveBox"></div>'+
       '<div class="lr-open lr-fold" id="outFold" style="margin-top:10px">'+
-      '<h5><span class="arw">▶</span>📤 다음 공정 진행등록 (반출)'+
+      '<h5><span class="arw">▶</span>📤 다음 공정 반출등록'+
       '<span class="cnt" id="outCnt">클릭하여 펼치기</span></h5>'+
       '<div class="fold-bd"><div style="padding:9px 10px"><div class="lr-f">'+
         '<label>JOB</label><span style="display:flex;gap:4px;min-width:0">'+
@@ -383,7 +383,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     '</div>'+
     '<div class="lr-mf" id="mFoot" style="display:none">'+
       '<span class="msg" id="mMsg" style="font-weight:700"></span></div>'+
-    /* 반출 등록 · 수정취소는 [진행등록] 팝업 안에서만 누른다.
+    /* 반출 등록 · 수정취소는 [반출등록] 팝업 안에서만 누른다.
        상태(표시여부 · 라벨)를 그대로 쓰는 곳이 많아 요소는 남기고 화면에서만 감춘다. */
     '<span id="btnHost" style="display:none">'+
       '<button class="btn primary" id="mS">📤 반출 등록</button>'+
@@ -392,7 +392,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   mo.style.display='none';
   const dlD=el('datalist'); dlD.id='dlDept'; document.body.appendChild(dlD);
 
-  /* ── 2차 팝업 (진행등록 · 현장기록 · 범례) ────────────────────────────
+  /* ── 2차 팝업 (반출등록 · 현장기록 · 범례) ────────────────────────────
      본문에 전부 쌓아두면 화면이 길고 복잡해진다.
      해당 블록을 통째로 옮겼다 되돌리는 방식이라 기존 이벤트·로직은 그대로 살아있다. */
   const dimS=el('div','lr-dim lr-dimS'); const moS=el('div','lr-mo lr-moS');
@@ -404,7 +404,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       '<button class="btn primary" id="sS" style="display:none">📤 반출 등록</button></div>';
   document.body.appendChild(dimS); document.body.appendChild(moS);
   moS.style.display='none';
-  const SUBP={ out:{id:'outFold', t:'📤 다음 공정 진행등록 (반출)'},
+  const SUBP={ out:{id:'outFold', t:'📤 다음 공정 반출등록'},
                mv :{id:'moveBox', t:'📝 현장 기록 — 물류 흐름 · 특기사항'},
                lg :{id:'iLegend', t:'❔ 공정 흐름도 범례'} };
   let subKey=null;
@@ -530,7 +530,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       last={mp:op.mp,vendor:op.vendor,date:op.sdate};
       moving=!seen0.has(op.mp);
     }
-    /* 표준공정 : 진행등록에 저장된 route_no 우선 → 없으면 반출건의 route_no → 그래도 없으면 역추적
+    /* 표준공정 : 물류등록에 저장된 route_no 우선 → 없으면 반출건의 route_no → 그래도 없으면 역추적
        (진행이력 뷰에는 route_no가 없어 반출건에서 보완해야 정확) */
     const rno = r.route_no || (ospOf(r.part).slice()
         .sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))
@@ -1019,8 +1019,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     $('#infoBox').style.display=''; $('#iChain').style.display='';
     $('#fJob').value=c.job||''; $('#fJob').readOnly=true;
     const g1=$('#fJobGen'); if(g1) g1.style.display='none';
-    $('#mTtl').textContent='진행등록 — '+(c.part||'');
-    setOutFold(false);                     /* 다음 공정 진행등록 : 기본 접힘 */
+    $('#mTtl').textContent='물류등록 — '+(c.part||'');
+    setOutFold(false);                     /* 다음 공정 반출등록 : 기본 접힘 */
     $('#iJob').textContent=c.job||'-';   $('#iPart').textContent=c.part||'-';
     const om=ospOf(c.part).find(o2=>o2.map_part||o2.mold_no)||{};
     const mapv=c.map_part||om.map_part||'', mo3=mapv?moldOf(mapv):null;
@@ -1160,7 +1160,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     if(!(CAN_S||CAN_E)) return KI.msg('❌ 등록 권한이 없습니다.');
     subHide();
     sel=null; NEW=true; mode('ins');
-    $('#mTtl').textContent='진행등록 — 신규';
+    $('#mTtl').textContent='물류등록 — 신규';
     /* 신규는 이력·흐름도가 없으므로 입력폼 버튼만 남긴다 */
     $('#hOut').style.display=''; $('#hMv').style.display='none'; $('#hLg').style.display='none';
     /* 종결 LOT을 보고 난 뒤에도 입력폼이 숨겨진 채 열리지 않도록 복원 */
@@ -1758,7 +1758,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         h5.querySelector('.cnt').textContent=
           mv.length+'건'+(short?' · 부족 '+short+'건':'')+(on?'':' · 클릭하여 펼치기');
       });
-      /* 진행등록을 열 때는 <b>항상 접힌 상태</b>로 시작한다 (요약을 먼저 보고 필요할 때만 펼침) */
+      /* 물류등록을 열 때는 <b>항상 접힌 상태</b>로 시작한다 (요약을 먼저 보고 필요할 때만 펼침) */
     }catch(e){}
   }
   /* 반출등록 섹션 접기/펼치기 (항상 접힌 상태로 시작) */
