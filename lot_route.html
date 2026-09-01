@@ -696,7 +696,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     return open2.length;
   }
 
-  const BUILD='2026-09-01j';   /* 화면 하단 · 제목 툴팁에 표시 — 캐시된 옛 판 구분용 */
+  const BUILD='2026-09-01k';   /* 화면 하단 · 제목 툴팁에 표시 — 캐시된 옛 판 구분용 */
   const openQtyOf = o => {
     if(!o || !o.sdate) return 0;
     if(o.idate) return 0;                      /* 마감된 반출건은 잔여 없음 */
@@ -1857,11 +1857,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
                   :'※ 분납 등록입니다. 남은 '+rem.toLocaleString()+'EA 는 나중에 다시 등록하세요.'))) return;
     if(B){ B.disabled=true; B.textContent='⏳ 등록중...'; }
     try{
-      await KI.ins(TBL.lotReceipt,[{part:c.part, job:c.job||null, in_date:TODAY,
-        qty:inQ||null, short_qty:short, reason:reason||null,
-        worker:(KI.me()||{}).emp_name||'',
-        remark:rmkJoin(willClose?null:'분납 '+(gotQ+inQ).toLocaleString()+'/'+goalQ.toLocaleString()+
-                       ' · 잔여 '+rem.toLocaleString(), rmk)||null}]);
+      /* 수량 초과는 DB 트리거가 이동기록 INSERT 에서 막는다 —
+         입고대장(ki_lot_receipt)을 먼저 넣으면 이동기록만 거부되어 대장에 유령행이 남는다.
+         그래서 <b>이동기록을 먼저</b> 넣고, 통과한 뒤에 대장을 쓴다. */
       await KI.ins(TBL.lotMove,[{part:c.part, io:'사내입고', move_date:TODAY,
         out_qty:baseQ||null, in_qty:inQ||null, short_qty:short, reason:reason||null,
         remark:rmkJoin(flow(node(last.mp,last.vendor),
@@ -1870,6 +1868,11 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
                        (!willClose?' · 누적 '+(gotQ+inQ).toLocaleString()+'/'+goalQ.toLocaleString()+
                                    ' · 잔여 '+rem.toLocaleString():''), rmk),
         worker:(KI.me()||{}).emp_name||'', source:'수동'}]);
+      await KI.ins(TBL.lotReceipt,[{part:c.part, job:c.job||null, in_date:TODAY,
+        qty:inQ||null, short_qty:short, reason:reason||null,
+        worker:(KI.me()||{}).emp_name||'',
+        remark:rmkJoin(willClose?null:'분납 '+(gotQ+inQ).toLocaleString()+'/'+goalQ.toLocaleString()+
+                       ' · 잔여 '+rem.toLocaleString(), rmk)||null}]);
       /* INSERT 가 RLS 로 걸러져도 오류가 안 날 수 있다 — 저장 여부를 직접 확인한다 */
       const chkR=await KI.get(TBL.lotReceipt+'?select=part,in_date,qty&part=eq.'+
                               encodeURIComponent(c.part)).catch(()=>null);
@@ -1881,8 +1884,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
                         ' — 잔여 '+rem.toLocaleString()+'EA 는 다시 등록하세요.'));
       if(willClose && B){ B.disabled=true; B.style.display='none'; }
       await load();
-      const c2=ROWS.map(calc).find(x=>x.part===c.part); if(sel&&c2) open(c2);
-      if(B && B.style.display!=='none') B.textContent='🏭 사내입고(종결)';
+      /* 버튼 상태(문구 · 활성 · 노출)는 open() 이 최신 상태로 다시 그린다 —
+         여기서 덮어쓰면 분납 진행중인데도 [종결]로 보인다. */
+      const c2=ROWS.map(calc).find(x=>x.part===c.part);
+      if(sel&&c2) open(c2); else if(B){ B.disabled=false; B.textContent='🏭 사내입고(종결)'; }
     }catch(e){ alert('❌ '+e.message);
       if(B){ B.disabled=false; B.textContent='🏭 사내입고(종결)'; } }
   }
