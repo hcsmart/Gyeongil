@@ -1930,8 +1930,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       KI.get(OBJ.moldSpec+'?select=mold_no,part_no,asset_owner&order=mold_no.asc'),
       KI.get(OBJ.lotReceipt+'?select=part,in_date,qty,short_qty').catch(()=>[]),
       KI.get(OBJ.lotMove+'?select=part,move_date,in_qty,short_qty&io=eq.'+encodeURIComponent('사내입고')).catch(()=>[]),
-      KI.get(OBJ.lotMove+'?select=part,io,mp,vendor,move_date,osp_no,out_qty,in_qty,short_qty&io=in.('+
-        encodeURIComponent('"도착","입고","기록"')+')&order=move_date.asc,move_id.asc').catch(()=>[]),
+      /* 반송(협력사→본사 운송 중) · 출고 · 취소(void) · 미처리(undone_qty) 까지 읽어야
+         현재 위치 · 진척 · 반송분 입고 분기가 맞는다. */
+      KI.get(OBJ.lotMove+'?select=part,io,mp,vendor,move_date,osp_no,move_id,out_qty,in_qty,short_qty,undone_qty,void&io=in.('+
+        encodeURIComponent('"도착","입고","기록","반송","출고"')+')&order=move_date.asc,move_id.asc')
+        .catch(()=>KI.get(OBJ.lotMove+'?select=part,io,mp,vendor,move_date,osp_no,out_qty,in_qty,short_qty&io=in.('+
+          encodeURIComponent('"도착","입고","기록","반송","출고"')+')&order=move_date.asc,move_id.asc').catch(()=>[])),
       KI.get(OBJ.venStock+'?select=vendor,part,job,mp,map_part,stock_qty,out_date,due_status'+
              '&order=vendor.asc,out_date.asc').catch(()=>[])
     ]);
@@ -1941,7 +1945,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     (mvst||[]).forEach(v=>{ const k=String(v.part||''); if(!k) return;
       if(v.void) return;                                 /* 취소된 기록은 집계에서 제외 */
       (MVQ[k]=MVQ[k]||[]).push(v);                       /* 수량 집계용 원본 */
-      if(!v.mp || v.io==='기록') return;      /* 현장 메모는 공정 경유 이력이 아니다 */
+      /* 현장 메모 · 출고 · 반송은 공정 '경유' 이력이 아니다 (수량 집계 MVQ 에만 쓴다) */
+      if(!v.mp || v.io==='기록' || v.io==='출고' || v.io==='반송') return;
       /* 공정 '완료'로 인정하려면 그 공정에서 실제로 가공된 수량이 있어야 한다.
          미처리 반납(가공 안 하고 그대로 복귀)은 복귀했을 뿐 공정을 거치지 않았다. */
       const doneQ=(Number(v.in_qty)||0)-(Number(v.undone_qty)||0);

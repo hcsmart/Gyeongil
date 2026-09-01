@@ -66,23 +66,30 @@ body{font:15px/1.6 'Malgun Gothic','맑은 고딕',-apple-system,sans-serif;back
 <div class="wrap">
   <div class="hero">
     <div class="ic">🏭</div>
-    <h1>협력사 반송분 수령</h1>
-    <p>업체 설정에서 [🏠 사내 (발주처)] 를 고르세요</p>
+    <h1>반입 · 반출 중 하나를 고르세요</h1>
+    <p>고른 작업 화면으로 바로 열립니다 · 처음 한 번 [🏠 사내 (발주처)] 선택</p>
   </div>
 
-  <a class="big scan" href="lot_vendor.html?home=1">
-    <div class="ic">📷</div>
-    <div class="tx"><b>QR 리딩 — 복귀입고</b>
-      <span>협력사가 반송한 제품의 이동표 QR을 찍어 복귀입고(마감)를 등록합니다</span></div>
+  <a class="big scan" href="lot_vendor.html?home=1&tab=in">
+    <div class="ic">📥</div>
+    <div class="tx"><b>반입 — 복귀입고</b>
+      <span>협력사가 반송한 제품이 도착했을 때. 이동표 QR을 찍어 입고 · 마감을 등록합니다</span></div>
+    <div class="go">›</div>
+  </a>
+
+  <a class="big" href="lot_vendor.html?home=1&tab=out">
+    <div class="ic">📤</div>
+    <div class="tx"><b>반출 — 다음 공정</b>
+      <span>검사를 마친 제품을 다음 협력사(또는 사내 작업장)로 보낼 때. 이동표 QR을 찍어 반출을 등록합니다</span></div>
     <div class="go">›</div>
   </a>
 
   <div class="card">
     <h3>📌 이렇게 쓰세요</h3>
     <div class="bd">
-      <div class="step"><i>1</i><div>처음 한 번 <b>[🏠 사내 (발주처)]</b> 를 선택하면 이후 스캔은 계속 본사 모드로 열립니다.</div></div>
-      <div class="step"><i>2</i><div>협력사가 반송 등록한 건은 <b>운송 중 수량</b>이 기본값으로 채워집니다.</div></div>
-      <div class="step"><i>3</i><div>협력사 보유분이 남아 있으면 <b>마감이 잠깁니다</b> — 전량 회수된 뒤에 마감하세요.</div></div>
+      <div class="step"><i>1</i><div><b>반입</b> — 협력사 반송분이 들어왔을 때. 운송 중 수량이 기본값이고, 협력사 보유분이 남아 있으면 마감이 잠깁니다.</div></div>
+      <div class="step"><i>2</i><div><b>반출</b> — 검사 후 다음 공정으로 보낼 때. 직전 복귀입고의 회수 잔량 안에서만 나갑니다.</div></div>
+      <div class="step"><i>3</i><div>처음 한 번 <b>[🏠 사내 (발주처)]</b> 를 선택하면 이후에는 묻지 않습니다.</div></div>
       <div class="step"><i>!</i><div>사무실에서는 <b>물류등록 → [📦 반송분 입고]</b> 로도 같은 처리가 됩니다.</div></div>
     </div>
   </div>

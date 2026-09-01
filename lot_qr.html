@@ -439,9 +439,14 @@ function draw(){
   if(D.receipt) hero={c:'home',ic:'🏁',t:'LOT 종결',d:'사내입고가 완료된 LOT입니다.',q:num(D.receipt.qty),u:'입고수량'};
 
   if(!TAB) TAB = isHome()?(doneAll?'home':'memo'):(toArr.length?'in':(toOut.length?'out':'memo'));
-  const tabs=[['in','📥 입고'],['out',isHome()?'📤 출고':'🚚 본사반송']]
+  /* 본사 화면은 '반입(복귀입고)' 과 '반출(다음 공정)' 을 분명히 구분한다.
+     qr_office 에서 반입/반출을 골라 들어온 경우(tab=) 다른 쪽 탭은 숨겨 혼동을 막는다. */
+  let tabs=[['in',isHome()?'📥 반입 (복귀입고)':'📥 입고'],
+            ['out',isHome()?'📤 반출 (다음 공정)':'🚚 본사반송']]
     .concat(isHome()&&doneAll&&!D.receipt?[['home','🏭 사내입고']]:[])
     .concat([['memo','📝 특기']]);
+  if(isHome() && (WANTTAB==='in'||WANTTAB==='out'))
+    tabs=tabs.filter(t=>t[0]===WANTTAB||t[0]==='home'||t[0]==='memo');
   if(!tabs.some(t=>t[0]===TAB)) TAB='memo';
 
   wrap.innerHTML=

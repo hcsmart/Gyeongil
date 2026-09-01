@@ -268,12 +268,15 @@ async function loadHold(){
   box.querySelectorAll('.rec').forEach(r=>r.addEventListener('click',()=>openTok(r.dataset.t,'out')));
 }
 
+/* qr_office 에서 [반입] / [반출] 을 골라 들어오면 그 탭으로 바로 열어준다 */
+const WANTTAB=(new URLSearchParams(location.search).get('tab')||'').trim();
 async function openTok(tok,tab){
   toast('확인 중...',1);
   try{
     const info=await rpc('ki_scan_info',{p_token:tok});
     saveRec(tok,info&&info.part);
-    location.href='lot_qr.html?t='+encodeURIComponent(tok)+(tab?'&tab='+tab:'');
+    const t=tab||WANTTAB;
+    location.href='lot_qr.html?t='+encodeURIComponent(tok)+(t?'&tab='+t:'');
   }catch(e){ toast('❌ '+e.message); }
 }
 
