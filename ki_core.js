@@ -949,6 +949,10 @@ function makeModal(def, onSaved){
     if(ty==='bool')      ctl='<select id="e_'+k+'"><option value="true">사용</option><option value="false">미사용</option></select>';
     else if(ty==='area') ctl='<textarea id="e_'+k+'" maxlength="300"></textarea>';
     else if(ty==='sel'||ty==='ref') ctl='<select id="e_'+k+'"></select>';
+    else if(ty==='refs') ctl='<div class="mrefs" id="e_'+k+'__box">'+
+        '<select id="e_'+k+'__pick"></select>'+
+        '<div class="chips" id="e_'+k+'__chips"></div>'+
+        '<input type="hidden" id="e_'+k+'"></div>';
     else if(ty==='num')  ctl='<input id="e_'+k+'" type="number" step="any">';
     else if(ty==='list') ctl='<input id="e_'+k+'" type="text" maxlength="300" placeholder="예: P10 → P20 → P30">';
     else if(ty==='date') ctl='<input id="e_'+k+'" type="date">';
@@ -975,6 +979,34 @@ function makeModal(def, onSaved){
       (await refOpts(opt)).forEach(r=>{
         const o=el('option',null, opt.t ? (r[opt.v]+' · '+(r[opt.t]||'')) : r[opt.v]); o.value=r[opt.v]; s.appendChild(o);
       });
+    }else if(ty==='refs'){
+      /* 여러 개를 고르는 칸 — 입력하며 좁혀 고르고, 고른 값은 칩으로 쌓아 쉼표로 저장한다 */
+      const pick=$('#e_'+k+'__pick',mask), hid=$('#e_'+k,mask), box=$('#e_'+k+'__chips',mask);
+      pick.appendChild(el('option',null,''));
+      const seen={};
+      (await refOpts(opt)).forEach(r=>{
+        const v=String(r[opt.v]==null?'':r[opt.v]).trim();
+        if(!v || seen[v]) return; seen[v]=1;              /* 같은 품번을 쓰는 금형이 여럿일 수 있다 */
+        const o=el('option',null, opt.t ? (v+' · '+(r[opt.t]||'')) : v); o.value=v; pick.appendChild(o);
+      });
+      combo(pick,{placeholder:(opt&&opt.ph)||'입력하여 검색 · 선택하면 추가됩니다'});
+      const list=()=>String(hid.value||'').split(',').map(x=>x.trim()).filter(Boolean);
+      const draw=()=>{
+        const L=list();
+        box.innerHTML = L.length
+          ? L.map(v=>'<span class="chip">'+esc(v)+'<b data-x="'+esc(v)+'">✕</b></span>').join('')
+          : '<span class="none">선택된 항목이 없습니다</span>';
+        box.querySelectorAll('[data-x]').forEach(b=>b.addEventListener('click',()=>{
+          hid.value=list().filter(x=>x!==b.dataset.x).join(', '); draw();
+        }));
+      };
+      hid.addEventListener('ki-draw',draw);
+      pick.addEventListener('change',()=>{
+        const v=String(pick.value||'').trim(); if(!v) return;
+        const L=list(); if(!L.includes(v)) L.push(v);
+        hid.value=L.join(', '); pick.value=''; comboSync(pick); draw();
+      });
+      draw();
     }
   });
 
@@ -994,6 +1026,11 @@ function makeModal(def, onSaved){
       else if(ty==='datetime') c.value = v?String(v).replace(' ','T').substring(0,16):'';
       else if(ty==='date') c.value = v?String(v).substring(0,10):'';
       else if(ty==='list') c.value = Array.isArray(v)?v.join(' → '):(v==null?'':v);
+      else if(ty==='refs'){
+        c.value = Array.isArray(v)?v.join(', '):(v==null?'':String(v));
+        c.dispatchEvent(new Event('ki-draw'));
+        const p=$('#e_'+k+'__pick',mask); if(p){ p.value=''; comboSync(p); }
+      }
       else c.value = (v==null?'':v);
     });
     if(E.auto && !row){ const c=$('#e_'+E.pk,mask); if(c){ c.value=''; } }
@@ -1088,6 +1125,7 @@ const upHint  = (E,f) => (E.auto&&f[0]===E.pk)?' (신규는 비움)':'';
 const normKey = s => String(s==null?'':s).replace(/[*＊\s()（）·]/g,'').toLowerCase();
 const typeName = t => ({text:'문자',num:'숫자',date:'날짜(YYYY-MM-DD)',datetime:'일시',
                         bool:'사용 / 미사용',area:'문자(장문)',sel:'목록선택',ref:'코드',
+                        refs:'코드 여러 개(쉼표 구분)',
                         lookup:'코드 또는 명칭',list:'순서목록( → 또는 , 구분)'}[t]||'문자');
 const lkList = f => (typeof f[3]==='function'?f[3]():f[3])||[];
 const toList = s => String(s||'').split(/→|>|,|\//).map(x=>x.trim()).filter(Boolean);
@@ -1095,6 +1133,7 @@ function allowText(f){
   if(f[2]==='sel') return (f[3]||[]).join(' / ');
   if(f[2]==='bool') return '사용 / 미사용';
   if(f[2]==='ref')  return '기준정보 코드';
+  if(f[2]==='refs') return '기준정보 코드 여러 개 — 쉼표로 구분';
   if(f[2]==='lookup') return lkList(f).map(x=>x.v+'('+x.t+')').join(' / ');
   if(f[2]==='list') return '예: P10 → P20 → P30';
   return '';

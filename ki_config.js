@@ -442,7 +442,7 @@ const VIEWS = {
   edit:{ table:TBL.stdRouteT, pk:'standard_process_no', rename:[[TBL.ospOrder,'route_no']], fields:[
     ['standard_process_no','표준공정번호','num',null,'req'],
     ['standard_process_name','표준공정명','text',null,'req'],
-    ['part_no','적용 품번(쉼표)','text'],
+    ['part_no','적용 품번','refs',{table:OBJ.moldSpec,v:'part_no',order:'part_no',ph:'품번 입력 (금형정보의 매칭품번)'}],
     ['steps','가공공정 순서','list',null,'req'],
     ['inhouse','사내 수행 공정','list']
   ]},
