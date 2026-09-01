@@ -1485,12 +1485,27 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   async function receive(no){
     const o=OSP.find(x=>String(x.no)===String(no))||{};
     const outQ=Number(o.qty)||0;
+    /* ── 협력사 QR 반송분 ────────────────────────────────────
+       협력사가 [본사 반송]을 등록했다면 이번 입고의 기준은 '운송 중' 수량이고,
+       협력사에 아직 남은 보유분이 있으면 반출건을 마감하면 안 된다.
+       이 경우 서버 함수(ki_scan_recv)로 등록해 모바일과 같은 규칙을 공유한다. */
+    const mvq=(MVQ[String(o.part||'')]||[]).filter(v=>String(v.osp_no||'')===String(no));
+    const sumq=(io2,f)=>mvq.filter(v=>v.io===io2).reduce((a,b)=>a+(Number(b[f])||0),0);
+    const backQ=sumq('반송','out_qty'), rcvQ=sumq('입고','in_qty');
+    const arrRow=mvq.filter(v=>v.io==='도착'&&v.in_qty!=null)
+                    .sort((a,b)=>(Number(b.move_id)||0)-(Number(a.move_id)||0))[0];
+    const arrQ=arrRow?(Number(arrRow.in_qty)||0):outQ;
+    const transitQ=Math.max(backQ-rcvQ,0);                       /* 반송 등록 · 본사 미수령 */
+    const heldQ=Math.max(arrQ-sumq('출고','out_qty')-backQ,0);   /* 협력사 보유 (미반송) */
     /* 이미 나눠 들어온 분이 있으면 그만큼 뺀 <b>잔여</b>가 기준이다 (3회 분납 등) */
-    const restQ=openQtyOf(o);
+    const restQ=transitQ>0?transitQ:openQtyOf(o);
     const gotQ=Math.max(outQ-restQ,0);
     const inS=prompt('입고 수량을 입력하세요'+
       '\n반출 '+outQ.toLocaleString()+
-      (gotQ?' · 기회수 '+gotQ.toLocaleString()+' · 잔여 '+restQ.toLocaleString():'')+
+      (transitQ>0
+        ? '\n협력사 반송(운송 중) '+transitQ.toLocaleString()+
+          (heldQ>0?' · 협력사 보유 '+heldQ.toLocaleString()+' (아직 반송 전)':'')
+        : (gotQ?' · 기회수 '+gotQ.toLocaleString()+' · 잔여 '+restQ.toLocaleString():''))+
       '\n\n일부만 들어왔다면 실제 입고분만 넣으세요. 나머지는 다시 등록할 수 있습니다.',
       String(restQ||outQ));
     if(inS===null)return;
@@ -1509,7 +1524,13 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         if(!reason){ short=0; m.className='msg'; m.textContent='부족 처리를 취소했습니다 — 분할로 등록합니다.'; }
       }
     }
-    const close2=(rem<=0)||short>0;                  /* 잔여가 없어야 반출건 마감 */
+    let close2=(rem<=0)||short>0;                    /* 잔여가 없어야 반출건 마감 */
+    /* 협력사에 아직 남은 보유분이 있으면 마감할 수 없다 (모바일과 같은 규칙) */
+    if(heldQ>0 && close2){
+      close2=false; short=0;
+      alert('협력사 보유분 '+heldQ.toLocaleString()+' EA 가 남아 있어 반출건을 마감할 수 없습니다.\n'+
+            '부분 회수로 등록합니다 — 협력사가 남은 분을 반송하면 그때 마감하세요.');
+    }
     /* ── 처리유형 ──
        가공을 안 하고 그대로 돌아온 물량(미처리 반납)을 일반 입고로 잡으면
        그 공정이 완료로 표시되고 다음 공정으로 넘어갈 수 있게 된다. */
@@ -1531,6 +1552,33 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const rmk=prompt('특기사항 (없으면 비워두세요)','')||'';
     const m=$('#mMsg');
     try{
+      /* ── 협력사 반송분 수령 : 서버 함수로 등록 (마감 가드 · 누계 계산 공유) ── */
+      if(transitQ>0){
+        const part=o.part||(sel?sel.part:'');
+        let tk='';
+        try{
+          const rows=await KI.get(OBJ.lotToken+'?select=*&part=eq.'+encodeURIComponent(part)+'&limit=20');
+          const ok=(rows||[]).filter(x=>!x.revoked)
+                   .sort((a,b)=>String(b.issued_at||'').localeCompare(String(a.issued_at||'')))[0];
+          tk=ok?ok.token:'';
+        }catch(e){}
+        if(!tk) throw new Error('이 LOT의 공정이동표(QR)가 없어 반송분을 등록할 수 없습니다. 이동표를 먼저 발행하세요.');
+        const r=await KI.rpc('ki_scan_recv',{p_token:tk, p_no:Number(no), p_date:TODAY,
+          p_qty:inQ, p_reason:reason||null,
+          p_remark:rmkJoin(flow(node(o.mp,o.vendor),
+                    close2?'가공완료 입고':'부분 회수',inQ), rmk),
+          p_worker:(KI.me()||{}).emp_name||'', p_close:close2,
+          p_kind:inKind, p_undone:undone});
+        m.className='msg ok';
+        m.textContent=(r&&r.closed)
+          ? '✓ 복귀입고 — 반출건 마감'+(r.short?' (분실 '+Number(r.short).toLocaleString()+')':'')
+          : '◐ 부분 회수 등록 — 운송 중 잔여 '+Number((r&&r.rest)||0).toLocaleString()+
+            (heldQ>0?' · 협력사 보유 '+heldQ.toLocaleString():'');
+        KI.msg(m.textContent);
+        const keep0=sel?sel.part:(lotList()[0]||{}).lot; await load();
+        const c0=ROWS.map(calc).find(x=>x.part===keep0); if(c0) open(c0);
+        return;
+      }
       if(close2) await KI.upd(TBL.ospOrder,'no=eq.'+no,{idate:TODAY, st:'완료'});
       await KI.ins(TBL.lotMove,[{part:o.part||(sel?sel.part:''), osp_no:Number(no)||null, io:'입고',
         mp:o.mp||null, vendor:o.vendor||null, move_date:TODAY,
