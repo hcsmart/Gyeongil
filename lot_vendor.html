@@ -119,6 +119,7 @@ input:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px rgba(38,104,
 const C=KI_CFG;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=v=>{const n=Number(v);return isNaN(n)?'0':n.toLocaleString();};
 const wrap=$('#wrap'), bar=$('#bar');
 const HOME='사내 (발주처)';
 /* [사내 (발주처)] 는 협력사에게 보일 필요가 없어 기본으로 숨긴다.
@@ -213,6 +214,7 @@ function home(){
     REC.map(x=>'<div class="rec" data-t="'+esc(x.t)+'"><div class="ic">📦</div>'+
       '<b>'+esc(x.p||'(LOT)')+'</b><span class="dt">'+esc(x.d||'')+'</span><span class="go">›</span></div>').join('')+
     '</div></div>':'')+
+  '<div id="holdBox"></div>'+
   '<div class="card"><h3>⌨ 직접 입력</h3><div class="bd">'+
     '<div class="fld"><input id="manual" placeholder="이동표 번호 · QR 주소 붙여넣기"></div>'+
     '<button class="sub-bt" id="btGo">▶ 이동표 열기</button>'+
@@ -226,14 +228,50 @@ function home(){
     openTok(tok);
   });
   wrap.querySelectorAll('.rec').forEach(r=>r.addEventListener('click',()=>openTok(r.dataset.t)));
+  loadHold();
 }
 
-async function openTok(tok){
+/* ── 우리 업체 보유 LOT ─────────────────────────────────────
+   분할 반송을 하면 종이 이동표는 물건과 함께 본사로 간다.
+   협력사에 남은 잔량은 QR 없이도 여기서 골라 바로 반송 등록할 수 있어야 한다. */
+async function loadHold(){
+  const box=$('#holdBox'); if(!box) return;
+  if(!MYVEN||MYVEN===HOME){ box.innerHTML=''; return; }
+  const proof=(REC[0]||{}).t;
+  if(!proof){
+    box.innerHTML='<div class="card"><div class="bd" style="padding:12px 14px;color:#6b7a89;font-size:12.5px">'+
+      '이동표를 <b>한 번만</b> 스캔해 두면, 이후에는 이 화면에서 <b>우리 보유 LOT</b>을 '+
+      '목록으로 열 수 있습니다 (이동표가 본사로 넘어간 잔량도 등록 가능).</div></div>';
+    return;
+  }
+  box.innerHTML='<div class="card"><h3>📦 우리 보유 LOT</h3>'+
+    '<div class="bd" style="padding:12px 15px;color:#9aa7b3;font-size:12.5px">불러오는 중...</div></div>';
+  let rows=[];
+  try{ const r=await rpc('ki_scan_hold',{p_token:proof,p_vendor:MYVEN}); rows=(r&&r.rows)||[]; }
+  catch(e){ box.innerHTML=''; return; }
+  if(!rows.length){ box.innerHTML=''; return; }
+  box.innerHTML='<div class="card"><h3>📦 우리 보유 LOT — 이동표 없이 바로 열기</h3>'+
+    '<div class="bd" style="padding-top:4px">'+
+    rows.map(x=>{
+      const st = Number(x.held)>0 ? {i:'🚚',t:'보유 '+fmt(x.held),c:'#1d568c'}
+               : Number(x.transit)>0 ? {i:'📦',t:'운송중 '+fmt(x.transit),c:'#a4600f'}
+               : {i:'⏳',t:'입고대기',c:'#6b7a89'};
+      return '<div class="rec" data-t="'+esc(x.token)+'"><div class="ic">'+st.i+'</div>'+
+        '<b>'+esc(x.part)+'</b>'+
+        '<span style="font-size:12px;color:#6b7a89;font-weight:700;margin-left:6px">'+esc(x.mp||'')+'</span>'+
+        '<span class="dt" style="color:'+st.c+'">'+st.t+'</span><span class="go">›</span></div>';
+    }).join('')+
+    '<div class="note" style="margin-top:8px">· 분할 반송으로 이동표가 본사로 넘어간 잔량도 여기서 열어 등록합니다.</div>'+
+    '</div></div>';
+  box.querySelectorAll('.rec').forEach(r=>r.addEventListener('click',()=>openTok(r.dataset.t,'out')));
+}
+
+async function openTok(tok,tab){
   toast('확인 중...',1);
   try{
     const info=await rpc('ki_scan_info',{p_token:tok});
     saveRec(tok,info&&info.part);
-    location.href='lot_qr.html?t='+encodeURIComponent(tok);
+    location.href='lot_qr.html?t='+encodeURIComponent(tok)+(tab?'&tab='+tab:'');
   }catch(e){ toast('❌ '+e.message); }
 }
 

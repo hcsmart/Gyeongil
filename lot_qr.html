@@ -184,11 +184,14 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 const num=v=>Number(v)||0;
 const fmt=v=>num(v).toLocaleString();
 const TODAY=new Date().toISOString().slice(0,10);
-const TOKEN=new URLSearchParams(location.search).get('t')||'';
+const QS=new URLSearchParams(location.search);
+const TOKEN=QS.get('t')||'';
+/* 목록에서 '반송'으로 바로 들어온 경우 해당 탭을 연다 */
+const WANTTAB=(QS.get('tab')||'').trim();
 const wrap=$('#wrap'), bar=$('#bar');
 const HOME='사내 (발주처)';
 const BACKTO='경일FB (본사)';   /* 모든 외주 반출의 복귀처 — 협력사 간 직접이동 금지 */
-let D=null, WORKER='', MYVEN='', TAB='';
+let D=null, WORKER='', MYVEN='', TAB=(['in','out','memo','home'].indexOf(WANTTAB)>=0?WANTTAB:'');
 try{ WORKER=localStorage.getItem('ki_qr_worker')||''; MYVEN=localStorage.getItem('ki_qr_vendor')||''; }catch(e){}
 const isHome=()=>MYVEN===HOME;
 
@@ -238,6 +241,9 @@ const arrOf  = o => { const a=LIVE().filter(m=>m.io==='도착'&&
 const pendingOf  = o => Math.max(arrOf(o)-backOf(o.no)-movedOf(o.no),0);
 /* 반송 등록은 됐는데 본사가 아직 못 받은 수량 (운송 중) */
 const transitOf  = o => Math.max(backOf(o.no)-rcvOf(o.no),0);
+/* 본사가 회수해 보유 중인 수량 — 복귀입고 누계 − 다음 공정 반출 누계.
+   분할 회수(600+400) 뒤에는 '최근 입고 1건'만 보는 remainOf 로는 400 밖에 안 보인다. */
+const stockOf    = o => Math.max(rcvOf(o.no)-movedOf(o.no),0);
 /* 그 공정에서 실제로 가공되어 돌아온 수량 (미처리 반납분 제외) */
 const doneQtyOf = mp => LIVE().filter(m=>m.mp===mp&&m.io==='입고')
       .reduce((a,b)=>a+Math.max(num(b.in_qty)-num(b.undone_qty),0),0);
@@ -328,11 +334,24 @@ function gate(opts){
   });
 }
 
+/* 분할 반송을 하면 종이 이동표는 물건과 함께 본사로 간다.
+   협력사에 남은 잔량을 나중에 등록하려면 같은 토큰을 다시 열 수 있어야 하므로
+   이 폰의 '최근 스캔한 LOT'(lot_vendor.html 과 같은 저장소)에 기록해 둔다. */
+function saveRec(part){
+  try{
+    let rec=JSON.parse(localStorage.getItem('ki_qr_recent')||'[]');
+    rec=[{t:TOKEN,p:part,d:new Date().toISOString().slice(5,16).replace('T',' ')}]
+        .concat(rec.filter(x=>x&&x.t!==TOKEN)).slice(0,8);
+    localStorage.setItem('ki_qr_recent',JSON.stringify(rec));
+  }catch(e){}
+}
+
 async function load(){
   try{ D=await rpc('ki_scan_info'); }
   catch(e){ bar.style.display='none';
     wrap.innerHTML='<div class="errbox">'+esc(e.message)+'<br><br>'+
     '<span style="font-weight:400;color:#6b7a89;font-size:13px">폐기되었거나 만료된 이동표입니다.<br>발주처 담당자에게 재발행을 요청하세요.</span></div>'; return; }
+  saveRec(D.part);
   if(MYVEN){ draw(); return; }
   /* ── 업체 자동 판정 ──
      이동표가 보유처를 알려주므로 협력사는 목록에서 고를 필요가 없다.
@@ -495,7 +514,7 @@ function draw(){
     (function(){
       /* 본사는 '복귀입고 마감된 직전 건'에서 다음 공정으로 내보낸다 —
          신규 출고로 잡으면 수량 연결(잔량 검증)이 끊긴다. */
-      const closedSrc = osp.filter(o=>o.idate && remainOf(o)>0 && !open.some(x=>x.no===o.no));
+      const closedSrc = osp.filter(o=>o.idate && stockOf(o)>0 && !open.some(x=>x.no===o.no));
       const src = isHome()? open.concat(closedSrc) : (toOut.length?toOut:mine);
       /* ── 협력사 화면 ──
          외주 반출은 예외 없이 가공 후 경일FB로 반입한다.
@@ -521,7 +540,9 @@ function draw(){
       }
       return '<div class="fld"><label>출고 LOT · 보유분</label><select id="outFrom">'+
         src.map(o=>'<option value="'+o.no+'">'+esc(D.part)+' · '+esc(o.mp||'')+
-          (pName(o.mp)?' '+esc(pName(o.mp)):'')+' — 잔량 '+fmt(remainOf(o))+'개</option>').join('')+
+          (pName(o.mp)?' '+esc(pName(o.mp)):'')+
+          (o.idate?' — 회수 잔량 '+fmt(stockOf(o))+'개':' — 잔량 '+fmt(remainOf(o))+'개')+
+          '</option>').join('')+
         '<option value="">'+esc(D.part)+' · 신규 출고</option></select></div>'+
       '<div class="fld"><label>다음 공정</label><select id="outMp">'+
         (STEPS.length
@@ -567,6 +588,9 @@ function draw(){
   '</div></div>'+
 
   '<div class="card undo" id="undoBox" style="display:none"></div>'+
+  '<div style="text-align:center;margin:2px 0 10px">'+
+    '<a href="lot_vendor.html" style="color:#1d568c;font-size:12.5px;font-weight:700;text-decoration:none">'+
+    '🕘 다른 이동표 열기 · 최근 스캔한 LOT</a></div>'+
   '<div class="card"><h3>🕘 최근 기록</h3><div class="bd" style="padding-top:6px">'+
     (MV.length?MV.map(v=>'<div class="hist"'+(v.void?' style="opacity:.45;text-decoration:line-through"':'')+
       '><div class="dt">'+esc(String(v.move_date||'').slice(5))+'</div>'+
@@ -651,18 +675,21 @@ function draw(){
   let outPool=null, outSrc=null, OUTKIND=()=>'외주', OUTDEST=()=>'';
   if($('#outQty')){
     outPool = isHome()
-      ? open.concat(osp.filter(o=>o.idate && remainOf(o)>0 && !open.some(x=>x.no===o.no)))
+      ? open.concat(osp.filter(o=>o.idate && stockOf(o)>0 && !open.some(x=>x.no===o.no)))
       : (toOut.length?toOut:mine);
     outSrc=()=>outPool.find(o=>String(o.no)===$('#outFrom').value)||null;
     const BACKMODE=!isHome();                       /* 협력사 = 본사 반송 전용 */
-    const baseOf=s=>BACKMODE?pendingOf(s):remainOf(s);
+    const baseOf=s=>BACKMODE?pendingOf(s):(s&&s.idate?stockOf(s):remainOf(s));
     const sync=()=>{
       const s=outSrc(), w=$('#outInfo');
       if(s){ const rem=baseOf(s), q=num($('#outQty').value), left=Math.max(rem-q,0);
         if(q>rem){ w.className='warn r on'; w.textContent='⚠ 보유수량('+fmt(rem)+'개)보다 많습니다'; }
         else if(left>0){ w.className='warn b on';
-          w.textContent=BACKMODE?'부분반송 — 잔량 '+fmt(left)+'개는 계속 보유합니다'
-                                :'부분출고 — 잔량 '+fmt(left)+'개는 계속 보유합니다'; }
+          w.innerHTML=BACKMODE
+            ? '부분반송 — 잔량 <b>'+fmt(left)+'개</b>는 계속 보유합니다.<br>'+
+              '이동표(종이)는 물건과 함께 본사로 보내고, 남은 분은 이 휴대폰의 '+
+              '<b>[최근 스캔한 LOT]</b>에서 이 이동표를 다시 열어 등록하세요.'
+            : '부분출고 — 잔량 '+fmt(left)+'개는 계속 보유합니다'; }
         else { w.className='warn g on';
           w.textContent=BACKMODE?'전량 반송 — 본사 입고 확인 후 마감됩니다':'전량 이관 — 이 건이 마감됩니다'; }
       }else{
@@ -815,7 +842,8 @@ function draw(){
               p_date:$('#outDate').value||TODAY, p_qty:q,
               p_reason:'', p_remark:$('#outRmk').value, p_worker:WORKER});
             toast(r.left>0
-              ?'✓ 부분반송 등록 — 잔량 '+fmt(r.left)+'개 보유. 이동표를 제품과 함께 본사로 보내세요.'
+              ?'✓ 부분반송 등록 — 잔량 '+fmt(r.left)+'개 보유. 이동표는 제품과 함께 본사로 보내고, '+
+               '남은 분은 [최근 스캔한 LOT]에서 다시 열어 등록하세요.'
               :'✓ 본사 반송 등록 완료 — 이동표를 제품과 함께 '+BACKTO+'로 보내세요.',1);
             TAB=''; setTimeout(load,800);
           }catch(e){ toast('❌ '+e.message); b.disabled=false; b.innerHTML=LB; }
@@ -825,9 +853,15 @@ function draw(){
         if(num($('#outQty').value)<=0) return toast('출고수량을 입력하세요.');
         busy(b);
         try{
-          const r=await rpc('ki_scan_out',{p_from:s?Number(s.no):null, p_mp:$('#outMp').value,
-            p_vendor:dest, p_kind:kd, p_date:$('#outDate').value||TODAY,
-            p_qty:num($('#outQty').value), p_remark:$('#outRmk').value, p_worker:WORKER});
+          /* 복귀입고가 끝난 건에서 이어 보낼 때는 회수 '누계' 기준으로 검증해야 한다
+             (ki_scan_out 의 잔량은 최근 입고 1건만 보므로 분할 회수 후 값이 틀어진다) */
+          const r = (s && s.idate)
+            ? await rpc('ki_scan_ship',{p_from:Number(s.no), p_mp:$('#outMp').value,
+                p_vendor:dest, p_kind:kd, p_date:$('#outDate').value||TODAY,
+                p_qty:num($('#outQty').value), p_remark:$('#outRmk').value, p_worker:WORKER})
+            : await rpc('ki_scan_out',{p_from:s?Number(s.no):null, p_mp:$('#outMp').value,
+                p_vendor:dest, p_kind:kd, p_date:$('#outDate').value||TODAY,
+                p_qty:num($('#outQty').value), p_remark:$('#outRmk').value, p_worker:WORKER});
           const tail = kd==='사내' ? '이동표를 제품과 함께 사내 다음 공정으로 넘기세요.'
                                    : '이동표를 제품과 함께 다음 업체로 보내세요.';
           toast(r.left>0?'✓ 부분출고 완료 — 잔량 '+fmt(r.left)+'개 보유. '+tail

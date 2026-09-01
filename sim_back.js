@@ -17,7 +17,7 @@ const H = new Function('num', 'getD', frag +
 /* frag 안의 D 참조를 위해 전역으로 노출 */
 global.D = D;
 const _h = new Function('num', frag +
-  ';return {LIVE,movedOf,remainOf,arrivedOf,backOf,rcvOf,arrOf,pendingOf,transitOf,doneQtyOf,openQtyOf};')(num);
+  ';return {LIVE,movedOf,remainOf,arrivedOf,backOf,rcvOf,arrOf,pendingOf,transitOf,stockOf,doneQtyOf,openQtyOf};')(num);
 /* 계산 직전 항상 최신 DB 상태를 주입 */
 const helpers = new Proxy(_h, { get: (t, k) => (...a) => { D.moves = MV; D.osp = ORD; return t[k](...a); } });
 
@@ -44,11 +44,20 @@ function scan_transit(no) {        /* ki_scan_transit (신규) */
 }
 const push = m => { MV.push(Object.assign({ move_id: ++MID, part: 'LOT111' }, m)); };
 
-function ship(mp, vendor, qty, date, from) {          /* ki_scan_out (본사 반출) */
+function scan_stock(no) {          /* ki_scan_stock (신규) */
+  return Math.max(sum(live().filter(m => m.osp_no === no && m.io === '입고'), m => m.in_qty)
+    - sum(live().filter(m => m.osp_no === no && m.io === '출고'), m => m.out_qty), 0);
+}
+function ship(mp, vendor, qty, date, from) {   /* 마감건 → ki_scan_ship · 그 외 → ki_scan_out */
   if (from != null) {
-    const rem = scan_base(from);
-    if (qty > rem) throw new Error(`출고수량(${qty})이 잔량(${rem})보다 많습니다.`);
-    if (rem - qty <= 0) { ord(from).idate = date; ord(from).st = '완료'; }
+    if (ord(from).idate) {                     /* ki_scan_ship : 회수 누계 기준 */
+      const st = scan_stock(from);
+      if (qty > st) throw new Error(`출고수량(${qty})이 회수 잔량(${st})보다 많습니다.`);
+    } else {                                   /* ki_scan_out : 기존 로직 */
+      const rem = scan_base(from);
+      if (qty > rem) throw new Error(`출고수량(${qty})이 잔량(${rem})보다 많습니다.`);
+      if (rem - qty <= 0) { ord(from).idate = date; ord(from).st = '완료'; }
+    }
   }
   ORD.push({ no: ++SEQ, mp, vendor, move_kind: '외주', qty, sdate: date, idate: null, st: '진행' });
   push({ osp_no: from, io: '출고', mp, vendor, move_date: date, out_qty: qty });
@@ -95,7 +104,7 @@ function view(vendor) {
   const toArr = mine.filter(o => !helpers.arrivedOf(o));
   const toOut = mine.filter(o => helpers.arrivedOf(o) && helpers.remainOf(o) > 0);
   const toBack = isHome ? [] : toOut.filter(o => helpers.pendingOf(o) > 0);
-  const closedSrc = ORD.filter(o => o.idate && helpers.remainOf(o) > 0 && !open.some(x => x.no === o.no));
+  const closedSrc = ORD.filter(o => o.idate && helpers.stockOf(o) > 0 && !open.some(x => x.no === o.no));
   return { open, mine, toArr, toOut, toBack, closedSrc, isHome };
 }
 const HOME = '사내 (발주처)';
@@ -139,7 +148,7 @@ function scenario1() {
     log(`    본사 복귀입고 1,000 → #${no} ${ord(no).idate ? '마감' : '미마감'}`);
     const hv2 = view(HOME);
     log(`    ▸ ${mp} 공정 판정 : 회수 ${helpers.doneQtyOf(mp)} · 미회수 ${helpers.openQtyOf(mp)} → ${helpers.openQtyOf(mp) > 0 ? '◐ 진행중' : '✓ 완료'}`);
-    log(`    본사 출고화면 출처후보: ${hv2.open.map(o => '#' + o.no).concat(hv2.closedSrc.map(o => '#' + o.no + '(마감분 잔량' + helpers.remainOf(o) + ')')).join(', ') || '없음'}`);
+    log(`    본사 출고화면 출처후보: ${hv2.open.map(o => '#' + o.no).concat(hv2.closedSrc.map(o => '#' + o.no + '(회수잔량' + helpers.stockOf(o) + ')')).join(', ') || '없음'}`);
     prev = no;
   });
   state('4공정 종료');
@@ -230,5 +239,34 @@ function scenario5() {
   log(`  (대안) 50 중 20 만 수령하고 마감 → 분실 ${r2.short} · closed ${r2.closed}`);
 }
 
-scenario1(); scenario2(); scenario3(); scenario4(); scenario5();
+
+/* ══ 시나리오 6 : 이동표가 본사로 떠난 뒤 잔량 등록 (모바일 보유 LOT 목록) ══ */
+function scan_hold(vendor) {                 /* ki_scan_hold 와 동일 조건 */
+  return ORD.filter(o => o.vendor === vendor && o.sdate && !o.idate && (o.move_kind || '외주') === '외주')
+    .map(o => ({ no: o.no, mp: o.mp, held: scan_held(o.no), transit: scan_transit(o.no),
+                 arrived: live().some(m => m.osp_no === o.no && m.io === '도착') }))
+    .filter(x => x.held > 0 || x.transit > 0 || !x.arrived);
+}
+function scenario6() {
+  ORD = []; MV = []; SEQ = 0; MID = 0;
+  log('\n══ 시나리오 6 · 이동표가 본사로 떠난 뒤 잔량 등록 ══');
+  const no = ship('AA', 'A사', 1000, '06-01', null);
+  arrive(no, 'A사', 1000, '06-02');
+  back(no, 'A사', 600, '06-03');
+  log('  협력사 600 반송 — 종이 이동표는 물건과 함께 본사로 이동');
+  recv(no, 600, '06-04', false);
+  let h = scan_hold('A사');
+  log(`  모바일 [보유 LOT] 목록: ${h.map(x => `${x.mp} 보유${x.held}·운송중${x.transit}`).join(', ') || '없음'}`);
+  log('  → 목록에서 선택하면 lot_qr.html?t=…&tab=out 로 열려 반송 탭이 바로 뜬다');
+  const r = back(no, 'A사', 400, '06-05');
+  log(`  잔량 400 반송 등록 → 잔여보유 ${r.left}`);
+  recv(no, 400, '06-06', true);
+  h = scan_hold('A사');
+  log(`  마감 후 목록: ${h.length ? h.map(x => x.mp).join(',') : '없음(정상)'}`);
+  log(`  본사 회수 보유(누계) : ${helpers.stockOf(ord(no))} (1000 이어야 정상)`);
+  const n2 = ship('AB', 'B사', 1000, '06-07', no);
+  log(`  본사가 다음 공정 AB → B사 반출 (#${n2}) · B사 목록: ${scan_hold('B사').map(x => x.mp + (x.arrived ? '' : ' 입고대기')).join(',')}`);
+}
+
+scenario1(); scenario2(); scenario3(); scenario4(); scenario5(); scenario6();
 console.log(L.join('\n'));
