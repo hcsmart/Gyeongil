@@ -401,6 +401,7 @@ const VIEWS = {
 },
 'insp-item':{
   table:OBJ.inspItem, order:'sort_order.asc',
+  reorder:'sort_order',
   edit:{ table:TBL.inspItem, pk:'item_code', rename:[[TBL.inspDetail,'item_code']], fields:[
     ['item_code','항목코드','text',null,'req'],
     ['item_name','점검항목','text',null,'req'],
@@ -464,6 +465,7 @@ const VIEWS = {
 },
 'process':{
   table:OBJ.process, order:'sort_order.asc,process_code.asc', post:'proc',
+  reorder:'sort_order',
   note:'가공 · 조립 · 설계 <b>공정코드 기준정보</b>입니다. 여기 등록된 코드가 '+
        '<b>표준 공정경로</b>의 단계와 LOT 반출의 가공공정 선택 목록이 됩니다.<br>'+
        '코드를 고치면 <b>표준 공정경로 · 반출건 · 현장기록 · 협력사 담당공정</b>이 함께 갱신됩니다. '+
@@ -486,6 +488,7 @@ const VIEWS = {
 },
 'customer':{
   table:OBJ.customer, order:'sort_order.asc,customer_name.asc',
+  reorder:'sort_order',
   note:'<b>고객사(발주처) 기준정보</b>입니다. 금형을 <b>소유한</b> 회사를 등록합니다.<br>'+
        '여기 등록된 이름이 [금형정보]의 <b>자산처</b> 선택 목록이 되고, 금형대장의 고객사와 연결됩니다. '+
        '상호를 바꾸면 금형정보 자산처 · 금형대장 고객사가 <b>함께 갱신</b>됩니다.<br>'+
@@ -506,6 +509,7 @@ const VIEWS = {
 },
 'vendor':{
   table:OBJ.vendor, order:'sort_order.asc,vendor_name.asc',
+  reorder:'sort_order',
   note:'<b>협력사(외주업체) 기준정보</b>입니다. 여기 등록된 업체가 물류등록 · QR 스캔 · 외주발주의 '+
        '<b>외주처 선택 목록</b>과 <b>공정이동표의 연락처</b>로 사용됩니다.<br>'+
        '외주업체 계정의 소속(dept)에 <b>업체명을 그대로 입력</b>하면 QR 화면에서 해당 업체 LOT이 자동 표시됩니다.<br>'+
@@ -584,6 +588,7 @@ const VIEWS = {
 },
 'cycle-rule':{
   table:OBJ.cycleRule, order:'sort_order.asc',
+  reorder:'sort_order',
   note:'점검주기의 <b>근거 기준표</b>입니다 — SQ 금형관리에서 요구하는 <b>주기 산정 근거</b>에 해당합니다. '+
        '여기 값을 바꾸면 정기점검 도래현황 · 연간 계획 · 세척 도래현황이 함께 바뀝니다.<br>'+
        '<b>정기</b> — 등급별 주기(일)와 연간 계획 기본 배정월 · <b>세척</b> — 타발수 한도와 기간(일). 둘 중 하나라도 넘으면 도래 판정됩니다.',
@@ -657,6 +662,7 @@ const VIEWS = {
 },
 'mold-type':{
   table:OBJ.moldType, order:'sort_order.asc',
+  reorder:'sort_order',
   note:'금형타입 기준입니다. [금형정보]의 금형타입 선택 목록으로 사용됩니다.',
   search:[['코드','text','mold_type_code'],['타입명','text','mold_type_name']],
   cols:[['코드',100,'','mold_type_code'],['타입명',240,'','mold_type_name'],
@@ -670,6 +676,7 @@ const VIEWS = {
 },
 'material':{
   table:OBJ.material, order:'sort_order.asc',
+  reorder:'sort_order',
   note:'소재 비중 기준입니다. 금형정보의 <b>소재중량(g) = 두께(cm) × 폭(cm) × 피치(cm) × 비중</b> 계산에 사용됩니다.',
   search:[['소재코드','text','material_code'],['소재명','text','material_name']],
   cols:[['소재코드',110,'','material_code'],['소재명',220,'','material_name'],
@@ -769,6 +776,7 @@ const VIEWS = {
 },
 'tool-rule':{
   table:OBJ.toolRule, order:'sort_order.asc',
+  reorder:'sort_order',
   note:'연마 · 교체의 <b>공통 주기기준</b>입니다. 대상이 <b>ALL</b>이면 전체 금형에 적용되고, '+
        '금형종류를 지정한 기준이 있으면 그 기준이 우선 적용됩니다.<br>'+
        '<b>타발수 한도</b> 또는 <b>주기(일)</b> 중 하나라도 넘으면 <b>도래</b>, 임박기준(%) 이상이면 <b>임박</b>으로 판정되어 '+
@@ -847,6 +855,7 @@ const VIEWS = {
 },
 'mold-loc':{
   table:OBJ.moldLoc, order:'sort_order.asc',
+  reorder:'sort_order',
   note:'금형 보관장소 기준입니다. 금형대장의 <b>보관장소</b> 선택 목록으로 사용됩니다.<br>'+
        '<b>장소코드</b>는 [수정]에서 직접 바꿀 수 있으며, 바꾸면 그 장소에 있던 '+
        '<b>금형대장의 보관장소</b>도 새 코드로 함께 갱신됩니다.',
@@ -865,6 +874,7 @@ const VIEWS = {
 },
 'machine':{
   table:OBJ.machine, order:'sort_order.asc',
+  reorder:'sort_order',
   edit:{ table:TBL.machine, pk:'machine_no', rename:[[TBL.mold,'machine_no'],[TBL.shotDaily,'machine_no']], fields:[
     ['machine_no','호기번호','text',null,'req'],
     ['machine_name','호기명','text',null,'req'],

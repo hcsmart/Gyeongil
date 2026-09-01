@@ -211,6 +211,14 @@ table.grid{width:100%;border-collapse:collapse;table-layout:fixed}
 .grid tr.sel td{background:#c9ddf3;color:#123a61;font-weight:700}
 .grid tr.sel:hover td{background:#bed5ef}
 .grid tr.sel td:first-child{box-shadow:inset 3px 0 0 #2f68ad}
+/* 끌어서 순서 변경 */
+.grid td.rh-c{padding:0 2px;cursor:grab}
+.grid .rh{display:inline-block;width:18px;color:#a9b5c1;font-size:12px;line-height:1;cursor:grab;
+  touch-action:none;user-select:none}
+.grid td.rh-c:hover .rh{color:#2e77bd}
+.grid tr.rdrag td{background:#dbe8f4 !important;box-shadow:0 1px 6px rgba(20,50,90,.25)}
+body.rdrag-on{user-select:none;-webkit-user-select:none;cursor:grabbing}
+body.rdrag-on .grid .rh,body.rdrag-on .grid td.rh-c{cursor:grabbing}
 .grid .num{text-align:right}
 .grid .center{text-align:center}
 .badge{display:inline-block;padding:0 6px;border-radius:2px;font-weight:700;font-size:11px;border:1px solid transparent}

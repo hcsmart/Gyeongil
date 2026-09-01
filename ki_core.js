@@ -1562,6 +1562,10 @@ async function grid(id, need){
   const cnt=el('span','right','총 0건');
   tb.appendChild(src); tb.appendChild(cnt); gw.appendChild(tb);
   const tbl=el('table','grid'), thead=el('thead'), tr=el('tr');
+  /* 순서 끌어서 바꾸기 : def.reorder = '정렬순서 컬럼명' (수정 권한 필요) */
+  const RE = (def.reorder && def.edit && can(id,'edit')) ? String(def.reorder) : '';
+  if(RE){ const th=el('th',null,'⇅'); th.style.width='26px';
+    th.title='행을 길게 눌러 끌거나, ⠿ 를 잡아 끌면 순서가 바뀝니다'; tr.appendChild(th); }
   def.cols.forEach(c=>{
     const th=el('th',null,c[0]); if(c[1])th.style.width=c[1]+'px';
     /* 데이터 필드가 있는 컬럼만 정렬 대상 (sortHead 가 자동 인식) */
@@ -1574,16 +1578,77 @@ async function grid(id, need){
 
   /* 표 안내문 (행이 없을 때만) — 상태바 메시지는 msg() 사용 */
   function hint(t){ tbody.innerHTML=''; const r=el('tr'),d=el('td','center',t);
-    d.colSpan=def.cols.length+(def.jump?1:0); d.style.cssText='color:#8894a0;height:60px'; r.appendChild(d); tbody.appendChild(r); }
+    d.colSpan=def.cols.length+(def.jump?1:0)+(RE?1:0); d.style.cssText='color:#8894a0;height:60px'; r.appendChild(d); tbody.appendChild(r); }
 
   /* 제목행 정렬 (공용 헬퍼) */
   const SORT=sortHead(tbl, ()=>render(state.rows));
+
+  /* ── 끌어서 순서 바꾸기 ──
+     화면에 보이는 순서를 그대로 1,2,3… 으로 다시 매겨 바뀐 행만 저장한다.
+     제목행 정렬 중이거나 검색으로 일부만 보일 때는 순서가 뒤엉키므로 막는다. */
+  let dragTr=null, holdT=null;
+  function dragWhy(){
+    if(!RE) return '·';
+    if(SORT.state.d) return '제목행 정렬 중에는 순서를 바꿀 수 없습니다. 제목을 다시 눌러 [↕ 등록순]으로 되돌리세요.';
+    if(tbody.querySelectorAll('tr').length !== state.rows.length)
+      return '검색 조건이 걸려 있어 순서를 바꿀 수 없습니다. [초기화] 후 다시 시도하세요.';
+    return '';
+  }
+  function dragStart(t){
+    const why=dragWhy(); if(why){ if(why!=='·') msg(why); return; }
+    dragTr=t; t.classList.add('rdrag'); document.body.classList.add('rdrag-on');
+  }
+  function dragMove(y){
+    if(!dragTr) return;
+    const rows=[].slice.call(tbody.querySelectorAll('tr'));
+    for(const t of rows){
+      if(t===dragTr) continue;
+      const b=t.getBoundingClientRect();
+      if(y>=b.top && y<=b.bottom){
+        if(y < b.top+b.height/2) tbody.insertBefore(dragTr,t);
+        else tbody.insertBefore(dragTr,t.nextSibling);
+        return;
+      }
+    }
+  }
+  async function dragEnd(){
+    if(!dragTr) return;
+    dragTr.classList.remove('rdrag'); dragTr=null;
+    document.body.classList.remove('rdrag-on');
+    const E=def.edit;
+    const now=[].slice.call(tbody.querySelectorAll('tr')).map(t=>t._row).filter(Boolean);
+    if(now.length!==state.rows.length) return;
+    const chg=[];
+    now.forEach((r,i)=>{ const v=i+1; if(Number(r[RE])!==v){ r[RE]=v; chg.push(r); } });
+    if(!chg.length){ render(now); return; }
+    msg('순서 저장중... ('+chg.length+'건)');
+    try{
+      for(const r of chg){
+        let flt=E.pk+'=eq.'+encodeURIComponent(r[E.pk]);
+        if(E.pk2) flt+='&'+E.pk2+'=eq.'+encodeURIComponent(r[E.pk2]);
+        const body={}; body[RE]=r[RE];
+        await upd(E.table, flt, body);
+      }
+      state.rows=now; render(now);
+      msg('✓ 순서가 저장되었습니다 ('+chg.length+'건).');
+    }catch(e){ msg('❌ '+e.message); await run(null); }
+  }
+  if(RE){
+    document.addEventListener('pointermove',ev=>{ if(dragTr){ ev.preventDefault(); dragMove(ev.clientY); } },{passive:false});
+    document.addEventListener('pointerup',()=>{ clearTimeout(holdT); if(dragTr) dragEnd(); });
+    document.addEventListener('pointercancel',()=>{ clearTimeout(holdT); if(dragTr) dragEnd(); });
+  }
 
   function render(rows){
     tbody.innerHTML='';
     if(!rows.length){ hint('조회 결과가 없습니다'); return; }
     SORT.apply(rows).forEach(r=>{
       const t=el('tr');
+      if(RE){
+        const hd=el('td','center rh-c');
+        hd.innerHTML='<span class="rh" title="끌어서 순서 변경">⠿</span>';
+        t.appendChild(hd);
+      }
       def.cols.forEach(c=>{ const td=el('td',c[2]||''); td.innerHTML=cell(r,c); td.title=td.textContent; t.appendChild(td); });
       if(def.jump){
         const td=el('td','center'); const b=el('button',null,def.jump[0]);
@@ -1593,6 +1658,18 @@ async function grid(id, need){
       }
       t.addEventListener('click',()=>{ tbody.querySelectorAll('tr.sel').forEach(x=>x.classList.remove('sel')); t.classList.add('sel'); state.sel=r; });
       if(editable && can(id,'edit')) t.addEventListener('dblclick',()=>modal.open(r));
+      if(RE){
+        t._row=r;
+        const h=t.querySelector('.rh');
+        if(h) h.addEventListener('pointerdown',ev=>{ ev.preventDefault(); dragStart(t); });
+        /* 손잡이를 못 찾아도 행을 <b>길게 눌러</b> 끌 수 있게 한다 (모바일 대응) */
+        t.addEventListener('pointerdown',ev=>{
+          if(ev.target.closest && ev.target.closest('.rh')) return;
+          clearTimeout(holdT); holdT=setTimeout(()=>dragStart(t),450);
+        });
+        ['pointerup','pointerleave','pointermove'].forEach(e=>
+          t.addEventListener(e,()=>{ if(!dragTr) clearTimeout(holdT); }));
+      }
       if(state.sel && r===state.sel) t.classList.add('sel');
       tbody.appendChild(t);
     });
