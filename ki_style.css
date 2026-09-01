@@ -540,9 +540,12 @@ body.popmode .status{display:none !important}
 body.popmode .page{border:0}
 .pop-head{display:flex;align-items:center;gap:9px;background:linear-gradient(135deg,#3579b8,#22537f);
   color:#fff;padding:10px 13px;font-size:15px;position:sticky;top:0;z-index:30}
-.pop-head b{font-weight:800}
-.pop-head span{font-size:11.5px;opacity:.85;font-weight:400}
-.pop-head button{margin-left:auto;height:28px;padding:0 12px;border:1px solid rgba(255,255,255,.4);
+.pop-head b{font-weight:800;white-space:nowrap}
+/* 좁은 화면에서 제목·설명이 길면 줄여서 보여주고, 닫기 버튼은 줄바꿈시키지 않는다 */
+.pop-head span{font-size:11.5px;opacity:.85;font-weight:400;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.pop-head button{margin-left:auto;flex:none;height:28px;padding:0 14px;white-space:nowrap;
+  border:1px solid rgba(255,255,255,.4);
   border-radius:15px;background:rgba(255,255,255,.16);color:#fff;font:inherit;font-size:12px;
   font-weight:700;cursor:pointer}
 .pop-head button:hover{background:rgba(255,255,255,.28)}

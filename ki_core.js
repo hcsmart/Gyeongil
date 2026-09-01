@@ -301,7 +301,7 @@ function chrome(curId){
       const h=el('div','pop-head');
       h.id='kiPopBar';
       h.innerHTML='<b>'+esc(it.n)+'</b><span>'+esc(it.d||'')+'</span>'+
-                  '<button type="button" id="kiPopX">✕ 닫기</button>';
+                  '<button type="button" id="kiPopX">닫기</button>';
       document.body.insertBefore(h,document.body.firstChild);
       const x=document.getElementById('kiPopX');
       if(x) x.addEventListener('click',()=>window.close());
@@ -954,7 +954,7 @@ function makeModal(def, onSaved){
         '<div class="chips" id="e_'+k+'__chips"></div>'+
         '<input type="hidden" id="e_'+k+'"></div>';
     else if(ty==='num')  ctl='<input id="e_'+k+'" type="number" step="any">';
-    else if(ty==='list') ctl='<input id="e_'+k+'" type="text" maxlength="300" placeholder="예: P10 / P20 / P30">';
+    else if(ty==='list') ctl='<input id="e_'+k+'" type="text" maxlength="300" placeholder="예: P10 → P20 → P30">';
     else if(ty==='date') ctl='<input id="e_'+k+'" type="date">';
     else if(ty==='datetime') ctl='<input id="e_'+k+'" type="datetime-local">';
     else                 ctl='<input id="e_'+k+'" type="text" maxlength="120">';
@@ -1025,7 +1025,7 @@ function makeModal(def, onSaved){
       if(ty==='bool') c.value = String(v!==false);
       else if(ty==='datetime') c.value = v?String(v).replace(' ','T').substring(0,16):'';
       else if(ty==='date') c.value = v?String(v).substring(0,10):'';
-      else if(ty==='list') c.value = Array.isArray(v)?v.join(' / '):(v==null?'':v);
+      else if(ty==='list') c.value = Array.isArray(v)?v.join(' → '):(v==null?'':v);
       else if(ty==='refs'){
         c.value = Array.isArray(v)?v.join(', '):(v==null?'':String(v));
         c.dispatchEvent(new Event('ki-draw'));
@@ -1126,7 +1126,7 @@ const normKey = s => String(s==null?'':s).replace(/[*＊\s()（）·]/g,'').toLo
 const typeName = t => ({text:'문자',num:'숫자',date:'날짜(YYYY-MM-DD)',datetime:'일시',
                         bool:'사용 / 미사용',area:'문자(장문)',sel:'목록선택',ref:'코드',
                         refs:'코드 여러 개(쉼표 구분)',
-                        lookup:'코드 또는 명칭',list:'순서목록( / 또는 , 구분)'}[t]||'문자');
+                        lookup:'코드 또는 명칭',list:'순서목록( → 또는 , 구분)'}[t]||'문자');
 const lkList = f => (typeof f[3]==='function'?f[3]():f[3])||[];
 const toList = s => String(s||'').split(/→|>|,|\//).map(x=>x.trim()).filter(Boolean);
 function allowText(f){
@@ -1135,7 +1135,7 @@ function allowText(f){
   if(f[2]==='ref')  return '기준정보 코드';
   if(f[2]==='refs') return '기준정보 코드 여러 개 — 쉼표로 구분';
   if(f[2]==='lookup') return lkList(f).map(x=>x.v+'('+x.t+')').join(' / ');
-  if(f[2]==='list') return '예: P10 / P20 / P30';
+  if(f[2]==='list') return '예: P10 → P20 → P30';
   return '';
 }
 /* ---------- 파일 읽기 ---------- */
@@ -1230,7 +1230,7 @@ function outVal(f,v){
   if(f[2]==='date') return String(v).substring(0,10);
   if(f[2]==='datetime') return String(v).replace('T',' ').substring(0,16);
   if(f[2]==='lookup'){ const h=lkList(f).find(x=>String(x.v)===String(v)); return h?h.t:v; }
-  if(f[2]==='list') return Array.isArray(v)?v.join(' / '):v;
+  if(f[2]==='list') return Array.isArray(v)?v.join(' → '):v;
   return v;
 }
 /* ---------- 템플릿 파일 생성 ---------- */
