@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>홈 — GI MES</title>
+<title>홈</title>
 <link rel="stylesheet" href="ki_style.css" />
 <style>
 .hm{display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -11,8 +11,8 @@
 .hm .lg{font-size:40px;font-weight:900;letter-spacing:-1.6px;color:#22537f;line-height:1}
 .hm .lg b{color:#3579b8}
 .hm .lg i{font-style:normal;font-size:13px;font-weight:700;color:#8894a0;margin-left:6px;letter-spacing:0}
-.hm .ds{margin-top:6px;font-size:13.5px;line-height:1.8;color:#8894a0}
-.hm .dv{width:52px;height:3px;background:#d7e2ec;border-radius:2px;margin:22px 0 20px}
+.hm .ds{margin-top:6px;font-size:16px;font-weight:800;line-height:1.8;color:#5b6b7b}
+.hm .dv{width:52px;height:3px;background:#d7e2ec;border-radius:2px;margin:0 0 20px}
 .hm .hint{font-size:12.5px;color:#9aa7b3}
 .hm .hint b{color:#2668a8}
 @media (max-width:820px){
@@ -33,7 +33,6 @@
 
   const box=KI.el('div','hm');
   box.innerHTML=
-    '<div class="lg"><b>GI</b> MES<i>'+KI.esc(KI.CFG.VER||'')+'</i></div>'+
     '<div class="dv"></div>'+
     '<div class="ds">작업할 메뉴를 선택하세요.</div>'+
     '<div class="hint" style="margin-top:14px">'+
