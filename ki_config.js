@@ -436,17 +436,20 @@ const VIEWS = {
        '<b>다음 공정 자동 제안</b>의 근거가 됩니다.<br>'+
        '<b>사내 수행 공정</b>에 적은 단계는 경일FB 안에서 처리하는 공정으로, 반출 시 '+
        '이동 구분이 <b>🏭 사내</b>로 자동 지정되고 화면에 오렌지색으로 표시됩니다. '+
-       '비워 두면 전 단계가 외주(🚚)입니다.',
+       '비워 두면 전 단계가 외주(🚚)입니다.<br>'+
+       '<b>적용 품번</b>을 적어두면 물류등록에서 품번을 고르는 순간 이 경로가 <b>자동으로 선택</b>됩니다. '+
+       '여러 품번이면 쉼표로 나열하세요 (예: MB-100-FR, MD-220-BR).',
   edit:{ table:TBL.stdRouteT, pk:'standard_process_no', rename:[[TBL.ospOrder,'route_no']], fields:[
     ['standard_process_no','표준공정번호','num',null,'req'],
     ['standard_process_name','표준공정명','text',null,'req'],
+    ['part_no','적용 품번(쉼표)','text'],
     ['steps','가공공정 순서','list',null,'req'],
     ['inhouse','사내 수행 공정','list']
   ]},
-  search:[['표준공정명','text','standard_process_name']],
+  search:[['표준공정명','text','standard_process_name'],['품번','text','part_no']],
   cols:[['No',46,'center','row_no'],['표준공정번호',100,'center','standard_process_no'],
-        ['표준공정명',160,'','standard_process_name'],['단계수',60,'num','_cnt'],
-        ['사내',52,'center','_in'],
+        ['표준공정명',160,'','standard_process_name'],['적용 품번',150,'','part_no'],
+        ['단계수',60,'num','_cnt'],['사내',52,'center','_in'],
         ['가공공정 순서',0,'','_steps','chain']]
 },
 'err-log':{

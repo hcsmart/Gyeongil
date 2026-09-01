@@ -1272,14 +1272,37 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   }
   /* 값 지정 : 목록에 없는 품번이면 임시 항목으로 추가한 뒤 선택 */
   function setMap(v){ fillMap(v); KI.comboSync($('#fMap')); syncMap(); }
-  function syncMap(){
+  /* 품번으로 표준 공정경로 찾기 — 표준공정경로의 [적용 품번](쉼표 목록)과 대조 */
+  function routeByPart(part){
+    const p=String(part||'').trim().toLowerCase(); if(!p) return null;
+    const hit=RT.filter(r=>String(r.part_no||'').split(',')
+        .map(x=>x.trim().toLowerCase()).filter(Boolean).includes(p));
+    if(!hit.length) return null;
+    return hit.sort((a,b)=>(Number(a.standard_process_no)||0)-(Number(b.standard_process_no)||0))[0];
+  }
+  function syncMap(auto){
     const v=$('#fMap').value.trim();
     const m=moldOf(v);
+    /* 품번을 고르면 그 품번의 표준공정을 자동으로 잡아준다.
+       이미 고른 경로가 있으면 사용자가 직접 품번을 바꿨을 때만 갱신한다. */
+    let rnote='';
+    const rt=routeByPart(v);
+    if(rt){
+      const cur=$('#fRoute').value;
+      if(auto || !cur){
+        if(String(cur)!==String(rt.standard_process_no)){
+          $('#fRoute').value=String(rt.standard_process_no);
+          KI.comboSync($('#fRoute'));
+          fillMp($('#fRoute').value, sel?(sel.rest[0]||''):'');
+        }
+        rnote=' · 표준공정 <b>'+esc(rt.standard_process_name||'')+'</b> 자동 적용';
+      }else rnote=' · 표준공정 <b>'+esc(rt.standard_process_name||'')+'</b> 권장';
+    }
     $('#mapInfo').innerHTML = m ? '🧩 품번 <b>'+esc(m.part_no)+'</b> · 금형제번 <b>'+esc(m.mold_no||'-')+
-        '</b>'+(m.asset_owner?' · 자산처 '+esc(m.asset_owner):'')
-      : (v?'<span style="color:#b05c12">⚠ 금형정보에 등록되지 않은 품번입니다.</span>':'');
+        '</b>'+(m.asset_owner?' · 자산처 '+esc(m.asset_owner):'')+rnote
+      : (v?'<span style="color:#b05c12">⚠ 금형정보에 등록되지 않은 품번입니다.</span>'+rnote:'');
   }
-  $('#fMap').addEventListener('change',syncMap);
+  $('#fMap').addEventListener('change',()=>syncMap(true));
   $('#fFrom').addEventListener('change',fromNote);
 
   /* ── 반출 LOT · 수량 (다건) ── */
