@@ -637,6 +637,21 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
      · 기준은 반출수량이 아니라 <b>도착확인 수량</b>이다.
        운송 중 파손·분실분(도착 시 부족)은 이미 없어진 물량이므로
        업체 보유 잔량으로 잡으면 "돌아오지 않은 물량"이 영원히 남는다. */
+  /* ── 본사 반송(운송 중) 수량 ──────────────────────────────
+     협력사가 QR로 [본사 반송]을 등록했지만 아직 복귀입고가 안 된 물량.
+     물건은 이미 협력사를 떠나 경일FB로 오는 중이므로 '작업중'이 아니다. */
+  const transitOfOsp = o => {
+    if(!o || !o.sdate || o.idate) return 0;
+    const mv=((MVQ[String(o.part||'')])||[]).filter(v=>String(v.osp_no||'')===String(o.no));
+    const sq=(io2,f)=>mv.filter(v=>v.io===io2).reduce((a,b)=>a+(Number(b[f])||0),0);
+    return Math.max(sq('반송','out_qty')-sq('입고','in_qty'),0);
+  };
+  /* 이 LOT 전체의 반송 중 수량 (외주 미결건 합계) */
+  const transitQtyOf = c => openAll(c).filter(o=>!isIn(o))
+        .reduce((a,o)=>a+transitOfOsp(o),0);
+  /* 공정별 반송 중 수량 */
+  const transitAtMp = (c,mp) => openAll(c).filter(o=>!isIn(o)&&String(o.mp||'')===String(mp))
+        .reduce((a,o)=>a+transitOfOsp(o),0);
   const openQtyOf = o => {
     if(!o || !o.sdate) return 0;
     if(o.idate) return 0;                      /* 마감된 반출건은 잔여 없음 */
@@ -762,7 +777,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const split=holdersOf(c).filter(x=>x.qty>0).length>1;
     if(split) return '분할 진행중';
     if(p==='recv') return '사내입고 완료';
-    if(p==='wip')  return (c.arr||c.seen).has(wipMpOf(c))?'외주 작업중':'이동중';
+    if(p==='wip')  return transitQtyOf(c)>0 ? '본사 반송중'
+                        : (c.arr||c.seen).has(wipMpOf(c))?'외주 작업중':'이동중';
     if(openIn(c))  return '사내 작업중';
     return c.std&&!c.rest.length?'사내입고 대기':'사내 보유';
   };
@@ -962,6 +978,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       /* 분할 · 순차납품 : 일부만 회수된 공정은 '부분완료'로 따로 표시한다 (A안) */
       const part=(q.out>0 && q.in>0 && q.open>0);
       const wip=(x===wipMp2 && !part), inw=(!wip && x===inMp2 && !part);
+      const trQ=wip?transitAtMp(c,x):0;                /* 협력사가 본사로 보낸(운송 중) 수량 */
       const done=(doneOf(x)&&!wip&&!inw&&!part);
       const nx=(!done && !wip && !inw && !part && x===c.rest[0]);
       const a2=arr(null,x), o2=outOf(x);
@@ -975,8 +992,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
          ((ospOf(c.part).filter(v2=>v2.mp===x)
             .sort((a,b)=>(Number(b.no)||0)-(Number(a.no)||0))[0]||{}).vendor)||'');
       const vst = stkHtml(c.map_part||'', nVen, x, c.part);
-      html+=arrow(done?'a-done':part?'a-part':((wip||inw)&&prevDone)?'a-wip':'',
-                  (done||part)&&!inw);
+      /* 반송 중이면 트럭이 사내 쪽(←)을 보고 깜빡인다 */
+      html+=arrow(done?'a-done':part?'a-part':trQ>0?'a-part':((wip||inw)&&prevDone)?'a-wip':'',
+                  ((done||part)&&!inw)||trQ>0);
       /* 차수(납품 회차) 상세는 노드 title 로 (B안) */
       const rt2=roundsTip(q);
       html+=node((part?'st-part':done?'st-done':wip?'st-wip':inw?'st-in':nx?'st-next':'st-rest')+
@@ -993,7 +1011,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
               '✓ 완료 · '+(kindOf(x)==='사내'?'사내작업':'사내복귀'))+
               (dVen?' · '+esc(dVen):'')+(dDate?' · '+md(dDate):'')+
               (q.rounds.length>1?' <span class="qsub">('+q.rounds.length+'차 분납 · '+nf(q.in)+')</span>':'')
-        :wip?((arr(null,x)||c.seen.has(x))
+        :wip?(trQ>0
+              ? '<span class="truck">🚚</span> 경일FB 반송중 · '+nf(trQ)+
+                ' <span class="qsub">본사 복귀입고 대기</span>'
+              : (arr(null,x)||c.seen.has(x))
               ? '🏭 '+esc((a2&&a2.vendor)||c.last.vendor||'')+' 작업중'+(dDate?' · 도착 '+md(dDate):'')
               : '<span class="truck">🚚</span> '+esc(c.last.vendor||'')+' 반출중'+(wDate?' · '+md(wDate):''))
         :nx?'다음 공정':'대기')+vst);
@@ -1004,6 +1025,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       '<span><i class="g1"></i>현재 위치(사내 대기 · 출발/복귀 지점)</span>'+
       '<span><i class="g2"></i>공정 완료 (외주=사내복귀 · 사내=사내작업)</span>'+
       '<span><i class="g3"></i>반출중(외주 보유)</span>'+
+      '<span style="color:#a4600f">🚚 ← 본사 반송중(협력사 출발 · 복귀입고 대기)</span>'+
       '<span><i class="g6"></i>부분완료(분할 · 순차납품)</span>'+
       '<span style="color:#8b98a5">🚚 → 반출(사내→외주) · ← 🚚 복귀(외주→사내)</span>'+
       '<span><i class="g5"></i>사내 작업장 이동</span>'+
@@ -1028,13 +1050,17 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     $('#iMold').textContent=(mo3&&mo3.mold_no)||om.mold_no||'-';
     $('#iStd').textContent=c.std?c.std.standard_process_name:'(미매칭)';
     $('#iRate').innerHTML=c.done+'/'+c.total+' <b style="color:#1d568c">'+c.rate+'%</b>'+
-      (c.wip?' <span class="badge" style="background:#e9f2fc;color:#1d568c">'+esc(c.wipMp)+' 반출중</span>':'');
+      (c.wip?' <span class="badge" style="background:'+(transitQtyOf(c)>0?'#fdf3e6;color:#a4600f':'#e9f2fc;color:#1d568c')+'">'+
+        esc(c.wipMp)+(transitQtyOf(c)>0?' 본사 반송중':' 반출중')+'</span>':'');
     const pos=posOf(c), wmp=wipMpOf(c);
     $('#iCur').innerHTML =
       pos==='recv' ? '🏭 사내입고 · 종결'
       : pos==='wip' ? esc(wmp||'-')+(pName(wmp)?' · '+esc(pName(wmp)):'')+
-          ' <span class="badge" style="background:#e9f2fc;color:#1d568c">'+
-          (c.seen.has(wmp)?'외주 작업중':'반출중')+'</span>'
+          (transitQtyOf(c)>0
+            ? ' <span class="badge" style="background:#fdf3e6;color:#a4600f">🚚 본사 반송중 '+
+              nf(transitQtyOf(c))+'</span>'
+            : ' <span class="badge" style="background:#e9f2fc;color:#1d568c">'+
+              (c.seen.has(wmp)?'외주 작업중':'반출중')+'</span>')
       : '🏭 사내 보유'+(c.done?' <span class="badge" style="background:#eef7f0;color:#1d5a35">'+
           esc(c.last.mp||'')+' 완료 후 복귀</span>':' <span class="badge">출발 대기</span>');
     $('#iVen').textContent = holderOf(c);
@@ -1042,6 +1068,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     drawFlow(c,null);
     /* 미입고 건 */
     const op=ospOf(c.part).filter(o=>o.sdate&&!o.idate);
+    /* 협력사가 반송 등록한 건은 '입고 대기'가 아니라 '반송중'으로 구분해 보여준다 */
     $('#openBox').innerHTML = op.length
       ? '<div class="lr-open"><h5>이동중 (입고 대기) '+op.length+'건 — 외주 '+
           op.filter(o=>String(o.move_kind||'외주')!=='사내').length+' · 사내 '+
@@ -1054,16 +1081,21 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         op.map(o=>{const d=Math.round((new Date(TODAY)-new Date(o.sdate))/864e5);
           const late=o.edate&&o.edate<TODAY;
           const ink=String(o.move_kind||'외주')==='사내';
+          const tq=transitOfOsp(o);                    /* 협력사가 이미 보낸(운송 중) 수량 */
           return '<tr><td class="center"><span class="badge" style="background:'+
             (ink?'#fdf1e4;color:#8a5a12':'#e9f2fc;color:#1d568c')+'">'+(ink?'사내':'외주')+'</span></td>'+
-          '<td class="center">'+esc(o.mp||'')+'</td><td>'+esc(o.vendor||'')+'</td>'+
+          '<td class="center">'+esc(o.mp||'')+'</td><td>'+esc(o.vendor||'')+
+            (tq>0?'<br><span class="badge" style="background:#fdf3e6;color:#a4600f">🚚 반송중 '+
+              nf(tq)+'</span>':'')+'</td>'+
           '<td>'+lotText(o)+'</td>'+
           '<td class="center">'+esc(o.sdate||'')+'</td>'+
           '<td class="center"'+(late?' style="color:#b23030;font-weight:700"':'')+'>'+esc(o.edate||'-')+'</td>'+
           '<td class="num">'+d+'일</td>'+
           '<td class="center" style="white-space:nowrap">'+
           '<button class="lr-go" data-ed="'+o.no+'" style="background:#fff;color:#1d568c;margin-right:4px">✎ 수정</button>'+
-          '<button class="lr-go" data-in="'+o.no+'" style="background:#2f7d4d;border-color:#2f7d4d;margin-right:4px">📦 입고</button>'+
+          '<button class="lr-go" data-in="'+o.no+'" style="background:'+
+            (tq>0?'#a4600f;border-color:#a4600f':'#2f7d4d;border-color:#2f7d4d')+
+            ';margin-right:4px">'+(tq>0?'📦 반송분 입고':'📦 입고')+'</button>'+
           (CAN_D?'<button class="lr-go" data-rm="'+o.no+'" title="잘못 등록된 반출건 삭제" '+
             'style="background:#fff;color:#a0505a;border-color:#c9a0a8">✕</button>':'')+'</td></tr>';
         }).join('')+'</tbody></table></div></div>'
