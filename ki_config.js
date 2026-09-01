@@ -37,6 +37,7 @@ const TBL = {                      /* 편집 대상 원천 테이블 */
   toolAlert:'ki_tool_alert', notifyCfg:'ki_notify_config', errLogT:'ki_error_log',
   moldType:'ki_mold_type', material:'ki_material', moldSpecT:'ki_mold_master',
   vendorT:'ki_vendor', stdRouteT:'ki_std_route', processT:'ki_process',
+  customerT:'ki_customer',
   /* 외주 LOT (원천 테이블) */
   lotReceipt:'ki_lot_receipt', lotMove:'ki_lot_move',
   /* SCM Smart 전용 테이블 — 같은 프로젝트의 다른 MES 와 데이터가 섞이지 않도록 분리했다.
@@ -58,6 +59,7 @@ const OBJ = {
   lotReceipt : P+'v_lot_receipt', lotMove : P+'v_lot_move',
   lotToken : P+'v_lot_token', venStock : P+'v_vendor_stock',
   vendor   : P+'v_vendor',     process  : P+'v_process',
+  customer : P+'v_customer',
   errLog   : P+'v_error_log',
   /* 트윈팩토리 */
   factory  : P+'v_factory',    zone     : P+'v_zone',
@@ -190,6 +192,7 @@ const MENU = [
       { name:'외주 기준정보', items:[
         {id:'process',   f:'process.html',   n:'공정코드',      d:'가공 · 조립 · 설계 공정 코드 · 명칭'},
         {id:'vendor',    f:'vendor.html',    n:'협력사 정보',   d:'외주 가공 · 연락처 · 담당공정'},
+        {id:'customer',  f:'customer.html',  n:'고객사 정보',   d:'금형 자산처 · 발주처'},
         {id:'std-route', f:'std_route.html', n:'표준 공정경로', d:'가공순서 · 사내/외주 구분'}
       ]}
     ]},
@@ -481,38 +484,49 @@ const VIEWS = {
         ['정렬순서',70,'num','sort_order'],
         ['비고',0,'','remark']]
 },
+'customer':{
+  table:OBJ.customer, order:'sort_order.asc,customer_name.asc',
+  note:'<b>고객사(발주처) 기준정보</b>입니다. 금형을 <b>소유한</b> 회사를 등록합니다.<br>'+
+       '여기 등록된 이름이 [금형정보]의 <b>자산처</b> 선택 목록이 되고, 금형대장의 고객사와 연결됩니다. '+
+       '상호를 바꾸면 금형정보 자산처 · 금형대장 고객사가 <b>함께 갱신</b>됩니다.<br>'+
+       '일을 맡기는 <b>외주업체는 [협력사 정보]</b>에 등록하세요.',
+  search:[['고객사','text','customer_name'],['담당자','text','contact_name']],
+  cols:[['고객사',180,'','customer_name'],['담당자',100,'','contact_name'],
+        ['담당자 연락처',120,'','contact_phone'],
+        ['사용',56,'center','is_active','bool'],['순서',60,'num','sort_order'],
+        ['비고',0,'','remark']],
+  edit:{ table:TBL.customerT, pk:'customer_name', rename:{rpc:'ki_customer_rename'}, fields:[
+    ['customer_name','고객사','text',null,'req'],
+    ['contact_name','담당자','text'],
+    ['contact_phone','담당자 연락처','text'],
+    ['is_active','사용','bool',{def:true}],
+    ['sort_order','순서','num'],
+    ['remark','비고','area']
+  ]}
+},
 'vendor':{
   table:OBJ.vendor, order:'sort_order.asc,vendor_name.asc',
   note:'<b>협력사(외주업체) 기준정보</b>입니다. 여기 등록된 업체가 물류등록 · QR 스캔 · 외주발주의 '+
        '<b>외주처 선택 목록</b>과 <b>공정이동표의 연락처</b>로 사용됩니다.<br>'+
-       '외주업체 계정의 소속(dept)에 <b>업체명을 그대로 입력</b>하면 QR 화면에서 해당 업체 LOT이 자동 표시됩니다. '+
-       '외주가공 · 밀링 플래그가 모두 꺼지거나 미사용 처리하면 목록에서 제외됩니다.',
+       '외주업체 계정의 소속(dept)에 <b>업체명을 그대로 입력</b>하면 QR 화면에서 해당 업체 LOT이 자동 표시됩니다.<br>'+
+       '금형을 소유한 <b>발주처는 [고객사 정보]</b>에 따로 등록합니다.',
   edit:{ table:TBL.vendorT, pk:'vendor_code', rename:[], fields:[
     ['vendor_code','업체코드','text',null,'req'],
     ['vendor_name','업체명','text',null,'req'],
-    ['vendor_type','구분','sel',['외주가공','밀링','열처리','표면처리','기타']],
     ['proc_codes','담당 공정코드(쉼표)','text'],
-    ['partner_type','협력형태','text'],
-    ['location_type','지역','text'],
-    ['ceo_name','대표자','text'],
     ['phone','대표전화','text'],
     ['contact_name','담당자','text'],
     ['contact_phone','담당자 연락처','text'],
-    ['email','이메일','text'],
-    ['address','주소','text'],
-    ['outsourcing_flag','외주가공','bool',{def:true}],
-    ['milling_flag','밀링','bool',{def:false}],
     ['is_active','사용','bool',{def:true}],
     ['sort_order','순서','num'],
     ['remark','비고','area']
   ]},
   search:[['업체명','text','vendor_name'],['업체코드','text','vendor_code'],
-          ['구분','text','vendor_type'],['담당공정','text','proc_codes']],
+          ['담당공정','text','proc_codes']],
   cols:[['업체코드',80,'center','vendor_code'],['업체명',150,'','vendor_name'],
-        ['구분',80,'center','vendor_type'],['담당공정',90,'center','proc_codes'],
-        ['대표자',80,'','ceo_name'],['대표전화',110,'','phone'],
+        ['담당공정',100,'center','proc_codes'],['대표전화',110,'','phone'],
         ['담당자',80,'','contact_name'],['담당자 연락처',110,'','contact_phone'],
-        ['지역',80,'center','location_type'],['비고',0,'','remark']]
+        ['순서',60,'num','sort_order'],['비고',0,'','remark']]
 },
 
 'env-hist':{
@@ -637,7 +651,7 @@ const VIEWS = {
     ['pitch_mm','피치(mm)','num'],
     ['density','비중(비우면 재질값)','num'],
     ['part_no','매칭품번','text'],
-    ['asset_owner','자산처','text'],
+    ['asset_owner','자산처(고객사)','ref',{table:OBJ.customer,v:'customer_name'}],
     ['remark','비고','area']
   ]}
 },
