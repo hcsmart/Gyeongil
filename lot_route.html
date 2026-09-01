@@ -1100,7 +1100,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           '<button class="lr-go" data-ed="'+o.no+'" style="background:#fff;color:#1d568c;margin-right:4px">✎ 수정</button>'+
           '<button class="lr-go" data-in="'+o.no+'" style="background:'+
             (tq>0?'#a4600f;border-color:#a4600f':'#2f7d4d;border-color:#2f7d4d')+
-            ';margin-right:4px">'+(tq>0?'📦 반송분 입고':'📦 입고')+'</button>'+
+            ';margin-right:4px" title="'+
+            (tq>0?'협력사가 QR로 반송 등록한 '+nf(tq)+'EA 를 수령합니다 (운송 중 수량이 기본값)'
+                 :'협력사가 QR을 쓰지 않는 경우 발주처가 대신 회수 처리합니다')+
+            '">'+(tq>0?'📦 반송분 입고':'📦 입고')+'</button>'+
           (CAN_D?'<button class="lr-go" data-rm="'+o.no+'" title="잘못 등록된 반출건 삭제" '+
             'style="background:#fff;color:#a0505a;border-color:#c9a0a8">✕</button>':'')+'</td></tr>';
         }).join('')+'</tbody></table></div></div>'
