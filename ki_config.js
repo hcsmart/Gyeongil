@@ -147,9 +147,9 @@ const MENU = [
          d:'업체별 보유수량 · 체류일 · 납기'}
       ]},
       { name:'현장 (QR)', items:[
-        {id:'lot-scan',  f:'lot_scan.html',  n:'QR 입출고(현장)', pop:1,
-         d:'공정이동표 QR 스캔 — 출고 · 입고 · 특기사항 (별도 창)'},
-        {id:'lot-vendor',f:'lot_vendor.html',n:'협력사 QR 스캔(모바일)', pop:1,
+        {id:'lot-scan',  f:'lot_scan.html',  n:'QR(수동, 수정)', pop:1,
+         d:'이동표 없이 LOT · JOB 검색으로 입출고 등록 · 정정 (별도 창)'},
+        {id:'lot-vendor',f:'lot_vendor.html',n:'QR(리딩)', pop:1,
          d:'협력사 전용 — 카메라로 이동표 QR 스캔 (별도 창)'}
       ]}
     ]}
@@ -483,9 +483,9 @@ const VIEWS = {
 },
 'vendor':{
   table:OBJ.vendor, order:'sort_order.asc,vendor_name.asc',
-  note:'<b>협력사(외주업체) 기준정보</b>입니다. 여기 등록된 업체가 물류등록 · QR 입출고 · 외주발주의 '+
+  note:'<b>협력사(외주업체) 기준정보</b>입니다. 여기 등록된 업체가 물류등록 · QR 스캔 · 외주발주의 '+
        '<b>외주처 선택 목록</b>과 <b>공정이동표의 연락처</b>로 사용됩니다.<br>'+
-       '외주업체 계정의 소속(dept)에 <b>업체명을 그대로 입력</b>하면 QR 입출고 화면에서 해당 업체 LOT이 자동 표시됩니다. '+
+       '외주업체 계정의 소속(dept)에 <b>업체명을 그대로 입력</b>하면 QR 화면에서 해당 업체 LOT이 자동 표시됩니다. '+
        '외주가공 · 밀링 플래그가 모두 꺼지거나 미사용 처리하면 목록에서 제외됩니다.',
   edit:{ table:TBL.vendorT, pk:'vendor_code', rename:[], fields:[
     ['vendor_code','업체코드','text',null,'req'],

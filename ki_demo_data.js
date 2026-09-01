@@ -34,7 +34,7 @@ function vendor(){
   const code = uniq(SC.vcode, colValues(1));   /* 업체코드 열 */
   return [
     {t:'click', el:()=>K.actBtn('등록'), label:'등록',
-     tip:'협력사 등록은 <b>[등록]</b>으로 시작합니다. 여기 등록된 업체만 물류등록 · QR 입출고의 '+
+     tip:'협력사 등록은 <b>[등록]</b>으로 시작합니다. 여기 등록된 업체만 물류등록 · QR 스캔의 '+
          '<b>외주처 목록</b>에 나타납니다.'},
     {t:'fill', el:'#e_vendor_code', value:code, wait:3000, label:'업체코드',
      tip:'업체를 식별하는 <b>키 값</b>. 사내 규칙(V01 · V02 …)을 지켜 부여하세요. '+
@@ -42,7 +42,7 @@ function vendor(){
          '이름을 바꿀 때가 더 조심스럽습니다.'},
     {t:'fill', el:'#e_vendor_name', value:SC.ven, label:'업체명',
      tip:'사업자등록증 상호와 <b>철자까지 동일</b>하게. 외주업체 계정의 소속(dept)에 이 이름을 그대로 넣어야 '+
-         'QR 입출고에서 그 업체 LOT이 자동으로 보입니다.'},
+         'QR 화면에서 그 업체 LOT이 자동으로 보입니다.'},
     {t:'fill', el:'#e_vendor_type', value:'열처리', label:'구분',
      tip:'가공 성격 구분. 협력사 재고현황·납기 집계를 구분별로 볼 때 쓰입니다.'},
     {t:'fill', el:'#e_proc_codes', value:'HQ,GS', label:'담당 공정코드',
