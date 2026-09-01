@@ -17,7 +17,7 @@ const H = new Function('num', 'getD', frag +
 /* frag 안의 D 참조를 위해 전역으로 노출 */
 global.D = D;
 const _h = new Function('num', frag +
-  ';return {LIVE,movedOf,remainOf,arrivedOf,backOf,rcvOf,arrOf,pendingOf,transitOf};')(num);
+  ';return {LIVE,movedOf,remainOf,arrivedOf,backOf,rcvOf,arrOf,pendingOf,transitOf,doneQtyOf,openQtyOf};')(num);
 /* 계산 직전 항상 최신 DB 상태를 주입 */
 const helpers = new Proxy(_h, { get: (t, k) => (...a) => { D.moves = MV; D.osp = ORD; return t[k](...a); } });
 
@@ -138,6 +138,7 @@ function scenario1() {
     recv(no, 1000, d, true);
     log(`    본사 복귀입고 1,000 → #${no} ${ord(no).idate ? '마감' : '미마감'}`);
     const hv2 = view(HOME);
+    log(`    ▸ ${mp} 공정 판정 : 회수 ${helpers.doneQtyOf(mp)} · 미회수 ${helpers.openQtyOf(mp)} → ${helpers.openQtyOf(mp) > 0 ? '◐ 진행중' : '✓ 완료'}`);
     log(`    본사 출고화면 출처후보: ${hv2.open.map(o => '#' + o.no).concat(hv2.closedSrc.map(o => '#' + o.no + '(마감분 잔량' + helpers.remainOf(o) + ')')).join(', ') || '없음'}`);
     prev = no;
   });
@@ -160,6 +161,8 @@ function scenario2() {
   log(`  본사 입고화면 기본수량 ${helpers.transitOf(ord(no))} · 마감 ${held > 0 || rest > 0 ? '잠금(정상)' : '가능'}`);
   recv(no, 600, '02-04', false);
   log(`  본사 1차 복귀입고 600 (마감 안 함) → #${no} ${ord(no).idate ? '마감' : '진행'}`);
+  log(`  ▸ AA 공정 판정 : 회수 ${helpers.doneQtyOf('AA')} · 미회수 ${helpers.openQtyOf('AA')} → ` +
+      `${helpers.openQtyOf('AA') > 0 ? '◐ 진행중(정상)' : '✓ 완료'}`);
   log(`  이 시점 보유 ${helpers.pendingOf(ord(no))} · 반송 ${helpers.backOf(no)} · 본사입고 ${helpers.rcvOf(no)} · 운송중 ${helpers.transitOf(ord(no))}`);
   v = view('A사');
   log(`  협력사 화면 재확인: 반송대기 ${v.toBack.length}건 · 보유 ${helpers.pendingOf(ord(no))} (400 이어야 정상)`);
@@ -169,6 +172,8 @@ function scenario2() {
   log(`  본사 입고화면 기본수량 ${helpers.transitOf(ord(no))} · 마감 ${held > 0 || rest > 0 ? '잠금' : '가능(정상)'}`);
   recv(no, 400, '02-06', true);
   log(`  본사 2차 복귀입고 400 (마감) → #${no} ${ord(no).idate ? '마감' : '진행'}`);
+  log(`  ▸ AA 공정 판정 : 회수 ${helpers.doneQtyOf('AA')} · 미회수 ${helpers.openQtyOf('AA')} → ` +
+      `${helpers.openQtyOf('AA') > 0 ? '◐ 진행중' : '✓ 완료(정상)'}`);
   state('분할회수 완료');
   const shorts = live().filter(m => Number(m.short_qty) > 0)
     .map(m => `${m.io} ${m.move_date} 부족${m.short_qty}`);
@@ -216,6 +221,7 @@ function scenario5() {
   back(no, 'A사', 1000, '05-03');
   try { recv(no, 950, '05-04', false); } catch (e) { log('  ' + e.message); }
   log(`  마감 없이 950 수령 → 운송중 ${helpers.transitOf(ord(no))} · #${no} ${ord(no).idate ? '마감' : '진행(정상)'}`);
+  log(`  ▸ AA 공정 판정 : 회수 ${helpers.doneQtyOf('AA')} · 미회수 ${helpers.openQtyOf('AA')} → ${helpers.openQtyOf('AA') > 0 ? '◐ 진행중(정상)' : '✓ 완료'}`);
   const r = recv(no, 50, '05-05', true);
   log(`  잔여 50 을 마감 처리 → closed ${r.closed} · 분실 ${r.short}`);
   MV = MV.filter(m => m.move_date !== '05-05');

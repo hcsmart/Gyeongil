@@ -238,6 +238,12 @@ const arrOf  = o => { const a=LIVE().filter(m=>m.io==='도착'&&
 const pendingOf  = o => Math.max(arrOf(o)-backOf(o.no)-movedOf(o.no),0);
 /* 반송 등록은 됐는데 본사가 아직 못 받은 수량 (운송 중) */
 const transitOf  = o => Math.max(backOf(o.no)-rcvOf(o.no),0);
+/* 그 공정에서 실제로 가공되어 돌아온 수량 (미처리 반납분 제외) */
+const doneQtyOf = mp => LIVE().filter(m=>m.mp===mp&&m.io==='입고')
+      .reduce((a,b)=>a+Math.max(num(b.in_qty)-num(b.undone_qty),0),0);
+/* 아직 회수되지 않은 수량 — 협력사 보유 + 운송 중 (마감 안 된 반출건만) */
+const openQtyOf = mp => (D.osp||[]).filter(o=>o.mp===mp&&o.sdate&&!o.idate)
+      .reduce((a,o)=>a+pendingOf(o)+transitOf(o),0);
 /* 미처리 반납 잔량 — 그 공정을 다시 거쳐야 하는 수량 */
 const undoneOf = mp => {
   const back=LIVE().filter(m=>m.io==='입고'&&m.mp===mp)
@@ -349,12 +355,16 @@ function draw(){
   const osp=(D.osp||[]), lot=D.lot||{}, rt=D.route||null;
   const open=osp.filter(o=>o.sdate&&!o.idate);
   const STEPS=rt&&Array.isArray(rt.steps)?rt.steps:[];
-  /* 완료로 볼 공정 : 그 공정에서 실제로 가공된 수량이 있어야 한다.
+  /* 완료로 볼 공정 : ① 그 공정에서 실제로 가공된 수량이 있고
+                      ② 아직 회수 안 된 물량(협력사 보유 · 운송 중)이 없어야 한다.
+     분할 회수 중(600 회수 · 400 잔여)에는 완료로 잡지 않고 진행중으로 둔다.
      미처리 반납(가공 안 하고 그대로 복귀)은 복귀했을 뿐 공정을 거치지 않았다. */
   const SEEN=new Set(LIVE().filter(m=>m.mp&&m.io==='입고'&&
-    (num(m.in_qty)-num(m.undone_qty))>0).map(m=>m.mp));
+    (num(m.in_qty)-num(m.undone_qty))>0).map(m=>m.mp)
+    .filter(mp=>openQtyOf(mp)<=0));
   const ARR =new Set(LIVE().filter(m=>m.mp&&(m.io==='도착'||m.io==='입고')).map(m=>m.mp));
-  (Array.isArray(lot.steps)?lot.steps:[]).forEach(s=>{ if(s.mp) SEEN.add(s.mp); });
+  (Array.isArray(lot.steps)?lot.steps:[]).forEach(s=>{
+    if(s.mp && openQtyOf(s.mp)<=0) SEEN.add(s.mp); });
   const rest=STEPS.filter(x=>(!SEEN.has(x)||undoneOf(x)>0)&&!open.some(o=>o.mp===x));
   const doneAll=STEPS.length&&!rest.length&&!open.length;
   const last=osp[osp.length-1]||{}, first=osp[0]||{};
@@ -426,11 +436,16 @@ function draw(){
       const d=SEEN.has(x)&&!uq, now=(!isHome()&&x===myMp)||(isHome()&&open.some(y=>y.mp===x));
       const nx=(!d&&!now&&x===rest[0]);
       const k=kindOfMp(x);
+      const dq=doneQtyOf(x), pq=openQtyOf(x);
+      const half=(!d&&!uq&&dq>0&&pq>0);            /* 부분회수 — 일부만 돌아옴 */
       return '<div class="stp '+(now?'now':d?'done':nx?'next':'')+' '+(k==='사내'?'k-in':'k-out')+'"'+
-        (uq?' title="미처리 반납 '+fmt(uq)+'개 — 이 공정을 다시 거쳐야 합니다"':'')+'>'+
-        '<i>'+(uq?'↩':d?'✓':(i+1))+'</i><em>'+esc(x)+'</em>'+
+        (uq?' title="미처리 반납 '+fmt(uq)+'개 — 이 공정을 다시 거쳐야 합니다"'
+           :half?' title="부분회수 — 회수 '+fmt(dq)+'개 · 미회수 '+fmt(pq)+'개"':'')+'>'+
+        '<i>'+(uq?'↩':d?'✓':half?'◐':(i+1))+'</i><em>'+esc(x)+'</em>'+
         '<span class="kk">'+(k==='사내'?'사내':'외주')+'</span>'+
-        '<small>'+esc(uq?'미처리 '+fmt(uq):(o.vendor||pName(x)||''))+'</small></div>';
+        '<small>'+esc(uq?'미처리 '+fmt(uq)
+                    :half?'미회수 '+fmt(pq)
+                    :(o.vendor||pName(x)||''))+'</small></div>';
     }).join('')+'</div>':'')+
   '</div>'+
 
