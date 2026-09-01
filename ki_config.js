@@ -464,7 +464,8 @@ const VIEWS = {
   table:OBJ.process, order:'sort_order.asc,process_code.asc', post:'proc',
   note:'가공 · 조립 · 설계 <b>공정코드 기준정보</b>입니다. 여기 등록된 코드가 '+
        '<b>표준 공정경로</b>의 단계와 LOT 반출의 가공공정 선택 목록이 됩니다.<br>'+
-       '이미 사용 중인 코드는 <b>변경하지 말고</b> 새 코드를 추가하세요 — 과거 이력이 코드로 묶여 있습니다.',
+       '코드를 고치면 <b>표준 공정경로 · 반출건 · 현장기록 · 협력사 담당공정</b>이 함께 갱신됩니다. '+
+       '다만 이미 인쇄된 이동표는 옛 코드 그대로이므로 운영 중 변경은 <b>오타 정정 수준</b>으로만 하세요.',
   edit:{ table:TBL.processT, pk:'process_code', rename:{rpc:'ki_process_rename'}, fields:[
     ['process_code','공정코드','text',null,'req'],
     ['process_name','공정명','text',null,'req'],
