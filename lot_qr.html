@@ -200,6 +200,9 @@ if(/[?&]home=1\b/.test(location.search) && MYVEN!==HOME){
   MYVEN=HOME; try{ localStorage.setItem('ki_qr_vendor',HOME); }catch(e){}
 }
 const isHome=()=>MYVEN===HOME;
+/* 사내 이동은 공장 밖으로 나가지 않으므로 도착·입고를 찍지 않는다.
+   작업이 끝나면 '작업완료' 한 번으로 마감한다 (PC 물류등록과 같은 규칙). */
+const isIn=o=>!!o && String(o.move_kind||'외주')==='사내';
 
 async function rpc(fn,args){
   const r=await fetch(C.SUPABASE_URL+'/rest/v1/rpc/'+fn,{
@@ -801,9 +804,25 @@ function draw(){
     if(TAB==='in'){
       if(!$('#inQty')){ bar.style.display='none'; return; }
       bar.style.display='';
-      bar.innerHTML='<button class="go in" id="act">📥 입고 등록</button>';
+      /* 사내 건은 '입고'가 아니라 '작업완료' */
+      const LBIN=isIn(inCur&&inCur())?'✔ 사내 작업완료':'📥 입고 등록';
+      bar.innerHTML='<button class="go in" id="act">'+LBIN+'</button>';
       $('#act').addEventListener('click',async()=>{
         const b=$('#act'), o=inCur();
+        /* ── 사내 이동 : 입고 절차 없이 작업완료 ── */
+        if(isIn(o)){
+          const q1=remainOf(o)||num(o.qty);
+          busy(b);
+          try{
+            await rpc('ki_scan_arrive',{p_no:Number(o.no), p_vendor:o.vendor||'',
+              p_date:$('#inDate').value||TODAY, p_qty:q1,
+              p_reason:'', p_remark:($('#inRmk')?$('#inRmk').value:'')||'사내 이동 — 입고 절차 없이 완료',
+              p_close:true, p_worker:WORKER, p_kind:'가공완료', p_undone:0});
+            toast('✓ 사내 작업 완료 — '+fmt(q1)+'개',1);
+            TAB=''; setTimeout(load,800);
+          }catch(e){ toast('❌ '+e.message); b.disabled=false; b.innerHTML=LBIN; }
+          return;
+        }
         /* 협력사 화면인데 이미 본사로 반송 등록된 건이면 도착확인을 막는다.
            (본사 담당자 폰이 협력사 모드로 남아 있으면 도착으로 기록돼 복귀입고가 안 된다) */
         if(!isHome() && transitOf(o)>0)
@@ -877,6 +896,15 @@ function draw(){
         if(num($('#outQty').value)<=0) return toast('출고수량을 입력하세요.');
         busy(b);
         try{
+          /* 다음 공정으로 나가는 시점 = 앞선 사내 공정의 작업 종료 (PC 물류등록과 동일) */
+          for(const io2 of osp.filter(x=>x.sdate&&!x.idate&&isIn(x))){
+            try{
+              await rpc('ki_scan_arrive',{p_no:Number(io2.no), p_vendor:io2.vendor||'',
+                p_date:$('#outDate').value||TODAY, p_qty:remainOf(io2)||num(io2.qty),
+                p_reason:'', p_remark:'사내 이동 — 다음 공정 반출로 자동 완료',
+                p_close:true, p_worker:WORKER, p_kind:'가공완료', p_undone:0});
+            }catch(e){}
+          }
           /* 복귀입고가 끝난 건에서 이어 보낼 때는 회수 '누계' 기준으로 검증해야 한다
              (ki_scan_out 의 잔량은 최근 입고 1건만 보므로 분할 회수 후 값이 틀어진다) */
           const r = (s && s.idate)
