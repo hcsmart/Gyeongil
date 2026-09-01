@@ -696,7 +696,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     return open2.length;
   }
 
-  const BUILD='2026-09-01e';   /* 화면 하단 · 제목 툴팁에 표시 — 캐시된 옛 판 구분용 */
+  const BUILD='2026-09-01f';   /* 화면 하단 · 제목 툴팁에 표시 — 캐시된 옛 판 구분용 */
   const openQtyOf = o => {
     if(!o || !o.sdate) return 0;
     if(o.idate) return 0;                      /* 마감된 반출건은 잔여 없음 */
@@ -1209,7 +1209,13 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     $('#mRf').style.display='';
     $('#mInh').style.display=((CAN_S||CAN_E)&&c.std&&!c.rest.length&&!c.wip&&!c.moving&&!closed)?'':'none';
     $('#mInh').textContent=partRecv?'🏭 사내입고(분납 추가)':'🏭 사내입고(종결)';
-    $('#mInh').disabled=false;
+    /* 종결된 LOT 은 숨기는 것만으로 부족하다 — 실제로 비활성화한다 */
+    $('#mInh').disabled=closed;
+    $('#mInh').style.opacity=closed?'.4':'';
+    $('#mInh').style.cursor=closed?'not-allowed':'';
+    $('#mInh').title=closed
+      ? '이미 사내입고 종결된 LOT입니다'
+      : (partRecv?'분납 진행중 — 남은 수량을 추가 입고합니다':'모든 공정 완료 후 LOT을 종결합니다');
     if(allDone){
       $('#mMsg').className='msg';
       $('#mMsg').innerHTML='<span style="color:#8a5a12">✔ 표준공정 '+
@@ -1839,12 +1845,19 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
                        (!willClose?' · 누적 '+(gotQ+inQ).toLocaleString()+'/'+goalQ.toLocaleString()+
                                    ' · 잔여 '+rem.toLocaleString():''), rmk),
         worker:(KI.me()||{}).emp_name||'', source:'수동'}]);
+      /* INSERT 가 RLS 로 걸러져도 오류가 안 날 수 있다 — 저장 여부를 직접 확인한다 */
+      const chkR=await KI.get(TBL.lotReceipt+'?select=part,in_date,qty&part=eq.'+
+                              encodeURIComponent(c.part)).catch(()=>null);
+      if(!chkR || !chkR.length)
+        throw new Error('사내입고 저장이 반영되지 않았습니다.\n'+
+                        'ki_lot_receipt 의 INSERT 권한(RLS)을 확인하세요.');
       KI.msg(willClose?('✓ '+c.part+' 사내입고 완료 — LOT이 종결되었습니다.')
                       :('✓ '+c.part+' 분납 입고 '+inQ.toLocaleString()+
                         ' — 잔여 '+rem.toLocaleString()+'EA 는 다시 등록하세요.'));
+      if(willClose && B){ B.disabled=true; B.style.display='none'; }
       await load();
       const c2=ROWS.map(calc).find(x=>x.part===c.part); if(sel&&c2) open(c2);
-      if(B) B.textContent='🏭 사내입고(종결)';
+      if(B && B.style.display!=='none') B.textContent='🏭 사내입고(종결)';
     }catch(e){ alert('❌ '+e.message);
       if(B){ B.disabled=false; B.textContent='🏭 사내입고(종결)'; } }
   }
