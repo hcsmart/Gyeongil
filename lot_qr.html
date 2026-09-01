@@ -187,6 +187,7 @@ const TODAY=new Date().toISOString().slice(0,10);
 const TOKEN=new URLSearchParams(location.search).get('t')||'';
 const wrap=$('#wrap'), bar=$('#bar');
 const HOME='사내 (발주처)';
+const BACKTO='경일FB (본사)';   /* 모든 외주 반출의 복귀처 — 협력사 간 직접이동 금지 */
 let D=null, WORKER='', MYVEN='', TAB='';
 try{ WORKER=localStorage.getItem('ki_qr_worker')||''; MYVEN=localStorage.getItem('ki_qr_vendor')||''; }catch(e){}
 const isHome=()=>MYVEN===HOME;
@@ -222,6 +223,11 @@ const arrQtyOf = no => { const a=LIVE().filter(m=>(m.io==='도착'||m.io==='입�
 const remainOf = o => { const a=arrQtyOf(o.no);
                         return Math.max((a==null?num(o.qty):a)-movedOf(o.no),0); };
 const arrivedOf = o => LIVE().find(m=>(m.io==='도착'||m.io==='입고')&&String(m.osp_no||'')===String(o.no))||null;
+/* 본사 반송 — 협력사가 가공을 마치고 경일FB로 돌려보낸 수량 (본사 입고 전) */
+const backOf  = no => LIVE().filter(m=>m.io==='반송'&&String(m.osp_no||'')===String(no))
+                       .reduce((a,b)=>a+num(b.out_qty),0);
+/* 협력사가 지금 실제로 들고 있는 수량 = 잔량 − 이미 반송 등록한 수량 */
+const pendingOf = o => Math.max(remainOf(o)-backOf(o.no),0);
 /* 미처리 반납 잔량 — 그 공정을 다시 거쳐야 하는 수량 */
 const undoneOf = mp => {
   const back=LIVE().filter(m=>m.io==='입고'&&m.mp===mp)
@@ -234,7 +240,7 @@ const undoneOf = mp => {
 const lastMoveId = () => { const v=Number(D&&D.last_move)||0; if(v) return v;
   const m=LIVE()[0]; return m?Number(m.move_id)||0:0; };
 const undoable = () => { const m=LIVE()[0];
-  return (m && !D.receipt && (m.io==='도착'||m.io==='입고')
+  return (m && !D.receipt && (m.io==='도착'||m.io==='입고'||m.io==='반송')
           && Number(m.move_id)===lastMoveId()) ? m : null; };
 const pName = c => { const p=(D.procs||[]).find(x=>x.c===c); return p?p.n:''; };
 /* 이동 구분 : 표준공정경로 inhouse 우선 → 실제 이동건 → 외주 */
@@ -348,6 +354,7 @@ function draw(){
   const toArr  = mine.filter(o=>!arrivedOf(o));
   const toOut  = mine.filter(o=>arrivedOf(o)&&remainOf(o)>0);
   const others = open.filter(o=>o.vendor!==MYVEN);
+  const toBack = isHome()? [] : toOut.filter(o=>pendingOf(o)>0);   /* 아직 본사로 안 보낸 보유분 */
   const myMp   = (mine[0]||{}).mp||'';
   const vendorAt = o => (o&&o.vendor)||'';
 
@@ -363,9 +370,17 @@ function draw(){
   }else if(toArr.length){
     hero = {c:'in',ic:'📥',t:'입고할 물량이 있습니다',
             d:'우리 업체로 오고 있습니다. 도착하면 수량을 확인해 등록하세요.',q:remainOf(toArr[0]),u:'입고예정'};
-  }else if(toOut.length){
+  }else if(toBack.length){
+    hero = {c:'out',ic:'🚚',t:'본사로 반송할 물량이 있습니다',
+            d:'가공이 끝나면 <b>경일FB 본사</b>로 반송 등록하세요. 다음 공정은 본사에서 지정합니다.',
+            q:pendingOf(toBack[0]),u:'보유수량'};
+  }else if(!isHome()&&toOut.length){
+    hero = {c:'wait',ic:'📦',t:'반송 등록 완료',
+            d:'본사 입고 확인을 기다리는 중입니다. 이동표를 제품과 함께 보내 주세요.',
+            q:backOf(toOut[0].no),u:'반송수량'};
+  }else if(isHome()&&toOut.length){
     hero = {c:'out',ic:'📤',t:'출고할 물량이 있습니다',
-            d:'작업이 끝나면 다음 공정(사내 작업장 또는 협력사)으로 출고 등록하세요.',q:remainOf(toOut[0]),u:'보유수량'};
+            d:'다음 공정(사내 작업장 또는 협력사)으로 출고 등록하세요.',q:remainOf(toOut[0]),u:'보유수량'};
   }else if(others.length){
     hero = {c:'wait',ic:'⏳',t:'우리 차례가 아닙니다',
             d:'이 LOT은 현재 '+esc(vendorAt(others[0]))+'에 있습니다.',q:null};
@@ -375,7 +390,7 @@ function draw(){
   if(D.receipt) hero={c:'home',ic:'🏁',t:'LOT 종결',d:'사내입고가 완료된 LOT입니다.',q:num(D.receipt.qty),u:'입고수량'};
 
   if(!TAB) TAB = isHome()?(doneAll?'home':'memo'):(toArr.length?'in':(toOut.length?'out':'memo'));
-  const tabs=[['in','📥 입고'],['out','📤 출고']]
+  const tabs=[['in','📥 입고'],['out',isHome()?'📤 출고':'🚚 본사반송']]
     .concat(isHome()&&doneAll&&!D.receipt?[['home','🏭 사내입고']]:[])
     .concat([['memo','📝 특기']]);
   if(!tabs.some(t=>t[0]===TAB)) TAB='memo';
@@ -454,6 +469,28 @@ function draw(){
     '<div class="pane'+(TAB==='out'?' on':'')+'" data-p="out">'+
     (function(){
       const src = isHome()? open : (toOut.length?toOut:mine);
+      /* ── 협력사 화면 ──
+         외주 반출은 예외 없이 가공 후 경일FB로 반입한다.
+         협력사가 다음 공정 · 다음 업체를 고르는 일은 없다 (협력사 간 직접이동 금지). */
+      if(!isHome()){
+        if(!src.length) return '<div class="empty">반송할 보유 물량이 없습니다.</div>';
+        return '<div class="fld"><label>반송 LOT · 보유분</label><select id="outFrom">'+
+          src.map(o=>{const pd=pendingOf(o), bk=backOf(o.no);
+            return '<option value="'+o.no+'">'+esc(D.part)+' · '+esc(o.mp||'')+
+              (pName(o.mp)?' '+esc(pName(o.mp)):'')+' — 보유 '+fmt(pd)+'개'+
+              (bk?' (반송등록 '+fmt(bk)+'개)':'')+'</option>';}).join('')+
+          '</select></div>'+
+        '<div class="kbig in"><span class="ic">🏭</span>'+
+          '<span><b>본사 반송</b> — 가공 완료분을 '+esc(BACKTO)+'로 돌려보냅니다</span></div>'+
+        '<div class="fld"><label>반송수량</label>'+
+          '<div class="qbox"><button data-q="-1">−</button>'+
+          '<input type="number" id="outQty" inputmode="numeric"><button data-q="1">+</button></div>'+
+          '<div class="qtip" id="outTip"></div>'+
+          '<div class="warn" id="outInfo"></div></div>'+
+        '<div class="fld"><label>반송일</label><input type="date" id="outDate" value="'+TODAY+'"></div>'+
+        '<div class="fld"><label>특기사항</label><textarea id="outRmk" placeholder="부분반송 사유 · 불량 등 (선택)"></textarea></div>'+
+        '<div class="warn b on">※ 다음 공정으로의 이동은 본사에서 지정합니다 — 협력사끼리 직접 넘기지 않습니다.</div>';
+      }
       return '<div class="fld"><label>출고 LOT · 보유분</label><select id="outFrom">'+
         src.map(o=>'<option value="'+o.no+'">'+esc(D.part)+' · '+esc(o.mp||'')+
           (pName(o.mp)?' '+esc(pName(o.mp)):'')+' — 잔량 '+fmt(remainOf(o))+'개</option>').join('')+
@@ -571,7 +608,10 @@ function draw(){
         }
       } };
     const reset=()=>{ const o=inCur(), base=remainOf(o);
-      $('#inQty').value=base||''; $('#inFrom').value=fromOf(o); chips('#inTip','#inQty',base); sync(); };
+      /* 협력사가 반송 등록해 둔 수량이 있으면 그 값을 기본으로 (부분 반송 대응) */
+      const bk=isHome()?Math.min(backOf(o.no)||0,base):0;
+      $('#inQty').value=(bk>0?bk:base)||''; $('#inFrom').value=fromOf(o);
+      chips('#inTip','#inQty',base); sync(); };
     $('#inNo').addEventListener('change',reset);
     $('#inQty').addEventListener('input',sync);
     stepper('[data-p="in"]','#inQty'); reset();
@@ -582,21 +622,27 @@ function draw(){
   if($('#outQty')){
     outPool = isHome()? open : (toOut.length?toOut:mine);
     outSrc=()=>outPool.find(o=>String(o.no)===$('#outFrom').value)||null;
+    const BACKMODE=!isHome();                       /* 협력사 = 본사 반송 전용 */
+    const baseOf=s=>BACKMODE?pendingOf(s):remainOf(s);
     const sync=()=>{
       const s=outSrc(), w=$('#outInfo');
-      if(s){ const rem=remainOf(s), q=num($('#outQty').value), left=Math.max(rem-q,0);
-        if(q>rem){ w.className='warn r on'; w.textContent='⚠ 잔량('+fmt(rem)+'개)보다 많습니다'; }
-        else if(left>0){ w.className='warn b on'; w.textContent='부분출고 — 잔량 '+fmt(left)+'개는 계속 보유합니다'; }
-        else { w.className='warn g on'; w.textContent='전량 이관 — 이 건이 마감됩니다'; }
+      if(s){ const rem=baseOf(s), q=num($('#outQty').value), left=Math.max(rem-q,0);
+        if(q>rem){ w.className='warn r on'; w.textContent='⚠ 보유수량('+fmt(rem)+'개)보다 많습니다'; }
+        else if(left>0){ w.className='warn b on';
+          w.textContent=BACKMODE?'부분반송 — 잔량 '+fmt(left)+'개는 계속 보유합니다'
+                                :'부분출고 — 잔량 '+fmt(left)+'개는 계속 보유합니다'; }
+        else { w.className='warn g on';
+          w.textContent=BACKMODE?'전량 반송 — 본사 입고 확인 후 마감됩니다':'전량 이관 — 이 건이 마감됩니다'; }
       }else{
         const base=num(last.qty), sh=base?Math.max(base-num($('#outQty').value),0):0;
         w.className='warn r'+(sh>0?' on':''); w.textContent=sh>0?'직전 수량 대비 부족 '+fmt(sh)+'개':'';
       }
     };
-    const reset=()=>{ const s=outSrc(), base=s?remainOf(s):num(last.qty);
+    const reset=()=>{ const s=outSrc(), base=s?baseOf(s):num(last.qty);
       $('#outQty').value=base||''; chips('#outTip','#outQty',base); sync(); };
-    /* 다음 공정의 이동 구분에 따라 받는 곳 입력을 전환 */
+    /* 다음 공정의 이동 구분에 따라 받는 곳 입력을 전환 (본사 화면 전용) */
     const kindSync=()=>{
+      if(!$('#outMp')) return;
       const k=kindOfMp($('#outMp').value), inh=(k==='사내');
       const box=$('#outKind');
       box.className='kbig'+(inh?' in':'');
@@ -607,10 +653,11 @@ function draw(){
       $('#outVenRow').style.display  = inh?'none':'';
       $('#outSiteRow').style.display = inh?'':'none';
     };
-    OUTKIND = ()=>kindOfMp($('#outMp').value);
-    OUTDEST = ()=>(OUTKIND()==='사내'?($('#outSite')?$('#outSite').value.trim():'')
+    OUTKIND = ()=>($('#outMp')?kindOfMp($('#outMp').value):'외주');
+    OUTDEST = ()=>(BACKMODE?BACKTO
+                  :OUTKIND()==='사내'?($('#outSite')?$('#outSite').value.trim():'')
                                      :($('#outVen')?$('#outVen').value:''));
-    $('#outMp').addEventListener('change',kindSync);
+    if($('#outMp')) $('#outMp').addEventListener('change',kindSync);
     $('#outFrom').addEventListener('change',reset);
     $('#outQty').addEventListener('input',sync);
     stepper('[data-p="out"]','#outQty'); reset(); kindSync();
@@ -705,10 +752,31 @@ function draw(){
         }catch(e){ toast('❌ '+e.message); b.disabled=false; b.innerHTML='📥 입고 등록'; }
       });
     }else if(TAB==='out'){
+      if(!$('#outQty')){ bar.style.display='none'; return; }
+      const BACKMODE=!isHome();
+      const LB=BACKMODE?'🚚 본사 반송 등록':'📤 출고 등록';
       bar.style.display='';
-      bar.innerHTML='<button class="go out" id="act">📤 출고 등록</button>';
+      bar.innerHTML='<button class="go out" id="act">'+LB+'</button>';
       $('#act').addEventListener('click',async()=>{
         const b=$('#act'), s=outSrc(), kd=OUTKIND(), dest=OUTDEST();
+        /* ── 협력사 : 본사 반송 ── */
+        if(BACKMODE){
+          if(!s) return toast('반송할 보유 건을 선택하세요.');
+          const q=num($('#outQty').value);
+          if(q<=0) return toast('반송수량을 입력하세요.');
+          if(q>pendingOf(s)) return toast('보유수량('+fmt(pendingOf(s))+'개)보다 많습니다.');
+          busy(b);
+          try{
+            const r=await rpc('ki_scan_back',{p_no:Number(s.no), p_vendor:MYVEN,
+              p_date:$('#outDate').value||TODAY, p_qty:q,
+              p_reason:'', p_remark:$('#outRmk').value, p_worker:WORKER});
+            toast(r.left>0
+              ?'✓ 부분반송 등록 — 잔량 '+fmt(r.left)+'개 보유. 이동표를 제품과 함께 본사로 보내세요.'
+              :'✓ 본사 반송 등록 완료 — 이동표를 제품과 함께 '+BACKTO+'로 보내세요.',1);
+            TAB=''; setTimeout(load,800);
+          }catch(e){ toast('❌ '+e.message); b.disabled=false; b.innerHTML=LB; }
+          return;
+        }
         if(!dest) return toast(kd==='사내'?'사내 이동처(작업장·부서)를 입력하세요.':'받는 업체를 선택하세요.');
         if(num($('#outQty').value)<=0) return toast('출고수량을 입력하세요.');
         busy(b);
@@ -721,7 +789,7 @@ function draw(){
           toast(r.left>0?'✓ 부분출고 완료 — 잔량 '+fmt(r.left)+'개 보유. '+tail
                         :'✓ '+(kd==='사내'?'사내이동':'출고')+' 완료 — '+tail,1);
           TAB=''; setTimeout(load,800);
-        }catch(e){ toast('❌ '+e.message); b.disabled=false; b.innerHTML='📤 출고 등록'; }
+        }catch(e){ toast('❌ '+e.message); b.disabled=false; b.innerHTML=LB; }
       });
     }else if(TAB==='home'){
       bar.style.display='';

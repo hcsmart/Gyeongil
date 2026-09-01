@@ -1636,6 +1636,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       const here=node(v.mp,v.vendor);
       if(v.io==='출고'){        map[v.move_id]={f:loc, t:here, q:v.out_qty}; prev[here]=loc; loc=here; }
       else if(v.io==='도착'){   map[v.move_id]={f:prev[here]||'사내', t:here, q:v.in_qty}; loc=here; }
+      else if(v.io==='반송'){   map[v.move_id]={f:here, t:'경일FB (본사) — 반송중', q:v.out_qty}; }
       else if(v.io==='입고'){   map[v.move_id]={f:here, t:'사내 복귀', q:v.in_qty}; loc='사내'; }
       else if(v.io==='사내입고'){map[v.move_id]={f:(v.mp||v.vendor)?here:loc, t:'사내입고 (종결)', q:v.in_qty}; loc='사내'; }
       else                      map[v.move_id]={f:'', t:'', q:null};
@@ -1675,7 +1676,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           '><td class="center" style="color:#8894a0;font-weight:700">'+(i+1)+'</td>'+
           '<td class="center nw">'+esc(v.move_date||'')+'</td>'+
           '<td class="center"><span class="badge '+
-            (vd?'b-wait':uq?'b-part':(v.io==='입고'||v.io==='사내입고'?'b-done':v.io==='출고'?'b-run':'b-wait'))+'">'+
+            (vd?'b-wait':uq?'b-part':(v.io==='입고'||v.io==='사내입고'?'b-done':(v.io==='출고'||v.io==='반송')?'b-run':'b-wait'))+'">'+
             esc(vd?'취소':(uq?(uq>=(Number(v.in_qty)||0)?'미처리':'일부가공'):v.io))+'</span></td>'+
           '<td>'+esc(r.f||'')+'</td>'+
           '<td class="center" style="color:#8894a0">'+(r.t?'▶':'')+'</td>'+
@@ -1687,7 +1688,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           (CAN_E||CAN_D?'<td class="center" style="white-space:nowrap">'+
             (CAN_E?'<button class="lr-go" data-mve="'+v.move_id+'" title="수량 · 부족 · 사유 · 특기사항 정정" '+
               'style="background:#fff;color:#1d568c;padding:0 5px">✎</button>':'')+
-            (CAN_E&&!vd&&(v.io==='입고'||v.io==='도착')?
+            (CAN_E&&!vd&&(v.io==='입고'||v.io==='도착'||v.io==='반송')?
               '<button class="lr-go" data-mvv="'+v.move_id+'" title="입고 취소 — 물류기록은 남기고 공정을 직전으로 되돌립니다" '+
               'style="background:#fff;color:#8a5a12;border-color:#d9a441;padding:0 5px;margin-left:3px">↩</button>':'')+
             (CAN_D?'<button class="lr-go" data-mvx="'+v.move_id+'" title="이 기록 삭제" '+
@@ -1734,7 +1735,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         const id=b.dataset.mve, v=mv.find(x=>String(x.move_id)===String(id)); if(!v) return;
         const tr=box.querySelector('tr[data-mv="'+id+'"]'); if(!tr||tr.dataset.edit) return;
         tr.dataset.edit='1';
-        const q=(v.io==='출고')?v.out_qty:(v.in_qty!=null?v.in_qty:v.out_qty);
+        const q=(v.io==='출고'||v.io==='반송')?v.out_qty:(v.in_qty!=null?v.in_qty:v.out_qty);
         const inp=(id2,val,w,ph)=>'<input id="'+id2+'" value="'+esc(val==null?'':val)+'" '+
           'placeholder="'+(ph||'')+'" style="width:'+w+';height:24px;border:1px solid #aeb9c4;padding:0 5px;font:inherit">';
         tr.children[6].innerHTML=inp('e_q',q,'56px');
@@ -1753,7 +1754,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           const nq=Number(String($('#e_q').value).replace(/[^0-9.]/g,''));
           const ns=Number(String($('#e_s').value).replace(/[^0-9.]/g,''))||0;
           const body={short_qty:ns, reason:$('#e_r').value||null, remark:$('#e_m').value.trim()||null};
-          if(!isNaN(nq)&&nq>0){ if(v.io==='출고') body.out_qty=nq; else body.in_qty=nq; }
+          if(!isNaN(nq)&&nq>0){ if(v.io==='출고'||v.io==='반송') body.out_qty=nq; else body.in_qty=nq; }
           try{
             await KI.upd(TBL.lotMove,'move_id=eq.'+id,body);
             KI.msg('✓ 현장 기록 '+id+' 정정되었습니다.');

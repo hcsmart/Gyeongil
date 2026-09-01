@@ -62,6 +62,7 @@
   font-size:11px;font-weight:800}
 .ev-out{background:#e9f2fc;color:#1d568c}      /* 반출 · 출고 */
 .ev-arr{background:#eef4fa;color:#41556a}      /* 도착 */
+.ev-back{background:#e6f0fa;color:#1f6ea8}     /* 본사 반송 */
 .ev-in{background:#e2f0e6;color:#1f7a44}       /* 입고 */
 .ev-home{background:#fdf3e6;color:#a4600f}     /* 사내입고 */
 .ev-tok{background:#efeafa;color:#5b4a99}      /* 이동표 발행 */
@@ -153,6 +154,7 @@
         '<button data-e="반출" class="on osp">반출등록</button>'+
         '<button data-e="도착" class="on">QR 도착</button>'+
         '<button data-e="출고" class="on osp">QR 출고</button>'+
+        '<button data-e="반송" class="on">본사반송</button>'+
         '<button data-e="입고" class="on done">가공입고</button>'+
         '<button data-e="사내입고" class="on inh">사내입고</button>'+
         '<button data-e="기록" class="on">특기사항</button>'+
@@ -203,7 +205,7 @@
     const x=new Date(a+'T00:00:00'), y=new Date(b+'T00:00:00');
     return Math.round((y-x)/86400000); };
 
-  const EVCLS={'반출':'ev-out','출고':'ev-out','도착':'ev-arr','입고':'ev-in',
+  const EVCLS={'반출':'ev-out','출고':'ev-out','도착':'ev-arr','반송':'ev-back','입고':'ev-in',
                '사내입고':'ev-home','이동표':'ev-tok','기록':'ev-memo'};
 
   /* ── 이벤트 합치기 ── */
@@ -262,7 +264,7 @@
       push({date:d, time:String(m.created_at||'').replace('T',' ').substring(11,16),
         ev:m.io||'기록', kind:m.move_kind||'외주',
         part:m.part, job:'', map_part:'', mp:m.mp, vendor:m.vendor||'',
-        qty:(m.io==='출고'? m.out_qty : (m.in_qty!=null?m.in_qty:m.out_qty)),
+        qty:((m.io==='출고'||m.io==='반송')? m.out_qty : (m.in_qty!=null?m.in_qty:m.out_qty)),
         short:m.short_qty, osp_no:m.osp_no, due:o?(o.edate||''):'',
         route:o?o.route_no:'', age:(o&&o.sdate?dday(o.sdate,d):null),
         worker:m.worker||'', src:m.source||'QR',
