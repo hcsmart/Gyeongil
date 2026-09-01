@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#22537f" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="공정이동표 QR" />
+<title>공정이동표 QR — 협력사</title>
+
+<!-- 홈 화면 바로가기 아이콘 : QR 이모지 (별도 이미지 파일 없이 SVG 데이터 URI 사용) -->
+<link rel="icon" type="image/svg+xml"
+ href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='38' fill='%2322537f'/%3E%3Ctext x='90' y='92' font-size='104' text-anchor='middle' dominant-baseline='central'%3E%F0%9F%94%B3%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon"
+ href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='38' fill='%2322537f'/%3E%3Ctext x='90' y='92' font-size='104' text-anchor='middle' dominant-baseline='central'%3E%F0%9F%94%B3%3C/text%3E%3C/svg%3E">
+<link rel="manifest"
+ href="data:application/manifest+json,%7B%22name%22%3A%22%EA%B3%B5%EC%A0%95%EC%9D%B4%EB%8F%99%ED%91%9C%20QR%22%2C%22short_name%22%3A%22QR%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23eef2f6%22%2C%22theme_color%22%3A%22%2322537f%22%7D">
+
+<style>
+:root{--bg:#eef2f6;--ink:#16202b;--sub:#6b7a89;--line:#dbe3ea;--blue:#2668a8;--blue-d:#1b4b7d}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font:15px/1.6 'Malgun Gothic','맑은 고딕',-apple-system,sans-serif;background:var(--bg);
+  color:var(--ink);min-height:100vh;padding-bottom:30px}
+.app{background:linear-gradient(135deg,#3579b8,#22537f);color:#fff;padding:14px 15px;
+  display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;
+  box-shadow:0 2px 10px rgba(0,0,0,.14)}
+.app small{margin-left:auto;font-size:11.5px;font-weight:600;opacity:.85}
+.wrap{max-width:600px;margin:0 auto;padding:14px}
+
+.hero{text-align:center;padding:20px 10px 16px}
+.hero .ic{font-size:52px;line-height:1}
+.hero h1{font-size:20px;font-weight:900;letter-spacing:-.5px;margin-top:8px}
+.hero p{font-size:13px;color:var(--sub);margin-top:5px}
+
+.big{display:flex;align-items:center;gap:14px;width:100%;text-align:left;text-decoration:none;
+  background:#fff;border:0;border-radius:16px;padding:18px 16px;margin-bottom:12px;cursor:pointer;
+  box-shadow:0 2px 8px rgba(20,40,60,.10);color:inherit;font:inherit;
+  animation:rise .3s ease both}
+.big:active{transform:scale(.985)}
+.big .ic{width:60px;height:60px;flex:none;border-radius:17px;display:flex;align-items:center;
+  justify-content:center;font-size:30px;background:#eaf2fa;color:var(--blue)}
+.big.scan .ic{background:linear-gradient(135deg,#3579b8,#1b4b7d);color:#fff}
+.big .tx{min-width:0}
+.big .tx b{display:block;font-size:17.5px;font-weight:900;color:var(--blue-d);letter-spacing:-.4px}
+.big .tx span{display:block;font-size:12.5px;color:var(--sub);margin-top:3px;line-height:1.55}
+.big .go{margin-left:auto;color:#c3ccd5;font-size:22px;font-weight:800}
+
+.card{background:#fff;border-radius:14px;box-shadow:0 1px 3px rgba(20,40,60,.09);
+  margin-top:6px;overflow:hidden}
+.card h3{font-size:12.5px;font-weight:800;color:var(--sub);padding:13px 15px 0}
+.card .bd{padding:10px 15px 15px;font-size:12.5px;color:#4a5968;line-height:1.9}
+.card .bd b{color:var(--blue-d)}
+.step{display:flex;gap:9px;align-items:flex-start;margin-bottom:5px}
+.step i{flex:none;width:19px;height:19px;margin-top:3px;border-radius:50%;background:#eaf2fa;
+  color:var(--blue);font-style:normal;font-size:11px;font-weight:800;
+  display:flex;align-items:center;justify-content:center}
+.foot{text-align:center;font-size:11.5px;color:#9aa7b3;margin-top:14px}
+@keyframes rise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="app">🔳 공정이동표 QR<small>협력사 전용</small></div>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="ic">🔳</div>
+    <h1>무엇을 하시겠어요?</h1>
+    <p>로그인 없이 바로 사용할 수 있습니다</p>
+  </div>
+
+  <a class="big scan" href="lot_vendor.html">
+    <div class="ic">📷</div>
+    <div class="tx"><b>QR 리딩</b>
+      <span>공정이동표의 QR을 카메라로 찍어 도착확인 · 본사 반송을 등록합니다</span></div>
+    <div class="go">›</div>
+  </a>
+
+  <a class="big" href="lot_scan.html">
+    <div class="ic">⌨</div>
+    <div class="tx"><b>QR 수동 · 수정</b>
+      <span>이동표가 없을 때 LOT · JOB 번호로 검색해 등록하거나 잘못 등록한 건을 정정합니다</span></div>
+    <div class="go">›</div>
+  </a>
+
+  <div class="card">
+    <h3>📌 이렇게 쓰세요</h3>
+    <div class="bd">
+      <div class="step"><i>1</i><div>제품이 도착하면 <b>QR 리딩 → 도착확인</b> 으로 수량을 등록합니다.</div></div>
+      <div class="step"><i>2</i><div>가공이 끝나면 <b>본사 반송</b> 으로 등록하고, 이동표를 제품과 함께 경일FB로 보냅니다.</div></div>
+      <div class="step"><i>3</i><div>나눠 보내는 경우, 남은 수량은 <b>QR 리딩 첫 화면의 [📦 우리 보유 LOT]</b> 에서 다시 열어 등록합니다.</div></div>
+      <div class="step"><i>!</i><div>외주 공정이 끝난 제품은 <b>반드시 경일FB로 복귀</b>합니다. 협력사끼리 직접 넘기지 않습니다.</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>📱 홈 화면에 추가</h3>
+    <div class="bd">
+      <b>Android</b> · 브라우저 메뉴(⋮) → <b>홈 화면에 추가</b><br>
+      <b>iPhone</b> · 공유 버튼(⬆) → <b>홈 화면에 추가</b><br>
+      추가하면 <b>🔳 QR</b> 아이콘이 생겨 앱처럼 바로 열 수 있습니다.
+    </div>
+  </div>
+
+  <div class="foot">경일FB · SCM Smart</div>
+</div>
+</body>
+</html>
