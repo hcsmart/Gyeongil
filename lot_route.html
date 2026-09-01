@@ -652,6 +652,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   /* 공정별 반송 중 수량 */
   const transitAtMp = (c,mp) => openAll(c).filter(o=>!isIn(o)&&String(o.mp||'')===String(mp))
         .reduce((a,o)=>a+transitOfOsp(o),0);
+  const BUILD='2026-09-01c';   /* 화면 하단 · 제목 툴팁에 표시 — 캐시된 옛 판 구분용 */
   const openQtyOf = o => {
     if(!o || !o.sdate) return 0;
     if(o.idate) return 0;                      /* 마감된 반출건은 잔여 없음 */
@@ -1047,6 +1048,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     $('#fJob').value=c.job||''; $('#fJob').readOnly=true;
     const g1=$('#fJobGen'); if(g1) g1.style.display='none';
     $('#mTtl').textContent='물류등록 — '+(c.part||'');
+    $('#mTtl').title='빌드 '+BUILD+' — 반송·복귀입고 규칙 적용판';
     setOutFold(false);                     /* 다음 공정 반출등록 : 기본 접힘 */
     $('#iJob').textContent=c.job||'-';   $('#iPart').textContent=c.part||'-';
     const om=ospOf(c.part).find(o2=>o2.map_part||o2.mold_no)||{};
@@ -1540,6 +1542,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     /* 이미 나눠 들어온 분이 있으면 그만큼 뺀 <b>잔여</b>가 기준이다 (3회 분납 등) */
     const restQ=transitQ>0?transitQ:openQtyOf(o);
     const gotQ=Math.max(outQ-restQ,0);
+    /* 이미 전량 회수된 건에 또 누르면 입고 기록만 계속 쌓인다 — 여기서 막는다 */
+    if(transitQ<=0 && openQtyOf(o)<=0){
+      alert('이미 전량 회수된 반출건입니다.\n중복 입고를 막기 위해 등록하지 않습니다.\n\n'+
+            '잘못 등록된 입고가 있으면 [현장기록] 에서 ↩ 로 취소하세요.');
+      return;
+    }
     const inS=prompt('입고 수량을 입력하세요'+
       '\n반출 '+outQ.toLocaleString()+
       (transitQ>0
@@ -1565,8 +1573,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       }
     }
     let close2=(rem<=0)||short>0;                    /* 잔여가 없어야 반출건 마감 */
-    /* 협력사에 아직 남은 보유분이 있으면 마감할 수 없다 (모바일과 같은 규칙) */
-    if(heldQ>0 && close2){
+    /* 협력사에 아직 남은 보유분이 있으면 마감할 수 없다 (모바일과 같은 규칙).
+       단 이 가드는 협력사가 QR로 [본사 반송]을 등록한 건(transitQ>0)에만 적용한다.
+       QR을 쓰지 않는 건은 보유수량이 늘 전량으로 잡혀 영영 마감되지 않는다. */
+    if(transitQ>0 && heldQ>0 && close2){
       close2=false; short=0;
       alert('협력사 보유분 '+heldQ.toLocaleString()+' EA 가 남아 있어 반출건을 마감할 수 없습니다.\n'+
             '부분 회수로 등록합니다 — 협력사가 남은 분을 반송하면 그때 마감하세요.');
@@ -1901,7 +1911,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         if(c2){
           open(c2);
           if(!c2.recv){ const m=$('#mMsg'); m.className='msg';
-            m.textContent='↻ 최신 상태로 갱신되었습니다. ('+new Date().toLocaleTimeString('ko-KR',{hour12:false})+')'; }
+            m.textContent='↻ 최신 상태로 갱신되었습니다. ('+new Date().toLocaleTimeString('ko-KR',{hour12:false})+')  · 빌드 '+BUILD; }
         }else{
           close(); KI.msg('해당 LOT을 목록에서 찾을 수 없습니다.');
         }
