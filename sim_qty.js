@@ -327,6 +327,99 @@ reset();
   blocked('S8 외주 반출중 종결 시도', () => close(P, 1000));
 }
 
+
+/* ══════════════════════════════════════════════════════════
+   시나리오 9 : 한 외주처에 여러 품번 · 교차 분납
+   ══════════════════════════════════════════════════════════ */
+head('S9 A사에 2품번 동시 반출 · 교차 분납');
+reset();
+{ const P1 = 'L101', P2 = 'L102';
+  const a = out(P1, 'AA', 'A사', 1000);
+  const b = out(P2, 'AA', 'A사', 500);
+  arrive(a, 1000); arrive(b, 500);
+  chk('S9 P1 보유처', state(P1).holder, 'A사 1,000');
+  chk('S9 P2 보유처', state(P2).holder, 'A사 500');
+  recv(a, 600, { close: false });                 /* P1 1차 분납 */
+  recv(b, 200, { close: false });                 /* P2 1차 분납 */
+  chk('S9 P1 1차 후 사내대기', state(P1).home, 600);
+  chk('S9 P2 1차 후 사내대기', state(P2).home, 200);
+  chk('S9 P1 반출건 잔여', ospOpenQty(a.no), 400);
+  chk('S9 P2 반출건 잔여', ospOpenQty(b.no), 300);
+  blocked('S9 P2 잔여 초과 입고(400)', () => recv(b, 400, { close: false }));
+  chk('S9 차단 후 P1 사내대기 영향없음', state(P1).home, 600);
+  recv(a, 400); recv(b, 300);
+  chk('S9 P1 전량 회수', state(P1).home, 1000);
+  chk('S9 P2 전량 회수', state(P2).home, 500);
+  chk('S9 P1 투입량', feedQty(P1), 1000);
+  chk('S9 P2 투입량', feedQty(P2), 500);
+}
+
+/* ══════════════════════════════════════════════════════════
+   시나리오 10 : 같은 외주처 · 한 품번만 부족 발생
+   ══════════════════════════════════════════════════════════ */
+head('S10 A사 2품번 중 P1만 부족 40');
+reset();
+{ const P1 = 'L103', P2 = 'L104';
+  const a = out(P1, 'AA', 'A사', 800), b = out(P2, 'AA', 'A사', 600);
+  arrive(a, 760); arrive(b, 600);                 /* P1 40 파손 */
+  chk('S10 P1 잔여', ospOpenQty(a.no), 760);
+  chk('S10 P2 잔여', ospOpenQty(b.no), 600);
+  blocked('S10 P1 파손분 포함 입고(800)', () => recv(a, 800));
+  recv(a, 760); recv(b, 600);
+  chk('S10 P1 사내대기', state(P1).home, 760);
+  chk('S10 P2 사내대기', state(P2).home, 600);
+  blocked('S10 P2 대기 초과 종결(700)', () => close(P2, 700));
+  close(P2, 600);
+  chk('S10 P2 종결', state(P2).closed, true);
+  chk('S10 P2 종결이 P1에 영향없음', state(P1).closed, false);
+  chk('S10 P1 사내대기 유지', state(P1).home, 760);
+}
+
+/* ══════════════════════════════════════════════════════════
+   시나리오 11 : 한 반출건에 2품번을 묶어 보낸 경우 (lots 배열)
+   ══════════════════════════════════════════════════════════ */
+head('S11 묶음 반출(P1 600 + P2 400) — LOT별 분할 등록 후 교차 분납');
+reset();
+{ const P1 = 'L105', P2 = 'L106';
+  /* 패치된 save() : LOT표에 2건을 넣어도 반출건은 LOT마다 하나씩 만들어진다 */
+  const a = out(P1, 'AA', 'A사', 600), b = out(P2, 'AA', 'A사', 400);
+  chk('S11 반출건 수', OSP.length, 2);
+  arrive(a, 600); arrive(b, 400);
+  chk('S11 P1 보유처', state(P1).holder, 'A사 600');
+  chk('S11 P2 보유처', state(P2).holder, 'A사 400');
+  recv(a, 300, { close: false });                 /* 같은 외주처에서 섞여 들어오는 분납 */
+  recv(b, 250, { close: false });
+  chk('S11 P1 1차 후 사내대기', state(P1).home, 300);
+  chk('S11 P2 1차 후 사내대기', state(P2).home, 250);
+  chk('S11 P1 잔여', ospOpenQty(a.no), 300);
+  chk('S11 P2 잔여', ospOpenQty(b.no), 150);
+  blocked('S11 P1 잔여 초과 입고(400)', () => recv(a, 400, { close: false }));
+  recv(a, 300); recv(b, 150);
+  chk('S11 P1 전량 회수', state(P1).home, 600);
+  chk('S11 P2 전량 회수', state(P2).home, 400);
+  blocked('S11 P1 대기 초과 종결(1,000)', () => close(P1, 1000));
+  close(P1, 600); close(P2, 400);
+  chk('S11 P1 종결', state(P1).closed, true);
+  chk('S11 P2 종결', state(P2).closed, true);
+}
+
+/* ══════════════════════════════════════════════════════════
+   시나리오 12 : 옛 데이터 — 한 반출건에 2 LOT이 묶여 있는 경우
+   (패치 이후에는 만들어지지 않는다 · 기존 데이터 진단용)
+   ══════════════════════════════════════════════════════════ */
+head('S12 [진단] 기존 묶음 반출건 1건에 P1 600 + P2 400');
+reset();
+{ const P1 = 'L107', P2 = 'L108';
+  const o = out(P1, 'AA', 'A사', 1000);
+  o.lots = [{ lot: P1, qty: 600 }, { lot: P2, qty: 400 }];
+  o.lot = P1 + ',' + P2;
+  arrive(o, 1000); recv(o, 1000);
+  const h1 = state(P1).home, h2 = state(P2).home;
+  console.log(`    ⚠️  P1 사내대기 ${nf(h1)} · P2 사내대기 ${nf(h2)}` +
+    `  → 묶음 반출건은 대표 LOT(${P1})에 전량이 잡힌다`);
+  console.log('       기존 데이터는 반출건을 LOT별로 나눠 다시 등록해야 정확히 추적된다.');
+}
+
 /* ══════════════════════════════════════════════════════════ */
 console.log('\n══════ 표준경로 · 부분반입 · 잔량처리 시뮬레이션 ══════');
 console.log(`  통과 ${PASS} · 실패 ${FAIL}`);

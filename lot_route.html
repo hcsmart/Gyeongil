@@ -696,7 +696,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     return open2.length;
   }
 
-  const BUILD='2026-09-01i';   /* 화면 하단 · 제목 툴팁에 표시 — 캐시된 옛 판 구분용 */
+  const BUILD='2026-09-01j';   /* 화면 하단 · 제목 툴팁에 표시 — 캐시된 옛 판 구분용 */
   const openQtyOf = o => {
     if(!o || !o.sdate) return 0;
     if(o.idate) return 0;                      /* 마감된 반출건은 잔여 없음 */
@@ -1487,6 +1487,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const lots=lotList();
     if(!lots.length || lots.some(x=>!x.lot)){
       m.className='msg err'; m.textContent='반출 LOT 번호를 입력하세요.'; return; }
+    /* 여러 LOT을 한 건으로 묶으면 LOT별 잔량·분납을 추적할 수 없다 —
+       LOT마다 수량을 받아 반출건을 나눠 등록한다. */
+    if(lots.length>1 && lots.some(x=>!(x.qty>0))){
+      m.className='msg err';
+      m.textContent='LOT이 2건 이상이면 LOT별 수량을 각각 입력하세요. (LOT 단위로 나눠 등록됩니다)';
+      return; }
     const part = sel ? sel.part : lots[0].lot;   /* LOT 표의 첫 행이 대표 LOT */
     if(!$('#fRoute').value && RT.length){
       m.className='msg err'; m.textContent='표준공정을 선택하세요.'; return; }
@@ -1505,6 +1511,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       lot:lots.map(x=>x.lot).join(','), qty:qty||null, lots:lots,
       sdate:$('#fSdate').value||null, edate:$('#fEdate').value||null,
       quote:q===''?null:Number(q), st:'진행', move_kind:kind};
+    /* LOT 단위 반출건 목록 — 1건이면 그대로, 여러 건이면 LOT마다 하나씩 */
+    const bodies=()=>lots.map(x=>Object.assign({},body,
+      {part:x.lot, lot:x.lot, qty:(lots.length>1?x.qty:qty)||null,
+       lots:[{lot:x.lot, qty:(lots.length>1?x.qty:qty)||null}]}));
     /* ── 재작업 반출 판정 ──────────────────────────────────
        이미 목표수량만큼 이 공정을 통과했는데 또 내보낸다면 그것은 새 투입이 아니라
        불합격품 재투입(재작업)이다.
@@ -1548,6 +1558,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     m.className='msg'; m.textContent=editNo?'저장중...':'등록중...';
     try{
       if(editNo){
+        if(lots.length>1) throw new Error('수정에서는 LOT을 여러 건으로 묶을 수 없습니다.\n'+
+          'LOT마다 반출건을 따로 등록하세요.');
         await KI.upd(TBL.ospOrder,'no=eq.'+editNo,body);
         m.className='msg ok'; m.textContent='✓ 반출번호 '+editNo+' 저장되었습니다. (LOT '+lots.length+'건 · '+qty.toLocaleString()+')';
         KI.msg('✓ '+part+' 반출건 수정');
@@ -1561,12 +1573,13 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           const moved=mvs.reduce((a,b)=>a+(Number(b.out_qty)||0),0);
           const remain=Math.max((Number(src.qty)||0)-moved,0);
           const full=!remain || qty>=remain;
-          await KI.ins(TBL.ospOrder,[body]);
-          await KI.ins(TBL.lotMove,[{part:part, osp_no:Number(from)||null, io:'출고',
-            mp:mp, vendor:ven, move_date:body.sdate||TODAY, out_qty:qty||null,
-            remark:rmkJoin(flow(node(src.mp,src.vendor),node(mp,ven),qty),
+          const bs=bodies();
+          await KI.ins(TBL.ospOrder,bs);
+          await KI.ins(TBL.lotMove,bs.map(b2=>({part:b2.part, osp_no:Number(from)||null, io:'출고',
+            mp:mp, vendor:ven, move_date:body.sdate||TODAY, out_qty:b2.qty||null,
+            remark:rmkJoin(flow(node(src.mp,src.vendor),node(mp,ven),b2.qty||qty),
                            full?'전량 이관':'부분출고 — 잔량 '+(remain-qty).toLocaleString()+' 유지'),
-            worker:(KI.me()||{}).emp_name||'', source:'수동'}]).catch(()=>{});
+            worker:(KI.me()||{}).emp_name||'', source:'수동'}))).catch(()=>{});
           if(full) await KI.upd(TBL.ospOrder,'no=eq.'+from,{idate:body.sdate||TODAY, st:'완료'});
           m.className='msg ok'; m.textContent='✓ '+(src.vendor?esc(src.vendor):'')+' → '+ven+
             (full?' 외주 이관(전량) 등록되었습니다.':' 부분출고 등록 — 잔량 '+(remain-qty).toLocaleString()+
@@ -1577,12 +1590,15 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           const first=!ospOf(part).length;   /* 이 LOT의 최초 반출 여부 */
           /* 다음 공정으로 나가는 시점 = 앞선 사내 공정의 작업 종료 */
           const doneIn=await closeInhouse(part);
-          await KI.ins(TBL.ospOrder,[body]);
-          await KI.ins(TBL.lotMove,[{part:part, io:'출고', mp:mp, vendor:ven,
-            move_date:body.sdate||TODAY, out_qty:qty||null,
-            remark:rmkJoin(flow('사내 출발',node(mp,ven),qty), first?'최초 반출':''),
-            worker:(KI.me()||{}).emp_name||'', source:'수동'}]).catch(()=>{});
-          m.className='msg ok'; m.textContent='✓ '+mp+' 공정으로 반출 등록되었습니다. (LOT '+lots.length+'건 · '+qty.toLocaleString()+')'+
+          const bs=bodies();
+          await KI.ins(TBL.ospOrder,bs);
+          await KI.ins(TBL.lotMove,bs.map(b2=>({part:b2.part, io:'출고', mp:mp, vendor:ven,
+            move_date:body.sdate||TODAY, out_qty:b2.qty||null,
+            remark:rmkJoin(flow('사내 출발',node(mp,ven),b2.qty||qty), first?'최초 반출':''),
+            worker:(KI.me()||{}).emp_name||'', source:'수동'}))).catch(()=>{});
+          m.className='msg ok'; m.textContent='✓ '+mp+' 공정으로 반출 등록되었습니다. '+
+            (lots.length>1?'LOT '+lots.length+'건을 각각 나눠 등록 · 합계 '+qty.toLocaleString()
+                          :'('+qty.toLocaleString()+'EA)')+
             (doneIn?' · 사내 공정 '+doneIn+'건 자동 완료':'');
           KI.msg('✓ '+part+' → '+mp+' 반출');
           if(first && confirm('최초 반출입니다.\n공정이동표(QR)를 지금 발행할까요?\n(이동표는 LOT과 함께 외주업체로 보냅니다)'))
