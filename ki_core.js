@@ -1032,13 +1032,20 @@ function makeModal(def, onSaved){
           const dup=await get(E.table+'?select='+E.pk+'&'+E.pk+'=eq.'+encodeURIComponent(nk)+'&limit=1');
           if(dup && dup.length){
             m.className='msg err'; m.textContent='❌ 이미 사용중인 코드입니다 — '+nk; return; }
+          const deep = !!(E.rename.rpc || (E.rename.length||0)>0);
           if(!confirm('코드를 바꿉니다.\n\n'+editKey+'  →  '+nk+'\n\n'+
-              '이 코드를 쓰던 자료도 새 코드로 함께 바뀝니다.\n계속할까요?')){
-            m.className='msg'; m.textContent=''; return; }
+              (deep?'이 코드를 쓰던 자료도 새 코드로 함께 바뀝니다.\n':'')+
+              '계속할까요?')){ m.className='msg'; m.textContent=''; return; }
         }
-        await upd(E.table, flt, body);
-        if(ren){
-          for(const r of E.rename)
+        if(ren && E.rename.rpc){
+          /* 배열(jsonb) 등 단순 치환이 안 되는 참조는 서버 함수가 처리한다 */
+          await rpc(E.rename.rpc,{p_old:editKey, p_new:nk});
+          flt=E.pk+'=eq.'+encodeURIComponent(nk);
+          if(E.pk2 && editRow) flt+='&'+E.pk2+'=eq.'+encodeURIComponent(editRow[E.pk2]);
+          await upd(E.table, flt, body);
+        }else{
+          await upd(E.table, flt, body);
+          if(ren) for(const r of E.rename)
             await upd(r[0], r[1]+'=eq.'+encodeURIComponent(editKey), (o=>{o[r[1]]=nk;return o;})({}));
         }
       }

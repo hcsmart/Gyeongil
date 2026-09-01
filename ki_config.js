@@ -35,7 +35,7 @@ const TBL = {                      /* 편집 대상 원천 테이블 */
   cycleRule:'ki_cycle_rule', moldLoc:'ki_mold_location',
   toolRule:'ki_tool_rule', moldTool:'ki_mold_tool',
   toolAlert:'ki_tool_alert', notifyCfg:'ki_notify_config', errLogT:'ki_error_log',
-  moldType:'ki_mold_type', material:'ki_material',
+  moldType:'ki_mold_type', material:'ki_material', moldSpecT:'ki_mold_master',
   vendorT:'ki_vendor', stdRouteT:'ki_std_route', processT:'ki_process',
   /* 외주 LOT (원천 테이블) */
   lotReceipt:'ki_lot_receipt', lotMove:'ki_lot_move',
@@ -399,7 +399,7 @@ const VIEWS = {
 },
 'insp-item':{
   table:OBJ.inspItem, order:'sort_order.asc',
-  edit:{ table:TBL.inspItem, pk:'item_code', fields:[
+  edit:{ table:TBL.inspItem, pk:'item_code', rename:[[TBL.inspDetail,'item_code']], fields:[
     ['item_code','항목코드','text',null,'req'],
     ['item_name','점검항목','text',null,'req'],
     ['category','분류','sel',['외관','기구','윤활','전장','이력']],
@@ -434,7 +434,7 @@ const VIEWS = {
        '<b>사내 수행 공정</b>에 적은 단계는 경일FB 안에서 처리하는 공정으로, 반출 시 '+
        '이동 구분이 <b>🏭 사내</b>로 자동 지정되고 화면에 오렌지색으로 표시됩니다. '+
        '비워 두면 전 단계가 외주(🚚)입니다.',
-  edit:{ table:TBL.stdRouteT, pk:'standard_process_no', fields:[
+  edit:{ table:TBL.stdRouteT, pk:'standard_process_no', rename:[[TBL.ospOrder,'route_no']], fields:[
     ['standard_process_no','표준공정번호','num',null,'req'],
     ['standard_process_name','표준공정명','text',null,'req'],
     ['steps','가공공정 순서','list',null,'req'],
@@ -465,7 +465,7 @@ const VIEWS = {
   note:'가공 · 조립 · 설계 <b>공정코드 기준정보</b>입니다. 여기 등록된 코드가 '+
        '<b>표준 공정경로</b>의 단계와 LOT 반출의 가공공정 선택 목록이 됩니다.<br>'+
        '이미 사용 중인 코드는 <b>변경하지 말고</b> 새 코드를 추가하세요 — 과거 이력이 코드로 묶여 있습니다.',
-  edit:{ table:TBL.processT, pk:'process_code', fields:[
+  edit:{ table:TBL.processT, pk:'process_code', rename:{rpc:'ki_process_rename'}, fields:[
     ['process_code','공정코드','text',null,'req'],
     ['process_name','공정명','text',null,'req'],
     ['process_group','공정그룹','sel',['가공','조립','설계','기타']],
@@ -489,7 +489,7 @@ const VIEWS = {
        '<b>외주처 선택 목록</b>과 <b>공정이동표의 연락처</b>로 사용됩니다.<br>'+
        '외주업체 계정의 소속(dept)에 <b>업체명을 그대로 입력</b>하면 QR 입출고 화면에서 해당 업체 LOT이 자동 표시됩니다. '+
        '외주가공 · 밀링 플래그가 모두 꺼지거나 미사용 처리하면 목록에서 제외됩니다.',
-  edit:{ table:TBL.vendorT, pk:'vendor_code', fields:[
+  edit:{ table:TBL.vendorT, pk:'vendor_code', rename:[], fields:[
     ['vendor_code','업체코드','text',null,'req'],
     ['vendor_name','업체명','text',null,'req'],
     ['vendor_type','구분','sel',['외주가공','밀링','열처리','표면처리','기타']],
@@ -580,7 +580,7 @@ const VIEWS = {
         ['표기',130,'','label'],['주기(일)',80,'num','cycle_days'],
         ['타발수 한도',110,'num','limit_shot'],['계획 배정월',120,'center','months'],
         ['사용',56,'center','is_active','bool'],['비고',0,'','remark']],
-  edit:{ table:TBL.cycleRule, pk:'rule_id', fields:[
+  edit:{ table:TBL.cycleRule, pk:'rule_id', rename:[], fields:[
     ['rule_id','기준코드','text',null,'req'],
     ['kind','구분','sel',['정기','세척'],'req'],
     ['target','대상','text',null,'req'],
@@ -609,7 +609,7 @@ const VIEWS = {
   search:[['코드','text','mold_type_code'],['타입명','text','mold_type_name']],
   cols:[['코드',100,'','mold_type_code'],['타입명',240,'','mold_type_name'],
         ['순서',60,'num','sort_order'],['비고',0,'','remark']],
-  edit:{ table:TBL.moldType, pk:'mold_type_code', fields:[
+  edit:{ table:TBL.moldType, pk:'mold_type_code', rename:[[TBL.moldSpecT,'mold_type_code']], fields:[
     ['mold_type_code','타입코드','text',null,'req'],
     ['mold_type_name','타입명','text',null,'req'],
     ['sort_order','순서','num'],
@@ -622,7 +622,7 @@ const VIEWS = {
   search:[['소재코드','text','material_code'],['소재명','text','material_name']],
   cols:[['소재코드',110,'','material_code'],['소재명',220,'','material_name'],
         ['비중',80,'num','density'],['순서',60,'num','sort_order'],['비고',0,'','remark']],
-  edit:{ table:TBL.material, pk:'material_code', fields:[
+  edit:{ table:TBL.material, pk:'material_code', rename:[[TBL.moldSpecT,'material_code']], fields:[
     ['material_code','소재코드','text',null,'req'],
     ['material_name','소재명','text',null,'req'],
     ['density','비중','num',null,'req'],
@@ -813,7 +813,7 @@ const VIEWS = {
 },
 'machine':{
   table:OBJ.machine, order:'sort_order.asc',
-  edit:{ table:TBL.machine, pk:'machine_no', fields:[
+  edit:{ table:TBL.machine, pk:'machine_no', rename:[[TBL.mold,'machine_no'],[TBL.shotDaily,'machine_no']], fields:[
     ['machine_no','호기번호','text',null,'req'],
     ['machine_name','호기명','text',null,'req'],
     ['tonnage','톤수','num'],
