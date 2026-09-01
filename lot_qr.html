@@ -296,7 +296,8 @@ function gate(opts){
   const list=cand||((D&&D.vendors?D.vendors:[]).slice());
   /* 사내 작업장(부서)도 선택 대상 — 사내 이동 구간을 현장에서 직접 찍을 수 있게 한다 */
   const sites=cand?[]:((D&&D.sites?D.sites:[]).filter(v=>v&&list.indexOf(v)<0));
-  const showHome=!cand && (/[?&]home=1\b/.test(location.search) || MYVEN===HOME);
+  /* 반송분이 본사로 오는 중이면 찍는 사람이 본사일 수 있다 — 후보에 넣는다 */
+  const showHome=opts.home || (!cand && (/[?&]home=1\b/.test(location.search) || MYVEN===HOME));
   $('#meBtn').style.display='none'; bar.style.display='none';
   wrap.innerHTML='<div class="card"><div class="bd gate">'+
     (opts.workerOnly
@@ -305,7 +306,10 @@ function gate(opts){
         '기록에 남길 성함만 한 번 입력하면 끝입니다.</p>'
       : cand
       ? '<h2>🏭 어느 쪽에서 찍으셨나요?</h2>'+
-        '<p>이 LOT은 물량이 나뉘어 <b>'+cand.length+'곳</b>에 있습니다.<br>지금 계신 곳을 골라 주세요.</p>'
+        (opts.home
+          ? '<p>이 이동표는 <b>경일FB로 반송 중</b>입니다.<br>'+
+            '본사에서 받으셨다면 <b>경일FB(본사)</b>를, 협력사에서 찍으셨다면 업체를 골라 주세요.</p>'
+          : '<p>이 LOT은 물량이 나뉘어 <b>'+cand.length+'곳</b>에 있습니다.<br>지금 계신 곳을 골라 주세요.</p>')
       : '<h2>🏭 우리 작업장 · 업체는?</h2>'+
         '<p>보통은 고를 필요가 없습니다 — <b>QR을 찍으면 자동으로 인식</b>됩니다.<br>'+
         '업체를 바꿀 때만 여기서 지정하세요.</p>')+
@@ -313,7 +317,8 @@ function gate(opts){
     '<div class="vl" id="vl">'+
       list.map(v=>'<button data-v="'+esc(v)+'"'+(v===MYVEN?' class="on"':'')+'>🚚 '+esc(v)+'</button>').join('')+
       sites.map(v=>'<button data-v="'+esc(v)+'"'+(v===MYVEN?' class="on"':'')+'>🏭 '+esc(v)+' <small>(사내)</small></button>').join('')+
-      (showHome?'<button data-v="'+esc(HOME)+'"'+(MYVEN===HOME?' class="on"':'')+'>🏠 '+esc(HOME)+'</button>':'')+
+      (showHome?'<button data-v="'+esc(HOME)+'"'+(MYVEN===HOME?' class="on"':'')+'>🏠 '+esc(HOME)+
+        (opts.home?' <small>(반송분 수령)</small>':'')+'</button>':'')+
     '</div>'+
     (cand?'<div class="note" style="margin-top:8px"><a href="#" id="gAll" '+
       'style="color:#1d568c;font-weight:700">여기에 없습니다 — 전체 목록에서 고르기</a></div>':''))+
@@ -361,14 +366,17 @@ async function load(){
        보유처 2곳 이상(분할) → 그 후보만 보여주고 선택
        보유처 없음(사내 보유 · 미반출) → 전체 목록 */
   const hs=holders();
-  if(hs.length===1){
+  /* 반송 등록됐는데 본사 복귀입고가 아직인 건이 있으면, 찍는 사람이 본사일 수 있다.
+     이때는 자동 판정하지 않고 [협력사 / 경일FB] 를 고르게 한다. */
+  const tr=((D&&D.osp)||[]).filter(o=>o.sdate&&!o.idate).some(o=>transitOf(o)>0);
+  if(hs.length===1 && !tr){
     MYVEN=hs[0];
     try{ localStorage.setItem('ki_qr_vendor',MYVEN); }catch(e){}
     if(WORKER){ toast('🏢 '+MYVEN+' 으로 확인했습니다.',1); draw(); }
     else gate({workerOnly:true});
     return;
   }
-  if(hs.length>1){ gate({only:hs}); return; }
+  if(hs.length>=1){ gate({only:hs, home:tr}); return; }
   gate({});
 }
 

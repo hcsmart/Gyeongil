@@ -151,8 +151,10 @@ const MENU = [
       { name:'현장 (QR)', items:[
         {id:'lot-scan',  f:'lot_scan.html',  n:'QR(수동, 수정)', pop:1,
          d:'이동표 없이 LOT · JOB 검색으로 입출고 등록 · 정정 (별도 창)'},
-        {id:'lot-vendor',f:'lot_vendor.html',n:'QR(리딩)', pop:1,
-         d:'협력사 전용 — 카메라로 이동표 QR 스캔 (별도 창)'}
+        /* 메뉴로 열면(본사 담당자) 신원 선택에 [사내(발주처)]가 나오도록 home=1 을 붙인다.
+           협력사는 qr_home.html 로 접속하므로 이 옵션이 보이지 않는다. */
+        {id:'lot-vendor',f:'lot_vendor.html?home=1',n:'QR(리딩)', pop:1,
+         d:'이동표 QR 스캔 — 본사 복귀입고 · 협력사 도착/반송 (별도 창)'}
       ]}
     ]}
   ]},
