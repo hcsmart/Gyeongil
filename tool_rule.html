@@ -11,7 +11,11 @@
 <body>
 <script>
 /* ?view=ind → 금형별 개별주기 / 없으면 공통 주기기준 */
-KI.grid(new URLSearchParams(location.search).get('view')==='ind' ? 'tool-mold' : 'tool-rule', []);
+var TR_ID = new URLSearchParams(location.search).get('view')==='ind' ? 'tool-mold' : 'tool-rule';
+KI.grid(TR_ID, []);
 </script>
+<script src="ki_demo.js"></script>
+<script src="ki_demo_data.js"></script>
+<script>KIDemo.attach(TR_ID);</script>
 </body>
 </html>

@@ -69,6 +69,28 @@ function colValues(idx, sel){
     const td=tr.children[idx-1]; return td?td.textContent.trim():'';
   }).filter(Boolean);
 }
+/* 데이터 키로 열 값 모으기 — 순서변경(⇅) 열이 앞에 붙어도 어긋나지 않는다.
+   ki_core 가 제목행에 th.dataset.sk = 필드명 을 넣어두므로 그 위치를 찾아 읽는다. */
+function colKey(key, sel){
+  const tbl=q(sel||'.grid'); if(!tbl) return [];
+  const ths=qa('thead th', tbl);
+  const i=ths.findIndex(th=>th.dataset && th.dataset.sk===key);
+  if(i<0) return [];
+  return qa('tbody tr', tbl).map(tr=>{
+    if(tr.children.length<=1) return '';                /* 안내문 행 제외 */
+    const td=tr.children[i]; return td?td.textContent.trim():'';
+  }).filter(Boolean);
+}
+/* 숫자열의 다음 번호 (비어 있으면 base) */
+function nextNo(key, base, sel){
+  const ns=colKey(key,sel).map(v=>Number(String(v).replace(/[^0-9.-]/g,''))).filter(n=>!isNaN(n));
+  return ns.length ? Math.max.apply(null,ns)+1 : (base||1);
+}
+/* 목록의 첫 데이터 행 (조회결과 없음 안내행은 제외) */
+function dataRow(sel){
+  const t=q((sel||'.grid')+' tbody tr');
+  return (t && t.children.length>1) ? t : null;
+}
 /* select 의 첫 유효 option 값 (rule 6) */
 function firstOpt(sel, skipRe){
   const s=(typeof sel==='string')?q(sel):sel;
@@ -105,12 +127,21 @@ function elOf(step){
   if(typeof t==='function'){ try{ return t(); }catch(e){ return null; } }
   return q(t);
 }
+/* 숨겨진 대상(콤보 안의 select 등)은 눈에 보이는 상위 요소로 강조 · 말풍선을 잡는다 */
+function visOf(e){
+  let n=e;
+  while(n && n.nodeType===1){
+    if(n===D.body || n.offsetParent!==null) return n;
+    n=n.parentElement;
+  }
+  return null;
+}
 function waitEl(step, ms){
   const lim=Date.now()+(ms||2500);
   return new Promise(res=>{
     (function tick(){
       const e=elOf(step);
-      if(e && e.offsetParent!==null) return res(e);
+      if(e && visOf(e)) return res(e);
       if(Date.now()>lim) return res(e||null);
       setTimeout(tick,80);
     })();
@@ -237,9 +268,10 @@ async function go(i){
     return next(step);
   }
   clearHl();
-  if(el){ el.classList.add('kd-hl');
-    try{ el.scrollIntoView({block:'center',behavior:S.rush?'auto':'smooth'}); }catch(e){} }
-  bubble(el, step.label||autoLabel(el)||'안내', step.tip||'');
+  const vt = el ? (visOf(el)||el) : null;
+  if(vt){ vt.classList.add('kd-hl');
+    try{ vt.scrollIntoView({block:'center',behavior:S.rush?'auto':'smooth'}); }catch(e){} }
+  bubble(vt, step.label||autoLabel(el)||'안내', step.tip||'');
   try{
     if(step.t==='fill' && el){
       let v=(typeof step.value==='function')?step.value():step.value;
@@ -305,6 +337,7 @@ function attach(screenId, ctx){
 }
 
 return {attach:attach, run:run, stop:stop,
-        day:day, bump:bump, uniq:uniq, colValues:colValues,
+        day:day, bump:bump, uniq:uniq, colValues:colValues, colKey:colKey,
+        nextNo:nextNo, dataRow:dataRow,
         firstOpt:firstOpt, actBtn:actBtn, q:q, qa:qa};
 })();
