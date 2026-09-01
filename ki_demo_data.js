@@ -128,37 +128,37 @@ function process(){
 function moldSpec(){
   const no  = uniq(SC.mold, colValues(1));
   const part= uniq(SC.part, colValues(9));
-  const mat = firstOpt('#f_mat'), typ = firstOpt('#f_type');
+  const mat = firstOpt('#e_material_code'), typ = firstOpt('#e_mold_type_code');
   return [
-    {t:'click', el:()=>K.actBtn('신규등록'), label:'신규등록',
-     tip:'수정 중인 내용이 남아 있을 수 있으므로 신규 등록은 항상 <b>[＋ 신규등록]</b>(분홍)부터 시작합니다.'},
-    {t:'fill', el:'#f_no', value:no, label:'금형제번',
-     tip:'금형을 식별하는 <b>기준 키</b>입니다. 저장하면 이 번호로 <b>금형대장 행과 연마 · 교체 기본행이 자동 생성</b>되고, '+
-         '타발수 · 점검이력이 모두 이 번호로 묶입니다. 나중에 번호를 고치면 대장 · 연마/교체주기 · 알람 · 이력의 '+
-         '금형코드가 <b>함께 바뀝니다</b>.'},
-    typ ? {t:'fill', el:'#f_type', value:typ, label:'금형타입',
+    {t:'click', el:()=>K.actBtn('등록'), label:'등록',
+     tip:'금형정보도 다른 기준정보와 같은 방식입니다 — <b>[등록]</b>(분홍)으로 새로 만들고, '+
+         '목록의 행을 <b>더블클릭</b>하면 그 금형이 팝업으로 열립니다.'},
+    {t:'fill', el:'#e_mold_no', value:no, wait:3000, label:'금형제번',
+     tip:'금형을 식별하는 <b>기준 키</b>입니다. 저장하면 이 번호로 <b>금형대장 행과 연마 · 교체 기본행이 '+
+         '자동 생성</b>되고, 타발수 · 점검이력이 모두 이 번호로 묶입니다. 나중에 번호를 고치면 '+
+         '대장 · 연마/교체주기 · 알람 · 이력의 금형코드가 <b>함께 바뀝니다</b>.'},
+    typ ? {t:'fill', el:'#e_mold_type_code', value:typ, label:'금형타입',
      tip:'금형타입 기준정보에 등록된 값에서 고릅니다. 연마 · 교체 주기를 타입별로 다르게 줄 때 기준이 됩니다.'} : null,
-    mat ? {t:'fill', el:'#f_mat', value:mat, label:'소재재질',
-     tip:'재질을 고르면 <b>비중이 자동으로</b> 들어옵니다. 비중을 손으로 고치면 소재중량이 실제와 달라지니 '+
-         '재질 기준정보를 먼저 정비하세요.'} : null,
-    {t:'fill', el:'#f_t', value:'1.2', label:'소재두께(mm)',
+    mat ? {t:'fill', el:'#e_material_code', value:mat, label:'소재재질',
+     tip:'재질을 고르면 그 재질의 <b>비중</b>이 소재중량 계산에 쓰입니다. '+
+         '재질 기준정보를 먼저 정비해 두는 편이 안전합니다.'} : null,
+    {t:'fill', el:'#e_thickness_mm', value:'1.2', label:'소재두께(mm)',
      tip:'실측 두께. 두께 · 폭 · 피치는 소재중량 계산의 3요소이므로 도면값이 아니라 <b>실제 투입 소재</b> 기준으로.'},
-    {t:'fill', el:'#f_w', value:'68', label:'소재폭(mm)',
+    {t:'fill', el:'#e_width_mm', value:'68', label:'소재폭(mm)',
      tip:'코일 폭. 폭이 바뀌면 원단위가 바뀌므로 소재 변경 시 반드시 갱신합니다.'},
-    {t:'fill', el:'#f_p', value:'24', label:'피치(mm)',
-     tip:'1타당 이송 거리. 여기까지 넣으면 소재중량이 <b>즉시 계산</b>되는 것을 볼 수 있습니다.'},
-    wait('소재중량(g) — 자동계산',
-         '두께 · 폭 · 피치 · 비중으로 <b>시스템이 계산</b>합니다. 직접 입력하는 칸이 아니며, '+
-         '값이 이상하면 원인은 항상 네 개의 입력값 쪽에 있습니다.', '#f_g'),
-    {t:'fill', el:'#f_part', value:part, label:'매칭품번',
+    {t:'fill', el:'#e_pitch_mm', value:'24', label:'피치(mm)',
+     tip:'1타당 이송 거리. 두께 · 폭 · 피치 · 비중이 모이면 소재중량이 산출됩니다.'},
+    wait('비중 — 비워도 됩니다',
+         '비우면 <b>소재재질의 비중</b>이 그대로 적용됩니다. 같은 재질인데 실측 비중이 다를 때만 채우세요. '+
+         '<b>소재중량(g)</b>은 목록에서 자동 계산되어 표시되므로 입력칸이 없습니다.', '#e_density'),
+    {t:'fill', el:'#e_part_no', value:part, label:'매칭품번',
      tip:'이 금형으로 생산되는 제품번호. <b>물류등록의 품번과 문자 하나까지 같아야</b> '+
          '금형제번 · 자산처가 자동으로 따라붙습니다.'},
-    {t:'fill', el:'#f_own', value:SC.owner, label:'자산처',
+    {t:'fill', el:'#e_asset_owner', value:SC.owner, label:'자산처',
      tip:'금형 소유처(고객사). 사외 자산은 반출 · 폐기 시 승인 대상이므로 반드시 기입합니다.'},
     wait('저장은 직접',
-         '<b>[저장]</b>을 눌러야 등록됩니다. 저장과 동시에 <b>금형대장 · 금형별 연마/교체주기</b>에도 이 금형이 만들어지고, '+
-         '물류등록에서 품번을 치면 이 금형이 매칭됩니다.',
-         ()=>K.actBtn('저장'))
+         '<b>[저장]</b>을 눌러야 등록됩니다. 저장과 동시에 <b>금형대장 · 금형별 연마/교체주기</b>에도 '+
+         '이 금형이 만들어지고, 물류등록에서 품번을 치면 이 금형이 매칭됩니다.', '#eSave')
   ];
 }
 

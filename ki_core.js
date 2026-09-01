@@ -1050,6 +1050,13 @@ function makeModal(def, onSaved){
         }
       }
       else              await ins(E.table, [body]);
+      /* 저장 뒤 연동 처리 (예: 금형정보 → 금형대장 · 연마/교체주기 동기화) */
+      if(E.after && E.after.rpc){
+        const kv = (editKey!=null && !(E.rename&&E.rename.rpc)) ? (body[E.pk]!=null?body[E.pk]:editKey)
+                 : (body[E.pk]!=null?body[E.pk]:editKey);
+        try{ await rpc(E.after.rpc, (o=>{o[E.after.arg||'p_no']=kv;return o;})({})); }
+        catch(e){ msg('⚠ 연동 처리 실패 — '+e.message); }
+      }
       close(); await onSaved(editKey!=null?'수정':'등록');
     }catch(e){ m.className='msg err'; m.textContent='❌ '+e.message; }
   });
@@ -1516,6 +1523,24 @@ async function grid(id, need){
   async function removeRow(){
     if(!state.sel) return msg('삭제할 행을 선택하세요.');
     const E=def.edit, k=state.sel[E.pk];
+    /* 딸린 자료까지 함께 정리해야 하는 화면은 전용 함수로 삭제한다 */
+    if(E.del && E.del.rpc){
+      let dep='';
+      if(E.del.deps){
+        try{
+          const d=await rpc(E.del.deps,(o=>{o[E.del.arg||'p_no']=k;return o;})({}));
+          const N=E.del.depNames||{};
+          dep=Object.keys(N).filter(x=>Number(d&&d[x])>0)
+                .map(x=>'· '+N[x]+' '+Number(d[x]).toLocaleString()+'건').join('\n');
+        }catch(e){}
+      }
+      if(!confirm('선택한 항목('+k+')을 삭제합니다.\n\n'+(dep?'딸린 자료\n'+dep+'\n\n':'')+
+          (E.del.note?E.del.note+'\n\n':'')+'계속할까요?')) return;
+      try{ await rpc(E.del.rpc,(o=>{o[E.del.arg||'p_no']=k;return o;})({}));
+        state.sel=null; await run(null); msg('✓ 삭제되었습니다.'); }
+      catch(e){ msg('❌ '+e.message); }
+      return;
+    }
     if(!confirm('선택한 항목('+k+')을 삭제하시겠습니까?'))return;
     let flt=E.pk+'=eq.'+encodeURIComponent(k);
     if(E.pk2) flt+='&'+E.pk2+'=eq.'+encodeURIComponent(state.sel[E.pk2]);

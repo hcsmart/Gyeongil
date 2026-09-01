@@ -304,7 +304,6 @@ const ACTS = {
   'shot-ledger': [['저장','primary'],['＋ 품번 추가',''],['등급 자동 산정','green'],['새로고침',''],['엑셀다운로드','']],
   'grade-eval' : [['새로고침','']],
   'tool-due'   : [['지금 점검','primary'],['ntfy 테스트',''],['기준 초기화',''],['엑셀다운로드','']],
-  'mold-spec'  : [['엑셀업로드',''],['엑셀다운로드',''],['새로고침','']],
   'env-live'   : [['새로고침','primary'],['측정 이력','']]
 };
 
@@ -600,6 +599,46 @@ const VIEWS = {
     ['step_no','순서','num',null,'req'],
     ['step_name','세척항목','text',null,'req'],
     ['is_active','사용','bool']
+  ]}
+},
+'mold-spec':{
+  table:OBJ.moldSpec, order:'mold_no.asc',
+  note:'금형 식별의 <b>기준 화면</b>입니다. 여기 등록된 <b>금형제번</b>이 곧 '+
+       '<b>금형대장</b>과 <b>금형별 연마/교체주기</b>의 금형코드가 됩니다.<br>'+
+       '저장하면 금형대장 행과 연마 · 교체 기본행이 자동으로 만들어지고, <b>금형제번을 바꾸면</b> '+
+       '대장 · 연마/교체주기 · 알람 · 점검/타발 이력의 코드가 함께 바뀝니다. '+
+       '삭제도 대장 · 연마/교체주기까지 함께 정리됩니다(이력이 있으면 차단).<br>'+
+       '<b>소재중량(g)</b> = 두께(cm) × 폭(cm) × 피치(cm) × 비중 — 자동 계산되며 직접 입력하지 않습니다. '+
+       '비중을 비우면 <b>소재재질의 비중</b>이 적용됩니다.',
+  search:[['금형제번','text','mold_no'],['매칭품번','text','part_no'],
+          ['자산처','text','asset_owner'],['금형타입','text','mold_type_name']],
+  cols:[['금형제번',100,'','mold_no'],['금형타입',130,'','mold_type_name'],
+        ['소재재질',170,'','material_name'],
+        ['두께(mm)',86,'num','thickness_mm'],['폭(mm)',84,'num','width_mm'],
+        ['피치(mm)',84,'num','pitch_mm'],['비중',66,'num','density'],
+        ['소재중량(g)',100,'num','unit_weight_g'],
+        ['매칭품번(제품번호)',130,'','part_no'],['자산처',110,'','asset_owner'],
+        ['비고',0,'','remark']],
+  edit:{ table:TBL.moldSpecT, pk:'mold_no',
+    rename:{rpc:'ki_mold_rename'},
+    after :{rpc:'ki_mold_sync', arg:'p_no'},
+    del   :{rpc:'ki_mold_purge', arg:'p_no', deps:'ki_mold_deps',
+            note:'금형정보 · 금형대장 · 연마/교체주기 · 알람이 함께 삭제됩니다.\n'+
+                 '점검 · 세척 · 평가 · 타발 이력이 있으면 삭제되지 않습니다.',
+            depNames:{mold:'금형대장',tool:'연마/교체주기',alert:'연마/교체 알람',
+                      insp:'정기점검 이력',daily:'일상점검 이력',wash:'세척 이력',
+                      grade:'등급평가 이력',shot:'일별 타발수',plan:'연간 점검계획'}},
+    fields:[
+    ['mold_no','금형제번','text',null,'req'],
+    ['mold_type_code','금형타입','ref',{table:OBJ.moldType,v:'mold_type_code',t:'mold_type_name'}],
+    ['material_code','소재재질','ref',{table:OBJ.material,v:'material_code',t:'material_name'}],
+    ['thickness_mm','소재두께(mm)','num'],
+    ['width_mm','소재폭(mm)','num'],
+    ['pitch_mm','피치(mm)','num'],
+    ['density','비중(비우면 재질값)','num'],
+    ['part_no','매칭품번','text'],
+    ['asset_owner','자산처','text'],
+    ['remark','비고','area']
   ]}
 },
 'mold-type':{
