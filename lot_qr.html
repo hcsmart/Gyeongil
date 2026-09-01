@@ -873,6 +873,10 @@ function draw(){
       bar.innerHTML='<button class="go out" id="act">'+LB+'</button>';
       $('#act').addEventListener('click',async()=>{
         const b=$('#act'), s=outSrc(), kd=OUTKIND(), dest=OUTDEST();
+        /* 표준공정을 모두 마쳤으면 남은 절차는 사내입고(종결)뿐이다 */
+        if(isHome() && !rest.length && !open.length &&
+           !confirm('표준공정을 모두 마쳤습니다.\n남은 절차는 [사내입고] 입니다.\n\n'+
+                    '재작업(불합격 재투입) 반출이면 확인을 누르세요.')) return;
         /* ── 협력사 : 본사 반송 ── */
         if(BACKMODE){
           if(!s) return toast('반송할 보유 건을 선택하세요.');

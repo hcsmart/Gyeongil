@@ -469,6 +469,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   KI.combo($('#fVen'),  {placeholder:'외주처 입력'});
   KI.combo($('#fFrom'), {placeholder:'출발 보유분 선택'});
   $('#fKind').addEventListener('change',syncKind);
+  $('#fMp').addEventListener('change',autoKind);
   $('#fRoute').addEventListener('change',()=>fillMp($('#fRoute').value,''));
   /* 순차 이동 확인 : 완료·건너뛴 공정 경고 */
   $('#fMp').addEventListener('change',()=>{
@@ -487,6 +488,18 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   const flow=(from,to,q)=>'▶ '+from+' → '+to+(q?' · '+Number(q).toLocaleString()+'EA':'');
   const rmkJoin=(...a)=>a.filter(x=>x&&String(x).trim()).join(' | ')||null;
   const routeOf=no=>RT.find(r=>String(r.standard_process_no)===String(no));
+  /* 표준공정경로의 [사내 수행 공정] 목록에 있으면 사내, 아니면 외주 */
+  function kindOfMp(routeNo, mp){
+    const rt=routeOf(routeNo);
+    const ih=rt&&Array.isArray(rt.inhouse)?rt.inhouse:[];
+    return ih.map(String).includes(String(mp))?'사내':'외주';
+  }
+  /* 공정을 고르면 이동구분을 자동으로 맞춘다 (사용자가 직접 바꾼 뒤에는 건드리지 않음) */
+  function autoKind(){
+    const mp=$('#fMp').value; if(!mp) return;
+    const k=kindOfMp($('#fRoute').value, mp);
+    if($('#fKind').value!==k){ $('#fKind').value=k; syncKind(); }
+  }
   /* 표준공정경로(기준정보 › 외주기준)의 단계만 가공공정으로 선택 — 순차 이동 관리 */
   function fillMp(routeNo,keep){   /* 목록 재구성 후 검색칸 표시도 맞춘다 */
     const mp=$('#fMp'), rt=routeOf(routeNo), done=sel?sel.seen:new Set();
@@ -1143,7 +1156,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     /* 표준공정 · 다음 공정 기본값 */
     $('#fRoute').value=c.std?String(c.std.standard_process_no):'';
     fillMp($('#fRoute').value, c.rest[0]||'');
-    $('#fKind').value='외주'; syncKind();
+    $('#fKind').value=kindOfMp($('#fRoute').value, c.rest[0]||''); syncKind();
     $('#fVen').value=c.last.vendor||''; $('#fDept').value='';
     KI.comboSync($('#fRoute')); KI.comboSync($('#fMp')); KI.comboSync($('#fVen'));
     $('#fSdate').value=TODAY;
@@ -1173,6 +1186,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const partRecv=!!c.recv && !!c.recvOpen;      /* 분납 진행중 */
     const rq=c.recv?Number(c.recv.qty)||0:0, rs2=c.recv?Number(c.recv.short_qty)||0:0;
     $('#mS').style.display=((CAN_S||CAN_E)&&!closed)?'':'none';
+    /* 표준공정을 모두 마치면 남은 절차는 사내입고뿐 — 반출등록을 흐리게 두고 안내한다 */
+    const allDone=!!c.std && !c.rest.length && !c.wip && !c.moving && !closed;
+    $('#mS').style.opacity=allDone?'.45':'';
+    $('#mS').title=allDone
+      ? '표준공정을 모두 마쳤습니다 — [사내입고(종결)]로 진행하세요 (재작업 반출만 예외)'
+      : '';
     $('#mTag').style.display='';
     $('#mRf').style.display='';
     $('#mInh').style.display=((CAN_S||CAN_E)&&c.std&&!c.rest.length&&!c.wip&&!c.moving&&!closed)?'':'none';
@@ -1414,6 +1433,17 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       m.className='msg err';
       m.textContent='❌ 이미 사내입고 종결된 LOT입니다. 추가 반출을 등록할 수 없습니다.';
       return;
+    }
+    /* 표준공정을 전부 마쳤으면 남은 절차는 사내입고(총결)뿐이다.
+       불합격 재투입(재작업)만 예외로 허용한다. */
+    if(sel && !editNo && !sel.rest.length && !sel.wip && !sel.moving){
+      if(!confirm('['+sel.part+'] 표준공정을 모두 마쳤습니다.\n'+
+                  '남은 절차는 [사내입고(총결)] 입니다.\n\n'+
+                  '[확인] 재작업(불합격 재투입) 반출로 등록\n'+
+                  '[취소] 등록하지 않음')){
+        m.className='msg'; m.textContent='· 모든 공정 완료 — [사내입고(총결)]를 눌러 종결하세요.';
+        return;
+      }
     }
     /* 입력폼이 닫혀 있으면 먼저 2차 팝업으로 열어 내용을 보여준다 */
     const fd=$('#outFold');
