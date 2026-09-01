@@ -1620,6 +1620,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           p_worker:(KI.me()||{}).emp_name||'', p_close:close2,
           p_kind:inKind, p_undone:undone});
         m.className='msg ok';
+        if(close2 && !(r&&r.closed))
+          throw new Error('복귀입고는 기록됐지만 마감되지 않았습니다.\n'+
+            '협력사 보유 '+heldQ.toLocaleString()+' · 운송 중 잔여 '+
+            Number((r&&r.rest)||0).toLocaleString()+' 를 확인하세요.');
         m.textContent=(r&&r.closed)
           ? '✓ 복귀입고 — 반출건 마감'+(r.short?' (분실 '+Number(r.short).toLocaleString()+')':'')
           : '◐ 부분 회수 등록 — 운송 중 잔여 '+Number((r&&r.rest)||0).toLocaleString()+
@@ -1629,7 +1633,15 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         const c0=ROWS.map(calc).find(x=>x.part===keep0); if(c0) open(c0);
         return;
       }
-      if(close2) await KI.upd(TBL.ospOrder,'no=eq.'+no,{idate:TODAY, st:'완료'});
+      /* PATCH 는 RLS 로 0건이 갱신돼도 오류를 내지 않는다 — 저장 여부를 직접 확인한다 */
+      if(close2){
+        await KI.upd(TBL.ospOrder,'no=eq.'+no,{idate:TODAY, st:'완료'});
+        const chk=await KI.get(TBL.ospOrder+'?select=no,idate,st&no=eq.'+no).catch(()=>null);
+        if(!chk || !chk[0] || !chk[0].idate){
+          throw new Error('반출건 마감(입고일) 저장이 반영되지 않았습니다.\n'+
+            'ki_osp_order 의 UPDATE 권한(RLS)을 확인해야 합니다. 입고 기록은 등록하지 않았습니다.');
+        }
+      }
       await KI.ins(TBL.lotMove,[{part:o.part||(sel?sel.part:''), osp_no:Number(no)||null, io:'입고',
         mp:o.mp||null, vendor:o.vendor||null, move_date:TODAY,
         out_qty:restQ||null, in_qty:inQ||null, short_qty:short, reason:reason||null,
@@ -1643,7 +1655,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
         worker:(KI.me()||{}).emp_name||'', source:'수동'}]);
       m.className='msg ok';
       m.textContent=(close2?(undone?'↩ 미처리 반납 '+undone.toLocaleString()+' EA — 재반출이 필요합니다.'
-                                     :'✓ 입고 처리되었습니다.')
+                                     :'✓ 입고 처리 · 반출건 마감되었습니다.')
                            :'◐ 부분 회수 등록 — 잔량 '+rem.toLocaleString()+' 유지')+
         (short?' (부족 '+short.toLocaleString()+' · '+reason+')':'');
       KI.msg((close2?'✓ 입고 처리':'◐ 부분 회수 '+inQ.toLocaleString())+
