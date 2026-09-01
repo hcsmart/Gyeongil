@@ -223,11 +223,21 @@ const arrQtyOf = no => { const a=LIVE().filter(m=>(m.io==='도착'||m.io==='입�
 const remainOf = o => { const a=arrQtyOf(o.no);
                         return Math.max((a==null?num(o.qty):a)-movedOf(o.no),0); };
 const arrivedOf = o => LIVE().find(m=>(m.io==='도착'||m.io==='입고')&&String(m.osp_no||'')===String(o.no))||null;
-/* 본사 반송 — 협력사가 가공을 마치고 경일FB로 돌려보낸 수량 (본사 입고 전) */
-const backOf  = no => LIVE().filter(m=>m.io==='반송'&&String(m.osp_no||'')===String(no))
-                       .reduce((a,b)=>a+num(b.out_qty),0);
-/* 협력사가 지금 실제로 들고 있는 수량 = 잔량 − 이미 반송 등록한 수량 */
-const pendingOf = o => Math.max(remainOf(o)-backOf(o.no),0);
+/* ── 본사 반송 수량 계산 ───────────────────────────────────────
+   분할 회수(600 → 400)를 하면 본사 복귀입고가 쌓이는데,
+   remainOf 는 "가장 최근 도착·입고 수량"을 쓰므로 본사 입고가 잡히는 순간
+   협력사 보유수량이 같이 줄어 버린다. 협력사 보유분은 '도착수량' 기준으로 따로 센다. */
+const backOf = no => LIVE().filter(m=>m.io==='반송'&&String(m.osp_no||'')===String(no))
+                      .reduce((a,b)=>a+num(b.out_qty),0);          /* 반송 등록 누계 */
+const rcvOf  = no => LIVE().filter(m=>m.io==='입고'&&String(m.osp_no||'')===String(no))
+                      .reduce((a,b)=>a+num(b.in_qty),0);           /* 본사 복귀입고 누계 */
+const arrOf  = o => { const a=LIVE().filter(m=>m.io==='도착'&&
+                        String(m.osp_no||'')===String(o.no)&&m.in_qty!=null)[0];
+                      return a?num(a.in_qty):num(o.qty); };        /* 협력사가 받은 수량 */
+/* 협력사가 지금 들고 있는 수량 (반송 가능분) */
+const pendingOf  = o => Math.max(arrOf(o)-backOf(o.no)-movedOf(o.no),0);
+/* 반송 등록은 됐는데 본사가 아직 못 받은 수량 (운송 중) */
+const transitOf  = o => Math.max(backOf(o.no)-rcvOf(o.no),0);
 /* 미처리 반납 잔량 — 그 공정을 다시 거쳐야 하는 수량 */
 const undoneOf = mp => {
   const back=LIVE().filter(m=>m.io==='입고'&&m.mp===mp)
@@ -468,7 +478,10 @@ function draw(){
     /* 출고 */
     '<div class="pane'+(TAB==='out'?' on':'')+'" data-p="out">'+
     (function(){
-      const src = isHome()? open : (toOut.length?toOut:mine);
+      /* 본사는 '복귀입고 마감된 직전 건'에서 다음 공정으로 내보낸다 —
+         신규 출고로 잡으면 수량 연결(잔량 검증)이 끊긴다. */
+      const closedSrc = osp.filter(o=>o.idate && remainOf(o)>0 && !open.some(x=>x.no===o.no));
+      const src = isHome()? open.concat(closedSrc) : (toOut.length?toOut:mine);
       /* ── 협력사 화면 ──
          외주 반출은 예외 없이 가공 후 경일FB로 반입한다.
          협력사가 다음 공정 · 다음 업체를 고르는 일은 없다 (협력사 간 직접이동 금지). */
@@ -588,29 +601,31 @@ function draw(){
   if($('#inQty')){
     inPool = isHome()? open : (toArr.length?toArr:mine);
     inCur=()=>inPool.find(o=>String(o.no)===$('#inNo').value)||inPool[0];
-    const sync=()=>{ const base=remainOf(inCur()), q=num($('#inQty').value), sh=Math.max(base-q,0);
+    const inBase=o=>{ const tr=transitOf(o); return (isHome()&&tr>0)?tr:remainOf(o); };
+    const sync=()=>{ const o=inCur(), base=inBase(o), q=num($('#inQty').value), sh=Math.max(base-q,0);
       const w=$('#inShort');
       w.className='warn r'+(sh>0?' on':''); w.textContent=sh>0?'⚠ 부족 '+fmt(sh)+'개 — 사유는 선택 입력':'';
       $('#inRsnRow').style.display=sh>0?'':'none';
-      /* 부분 회수면 [전량 사내 복귀]를 잠근다 — 마감하면 남은 수량이 미결로 남지 않는다 */
+      /* [전량 사내 복귀] 마감은 협력사 보유분 0 · 운송 중 0 일 때만 — 분할 회수 중에는 잠근다 */
       const cb=$('#inClose'), note=$('#inCloseNote');
       if(cb){
-        const partial = q>0 && base>0 && q<base;
+        const held=pendingOf(o), rest=Math.max(transitOf(o)-q,0);
+        const partial = q>0 && (held>0 || rest>0);
         if(partial){ cb.checked=false; cb.disabled=true; }
         else cb.disabled=false;
         if(note){
           note.style.display=partial?'':'none';
           note.className='warn r'+(partial?' on':'');
           note.innerHTML=partial
-            ? '⚠ 잔량 '+fmt(base)+'개 중 '+fmt(q)+'개만 입고 — 부분 회수라 마감할 수 없습니다. '+
-              '남은 '+fmt(base-q)+'개는 나중에 다시 등록하세요.'
+            ? '⚠ 분할 회수 중 — 마감할 수 없습니다. '+
+              (held>0?'협력사 보유 '+fmt(held)+'개':'')+(held>0&&rest>0?' · ':'')+
+              (rest>0?'운송 중 '+fmt(rest)+'개':'')+' 가 남아 있습니다.'
             : '';
         }
       } };
-    const reset=()=>{ const o=inCur(), base=remainOf(o);
-      /* 협력사가 반송 등록해 둔 수량이 있으면 그 값을 기본으로 (부분 반송 대응) */
-      const bk=isHome()?Math.min(backOf(o.no)||0,base):0;
-      $('#inQty').value=(bk>0?bk:base)||''; $('#inFrom').value=fromOf(o);
+    const reset=()=>{ const o=inCur(), base=inBase(o);
+      /* 본사 화면 : 협력사가 반송 등록한 '운송 중' 수량이 기본값 (분할 회수 대응) */
+      $('#inQty').value=base||''; $('#inFrom').value=fromOf(o);
       chips('#inTip','#inQty',base); sync(); };
     $('#inNo').addEventListener('change',reset);
     $('#inQty').addEventListener('input',sync);
@@ -620,7 +635,9 @@ function draw(){
   /* 출고 */
   let outPool=null, outSrc=null, OUTKIND=()=>'외주', OUTDEST=()=>'';
   if($('#outQty')){
-    outPool = isHome()? open : (toOut.length?toOut:mine);
+    outPool = isHome()
+      ? open.concat(osp.filter(o=>o.idate && remainOf(o)>0 && !open.some(x=>x.no===o.no)))
+      : (toOut.length?toOut:mine);
     outSrc=()=>outPool.find(o=>String(o.no)===$('#outFrom').value)||null;
     const BACKMODE=!isHome();                       /* 협력사 = 본사 반송 전용 */
     const baseOf=s=>BACKMODE?pendingOf(s):remainOf(s);
@@ -726,13 +743,16 @@ function draw(){
       bar.innerHTML='<button class="go in" id="act">📥 입고 등록</button>';
       $('#act').addEventListener('click',async()=>{
         const b=$('#act'), o=inCur();
-        const base0=remainOf(o), q0=num($('#inQty').value);
+        const tr=isHome()?transitOf(o):0;                 /* 협력사가 반송 등록한 운송 중 수량 */
+        const base0=tr>0?tr:remainOf(o), q0=num($('#inQty').value);
         const close=isHome()?!!($('#inClose')&&$('#inClose').checked):false;
-        if(close && base0>0 && q0<base0)
+        if(close && pendingOf(o)>0)
+          return toast('❌ 협력사 보유분 '+fmt(pendingOf(o))+'개가 남아 마감할 수 없습니다.');
+        if(close && tr<=0 && base0>0 && q0<base0)
           return toast('❌ 부분 회수는 반출건을 마감할 수 없습니다. 잔량 '+fmt(base0)+'개 중 '+fmt(q0)+'개 입고입니다.');
         busy(b);
         try{
-          const kd=(close&&$('#inKind'))?$('#inKind').value:'가공완료';
+          const kd=((close||tr>0)&&$('#inKind'))?$('#inKind').value:'가공완료';
           let und=0;
           if(kd==='미처리') und=q0;
           else if(kd==='부분가공'){
@@ -740,14 +760,23 @@ function draw(){
             if(und<=0||und>=q0){ b.disabled=false; b.innerHTML='📥 입고 등록';
               return toast('❌ 미처리 수량을 확인하세요 (1 ~ '+fmt(q0-1)+'개).'); }
           }
-          const r=await rpc('ki_scan_arrive',{p_no:Number(o.no),
-            p_vendor:isHome()?(o.vendor||''):MYVEN,
-            p_date:$('#inDate').value||TODAY, p_qty:num($('#inQty').value),
-            p_reason:($('#inRsn')&&$('#inRsn').value)||'', p_remark:$('#inRmk').value,
-            p_close:close, p_worker:WORKER, p_kind:kd, p_undone:und});
-          toast(!r.closed?'✓ 입고 등록 완료'+(r.short?' (부족 '+fmt(r.short)+'개)':'')+' — 작업 후 출고하세요.'
+          /* 협력사 반송분 수령은 전용 RPC — 항상 io='입고' 로 쌓아 분할 회수를 정확히 센다 */
+          const r = tr>0
+            ? await rpc('ki_scan_recv',{p_no:Number(o.no),
+                p_date:$('#inDate').value||TODAY, p_qty:q0,
+                p_reason:($('#inRsn')&&$('#inRsn').value)||'', p_remark:$('#inRmk').value,
+                p_worker:WORKER, p_close:close, p_kind:kd, p_undone:und})
+            : await rpc('ki_scan_arrive',{p_no:Number(o.no),
+                p_vendor:isHome()?(o.vendor||''):MYVEN,
+                p_date:$('#inDate').value||TODAY, p_qty:q0,
+                p_reason:($('#inRsn')&&$('#inRsn').value)||'', p_remark:$('#inRmk').value,
+                p_close:close, p_worker:WORKER, p_kind:kd, p_undone:und});
+          toast(!r.closed
+                ? (tr>0?'✓ 부분 회수 등록 — 잔여 '+fmt(r.rest||0)+'개는 아직 회수 전입니다.'
+                       :'✓ 입고 등록 완료'+(r.short?' (부족 '+fmt(r.short)+'개)':'')+' — 작업 후 출고하세요.')
                 : und?'↩ 미처리 반납 '+fmt(und)+'개로 등록 — 이 공정은 완료되지 않았습니다.'
-                     :'✓ 사내 복귀 입고 완료 — 반출건이 마감되었습니다.',1);
+                     :'✓ 사내 복귀 입고 완료 — 반출건이 마감되었습니다.'
+                       +(r.short?' (분실 '+fmt(r.short)+'개)':''),1);
           TAB=''; setTimeout(load,800);
         }catch(e){ toast('❌ '+e.message); b.disabled=false; b.innerHTML='📥 입고 등록'; }
       });
