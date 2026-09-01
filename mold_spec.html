@@ -70,6 +70,13 @@
       '<button class="btn danger" id="b_del">✕ 삭제</button>'+
       '<span class="st" id="f_msg"></span>'+
     '</div>';
+  const NT=el('div','note');
+  NT.innerHTML='금형 식별의 <b>기준 화면</b>입니다. 여기 등록된 <b>금형제번</b>이 곧 '+
+    '<b>금형대장</b>과 <b>금형별 연마/교체주기</b>의 금형코드가 됩니다.<br>'+
+    '저장하면 금형대장 행과 연마 · 교체 기본행이 자동으로 만들어지고, '+
+    '<b>금형제번을 바꾸면</b> 대장 · 연마/교체주기 · 알람 · 점검/타발 이력의 코드가 함께 바뀝니다. '+
+    '삭제도 대장 · 연마/교체주기까지 함께 정리됩니다(이력이 있으면 차단).';
+  ui.pg.appendChild(NT);
   ui.pg.appendChild(F);
 
   /* ---------- 목록 ---------- */
@@ -116,7 +123,9 @@
   }
   function fill(r){
     key=r.mold_no;
-    $('#f_no').value=r.mold_no; $('#f_no').readOnly=true;
+    /* 금형제번은 수정 모드에서도 바꿀 수 있다 — 저장 시 금형대장 · 연마/교체주기까지 함께 개명 */
+    $('#f_no').value=r.mold_no; $('#f_no').readOnly=false;
+    $('#f_no').title='금형제번을 바꾸면 금형대장 · 연마/교체주기 · 알람의 코드도 함께 바뀝니다.';
     $('#f_type').value=r.mold_type_code||''; $('#f_mat').value=r.material_code||'';
     $('#f_t').value=r.thickness_mm??''; $('#f_w').value=r.width_mm??'';
     $('#f_p').value=r.pitch_mm??''; $('#f_den').value=r.density??'';
@@ -124,7 +133,14 @@
     weight(); msg(r.mold_no+' 항목을 선택했습니다. (수정 모드)',true);
   }
 
-  /* ---------- 저장 / 삭제 ---------- */
+  /* ---------- 저장 / 삭제 ----------
+     금형정보(ki_mold_master)가 금형 식별의 기준이다.
+     저장하면 금형대장(ki_mold) · 금형별 연마/교체주기(ki_mold_tool)가 따라오고,
+     금형제번을 바꾸면 그 코드를 쓰는 모든 자료가 함께 개명된다. (ki_mold_sync.sql) */
+  async function sync(no){
+    try{ await KI.rpc('ki_mold_sync',{p_no:no}); }
+    catch(e){ KI.msg('⚠ 금형대장 연동 실패 — '+e.message+' (ki_mold_sync.sql 적용 여부를 확인하세요)'); }
+  }
   async function save(){
     const no=V('f_no');
     if(!no) return msg('금형제번을 입력하세요.');
@@ -133,20 +149,57 @@
       part_no:V('f_part')||null, asset_owner:V('f_own')||null, remark:V('f_rem')||null,
       updated_at:new Date().toISOString() };
     try{
-      if(key){ await KI.upd(T_MOLD,'mold_no=eq.'+encodeURIComponent(key),body); msg('✓ '+key+' 수정되었습니다.',true); }
+      if(key){
+        /* 금형제번 개명 : 대장 · 연마/교체주기 · 알람 · 이력의 금형코드를 한꺼번에 바꾼다 */
+        if(no!==key){
+          if(ROWS.find(r=>r.mold_no===no)) return msg('이미 등록된 금형제번입니다.');
+          if(!confirm('금형제번을 바꿉니다.\n\n'+key+'  →  '+no+'\n\n'+
+              '금형대장 · 금형별 연마/교체주기 · 알람 · 점검/타발 이력의 금형코드가\n'+
+              '모두 새 번호로 함께 바뀝니다. 계속할까요?')) return msg('개명을 취소했습니다.');
+          await KI.rpc('ki_mold_rename',{p_old:key, p_new:no});
+          key=no;
+        }
+        await KI.upd(T_MOLD,'mold_no=eq.'+encodeURIComponent(key),body);
+        await sync(key);
+        msg('✓ '+key+' 수정되었습니다. (금형대장 · 연마/교체주기 반영)',true);
+      }
       else{
         if(ROWS.find(r=>r.mold_no===no)) return msg('이미 등록된 금형제번입니다.');
-        body.mold_no=no; await KI.ins(T_MOLD,[body]); msg('✓ '+no+' 등록되었습니다.',true); key=no; $('#f_no').readOnly=true;
+        body.mold_no=no; await KI.ins(T_MOLD,[body]);
+        await sync(no);
+        msg('✓ '+no+' 등록되었습니다. (금형대장 · 연마/교체주기 생성)',true);
+        key=no;
       }
       await loadMolds();
     }catch(e){ msg('❌ '+e.message); }
   }
+  const DEPN={mold:'금형대장',tool:'연마/교체주기',alert:'연마/교체 알람',insp:'정기점검 이력',
+              daily:'일상점검 이력',wash:'세척 이력',grade:'등급평가 이력',
+              shot:'일별 타발수',plan:'연간 점검계획'};
   async function remove(){
     if(!key) return msg('삭제할 항목을 목록에서 선택하세요.');
-    if(!confirm(key+' 금형정보를 삭제하시겠습니까?'))return;
-    try{ await KI.del(T_MOLD,'mold_no=eq.'+encodeURIComponent(key));
-      msg('✓ 삭제되었습니다.',true); clearForm(); await loadMolds();
-    }catch(e){ msg('❌ '+e.message); }
+    let d=null;
+    try{ d=await KI.rpc('ki_mold_deps',{p_no:key}); }catch(e){}
+    const list=d ? Object.keys(DEPN).filter(k=>Number(d[k])>0)
+                     .map(k=>'· '+DEPN[k]+' '+Number(d[k]).toLocaleString()+'건').join('\n') : '';
+    if(!confirm(key+' 금형을 삭제합니다.\n\n'+
+        (list?'딸린 자료\n'+list+'\n\n':'')+
+        '금형정보 · 금형대장 · 연마/교체주기 · 알람이 함께 삭제됩니다.\n'+
+        '점검 · 세척 · 평가 · 타발 이력이 있으면 삭제되지 않습니다.\n\n계속할까요?')) return;
+    try{
+      await KI.rpc('ki_mold_purge',{p_no:key});
+      msg('✓ '+key+' 삭제되었습니다. (금형대장 · 연마/교체주기 포함)',true);
+      clearForm(); await loadMolds();
+    }catch(e){
+      /* 연동 함수가 아직 없으면 종전처럼 금형정보만 삭제한다 */
+      if(/ki_mold_purge|PGRST202|not find|404/i.test(e.message||'')){
+        try{ await KI.del(T_MOLD,'mold_no=eq.'+encodeURIComponent(key));
+          msg('✓ 금형정보만 삭제되었습니다 — ki_mold_sync.sql 을 적용하면 대장까지 함께 정리됩니다.',true);
+          clearForm(); await loadMolds(); return;
+        }catch(e2){ return msg('❌ '+e2.message); }
+      }
+      msg('❌ '+e.message);
+    }
   }
   $('#b_save').addEventListener('click',save);
   $('#b_new').addEventListener('click',clearForm);
