@@ -696,7 +696,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     return open2.length;
   }
 
-  const BUILD='2026-09-01g';   /* 화면 하단 · 제목 툴팁에 표시 — 캐시된 옛 판 구분용 */
+  const BUILD='2026-09-01i';   /* 화면 하단 · 제목 툴팁에 표시 — 캐시된 옛 판 구분용 */
   const openQtyOf = o => {
     if(!o || !o.sdate) return 0;
     if(o.idate) return 0;                      /* 마감된 반출건은 잔여 없음 */
@@ -1670,6 +1670,11 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     if(inS===null)return;
     const inQ=Number(String(inS).replace(/[^0-9.]/g,''))||0;
     if(inQ<=0) return alert('입고수량을 확인하세요.');
+    /* 잔여보다 많이 넣으면 그 초과분이 사내 대기로 잡혀 재고가 늘어난다 — 여기서 막는다 */
+    if(inQ>restQ) return alert('입고수량('+inQ.toLocaleString()+')이 잔여('+restQ.toLocaleString()+')보다 많습니다.\n'+
+      (transitQ>0?'협력사 반송 등록분':'반출 '+outQ.toLocaleString()+(gotQ?' 중 기회수 '+gotQ.toLocaleString():''))+
+      ' 기준입니다. 잔여 이내로 다시 입력하세요.\n'+
+      '이전 입고 수량이 잘못됐다면 [현장기록]에서 ↩ 로 취소한 뒤 다시 등록하세요.');
     const rem=Math.max(restQ-inQ,0);                 /* 이번 입고 후 남는 수량 */
     let short=0, reason='';
     if(rem>0){
@@ -1809,6 +1814,9 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     if(inS===null)return;
     const inQ=Number(String(inS).replace(/[^0-9.]/g,''))||0;
     if(inQ<=0) return alert('입고수량을 확인하세요.');
+    /* 사내 대기수량을 넘겨 넣으면 없는 물량이 종결되고 재고가 늘어난다 — 여기서 막는다 */
+    if(inQ>baseQ) return alert('입고수량('+inQ.toLocaleString()+')이 사내 대기수량('+baseQ.toLocaleString()+')보다 많습니다.\n'+
+      '아직 돌아오지 않은 물량은 각 공정의 [입고]로 먼저 회수한 뒤 종결하세요.');
     const rem=Math.max(baseQ-inQ,0);               /* 이번 입고 후 남는 수량 */
     const close2=(rem<=0);                          /* 전량 채워지면 종결 */
     let short=0, reason='';
