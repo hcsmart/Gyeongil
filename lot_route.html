@@ -438,7 +438,16 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   $('#sX').addEventListener('click',subHide);
   $('#sC').addEventListener('click',subHide);
   dimS.addEventListener('click',subHide);
-  $('#sS').addEventListener('click',()=>$('#mS').click());
+  $('#sS').addEventListener('click',()=>{
+    const b=$('#mS');
+    if(b.disabled){          /* 잠긴 상태면 이유를 보여준다 (무반응 방지) */
+      const m0=$('#mMsg');
+      if(m0){ m0.className='msg err';
+        m0.textContent='🔒 표준공정을 모두 마쳤습니다 — [🏭 사내입고(종결)]로 진행하세요.'; }
+      return;
+    }
+    b.click();
+  });
   $('#sEC').addEventListener('click',()=>$('#mEC').click());
   $('#hOut').addEventListener('click',()=>{
     if(ALLDONE){
@@ -696,7 +705,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     return open2.length;
   }
 
-  const BUILD='2026-09-01f';   /* 화면 하단 · 제목 툴팁에 표시 — 캐시된 옛 판 구분용 */
+  const BUILD='2026-09-01g';   /* 화면 하단 · 제목 툴팁에 표시 — 캐시된 옛 판 구분용 */
   const openQtyOf = o => {
     if(!o || !o.sdate) return 0;
     if(o.idate) return 0;                      /* 마감된 반출건은 잔여 없음 */
@@ -936,6 +945,14 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     $('#cnt').textContent=list.length+'건';
   }
 
+  /* 전 공정 완료 LOT을 보고 난 뒤 [신규등록]·[수정]으로 넘어오면
+     #mS 의 disabled·잠금 문구가 그대로 남아 2차 팝업의 [반출 등록]이 소리 없이 죽는다.
+     (사내 2공정처럼 빨리 끝나는 경로에서 자주 걸린다) → 여기서 잠금을 확실히 푼다 */
+  function unlockShip(){
+    ALLDONE=false;
+    const b=$('#mS'); if(b){ b.disabled=false; b.style.opacity=''; b.style.cursor=''; b.title=''; }
+    const h=$('#hOut'); if(h){ h.style.opacity=''; h.style.cursor=''; h.title='다음 공정 반출 등록'; }
+  }
   function mode(kind){          /* 'ins' | 'edit' */
     editNo = kind==='edit' ? editNo : null;
     $('#mS').textContent = kind==='edit' ? '💾 저장' : '📤 반출 등록';
@@ -1275,7 +1292,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   function openNew(){
     if(!(CAN_S||CAN_E)) return KI.msg('❌ 등록 권한이 없습니다.');
     subHide();
-    sel=null; NEW=true; mode('ins');
+    sel=null; NEW=true; unlockShip(); mode('ins');
     $('#mTtl').textContent='물류등록 — 신규';
     /* 신규는 이력·흐름도가 없으므로 입력폼 버튼만 남긴다 */
     $('#hOut').style.display=''; $('#hMv').style.display='none'; $('#hLg').style.display='none';
@@ -1325,7 +1342,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   function editOrder(no){
     const o=OSP.find(x=>String(x.no)===String(no)); if(!o) return;
     if(!(CAN_S||CAN_E)) return KI.msg('❌ 수정 권한이 없습니다.');
-    editNo=o.no; NEW=false; mode('edit');
+    editNo=o.no; NEW=false; unlockShip(); mode('edit');
     $('#fJob').value=o.job||'';
     const g3=$('#fJobGen'); if(g3) g3.style.display='none';
     $('#fRoute').value=o.route_no||(sel&&sel.std?String(sel.std.standard_process_no):'');
@@ -1561,6 +1578,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           const moved=mvs.reduce((a,b)=>a+(Number(b.out_qty)||0),0);
           const remain=Math.max((Number(src.qty)||0)-moved,0);
           const full=!remain || qty>=remain;
+          const srcIn=String(src.move_kind||'외주')==='사내';
+          const mvWord=(srcIn&&kind==='사내')?'사내 이동':(srcIn?'외주 반출':(kind==='사내'?'사내 이동':'외주 이관'));
           await KI.ins(TBL.ospOrder,[body]);
           await KI.ins(TBL.lotMove,[{part:part, osp_no:Number(from)||null, io:'출고',
             mp:mp, vendor:ven, move_date:body.sdate||TODAY, out_qty:qty||null,
@@ -1569,10 +1588,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
             worker:(KI.me()||{}).emp_name||'', source:'수동'}]).catch(()=>{});
           if(full) await KI.upd(TBL.ospOrder,'no=eq.'+from,{idate:body.sdate||TODAY, st:'완료'});
           m.className='msg ok'; m.textContent='✓ '+(src.vendor?esc(src.vendor):'')+' → '+ven+
-            (full?' 외주 이관(전량) 등록되었습니다.':' 부분출고 등록 — 잔량 '+(remain-qty).toLocaleString()+
+            (full?' '+mvWord+'(전량) 등록되었습니다.':' 부분출고 등록 — 잔량 '+(remain-qty).toLocaleString()+
              ' 미결 유지 (다음 출고 시 이 반출건을 다시 선택)')+
             ' (LOT '+lots.length+'건 · '+qty.toLocaleString()+')';
-          KI.msg('✓ '+part+' 외주 이관 → '+mp+' · '+ven+(full?'':' (부분)'));
+          KI.msg('✓ '+part+' '+mvWord+' → '+mp+' · '+ven+(full?'':' (부분)'));
         }else{
           const first=!ospOf(part).length;   /* 이 LOT의 최초 반출 여부 */
           /* 다음 공정으로 나가는 시점 = 앞선 사내 공정의 작업 종료 */
