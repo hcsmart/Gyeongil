@@ -75,7 +75,10 @@ input:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px rgba(38,104,
 /* 카메라 */
 .cam{position:fixed;inset:0;background:#000;z-index:60;display:none}
 .cam.on{display:block}
-.cam video{width:100%;height:100%;object-fit:cover;background:#000}
+.cam #qrbox{width:100%;height:100%;background:#000;overflow:hidden}
+.cam #qrbox video{width:100%!important;height:100%!important;object-fit:cover;background:#000}
+.cam #qrbox canvas,.cam #qrbox img{display:none!important}      /* 라이브러리 기본 안내 이미지 숨김 */
+.cam #qrbox__dashboard,.cam #qrbox__header_message{display:none!important}
 .camZ{position:absolute;right:14px;top:50%;transform:translateY(-50%);display:none;flex-direction:column;gap:10px}
 .camZ.on{display:flex}
 .camZ button{width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,.75);background:rgba(0,0,0,.45);
@@ -114,7 +117,7 @@ input:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px rgba(38,104,
 <div class="bar" id="bar"></div>
 
 <div class="cam" id="cam">
-  <video id="vid" playsinline muted></video>
+  <div id="qrbox"></div>
   <div class="frame"><i></i><i></i><i></i><i></i><div class="laser"></div></div>
   <div class="camHint" id="camHint">공정이동표의 QR을 사각형 안에 맞춰 주세요</div>
   <div class="camZ" id="camZ"><button id="zIn">＋</button><div class="zv" id="zVal">1.0×</div><button id="zOut">－</button></div>
@@ -293,95 +296,82 @@ async function openTok(tok,tab){
   }catch(e){ toast('❌ '+e.message); }
 }
 
-/* ── 카메라 ── */
-let stream=null, timer=null, jsQRlib=null, track=null, zoomCap=null, zoomNow=1;
-/* 연속 초점 + 줌 — 근접 촬영 시 초점이 안 잡히는 폰은 1.5~2배 확대한 채 한 발 떨어지면 잘 잡힌다 */
-async function tuneTrack(t){
-  track=t; zoomCap=null;
-  const cap=(t.getCapabilities&&t.getCapabilities())||{};
-  try{ if((cap.focusMode||[]).includes('continuous')) await t.applyConstraints({advanced:[{focusMode:'continuous'}]}); }catch(e){}
-  if(cap.zoom&&cap.zoom.max>cap.zoom.min){
-    zoomCap=cap.zoom;
-    const s0=(t.getSettings&&t.getSettings().zoom)||cap.zoom.min||1;
-    /* 기본 1.5배 정도로 시작 (범위 안에서) */
-    await setZoom(Math.min(Math.max(s0,1.5),cap.zoom.max));
-    $('#camZ').classList.add('on');
-  }else $('#camZ').classList.remove('on');
+/* ── 카메라 (html5-qrcode) ──────────────────────────────────
+   기기별로 초점·해상도 편차가 커서 직접 만든 스캔 루프는 인식률이 들쭉날쭉했다.
+   현장에서 검증된 html5-qrcode 로 교체한다. 카메라 제어·디코딩을 라이브러리가 맡는다. */
+const QR_LIB=['https://unpkg.com/html5-qrcode',
+              'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js'];
+let qrCode=null, qrRunning=false, zoomCap=null, zoomNow=1;
+
+function loadQrLib(){
+  if(window.Html5Qrcode) return Promise.resolve();
+  return QR_LIB.reduce((chain,url)=>chain.catch(()=>new Promise((ok,ng)=>{
+    const el=document.createElement('script');
+    el.src=url; el.onload=()=>window.Html5Qrcode?ok():ng(); el.onerror=ng;
+    document.head.appendChild(el);
+  })), Promise.reject());
 }
+
+/* 줌 — 초점이 안 잡히는 폰은 한 발 떨어져 확대하면 잘 읽힌다 */
 async function setZoom(z){
-  if(!track||!zoomCap) return;
-  z=Math.min(Math.max(z,zoomCap.min),zoomCap.max);
-  try{ await track.applyConstraints({advanced:[{zoom:z}]}); zoomNow=z; $('#zVal').textContent=z.toFixed(1)+'×'; }catch(e){}
+  if(!qrCode||!zoomCap) return;
+  z=Math.min(Math.max(z,zoomCap.min||1),zoomCap.max||1);
+  try{ await qrCode.applyVideoConstraints({advanced:[{zoom:z}]});
+       zoomNow=z; $('#zVal').textContent=z.toFixed(1)+'×'; }catch(e){}
 }
-$('#zIn').addEventListener('click',()=>setZoom(zoomNow+(zoomCap?Math.max((zoomCap.step||0.1),0.5):0.5)));
-$('#zOut').addEventListener('click',()=>setZoom(zoomNow-(zoomCap?Math.max((zoomCap.step||0.1),0.5):0.5)));
-/* 화면 탭 → 초점 재시도 (단발 초점 후 연속으로 복귀) */
-$('#vid').addEventListener('click',async()=>{
-  if(!track) return;
-  const cap=(track.getCapabilities&&track.getCapabilities())||{};
-  const fm=cap.focusMode||[];
+function initZoom(){
+  zoomCap=null; $('#camZ').classList.remove('on');
   try{
-    if(fm.includes('single-shot')){ await track.applyConstraints({advanced:[{focusMode:'single-shot'}]});
-      setTimeout(()=>track&&track.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(()=>{}),1200); }
-    else if(fm.includes('continuous')){ await track.applyConstraints({advanced:[{focusMode:'manual'}]}).catch(()=>{});
-      await track.applyConstraints({advanced:[{focusMode:'continuous'}]}); }
+    const cap=qrCode.getRunningTrackCapabilities&&qrCode.getRunningTrackCapabilities();
+    if(cap&&cap.zoom&&cap.zoom.max>cap.zoom.min){
+      zoomCap=cap.zoom;
+      zoomNow=(qrCode.getRunningTrackSettings&&qrCode.getRunningTrackSettings().zoom)||zoomCap.min||1;
+      $('#zVal').textContent=Number(zoomNow).toFixed(1)+'×';
+      $('#camZ').classList.add('on');
+    }
   }catch(e){}
-});
+}
+$('#zIn').addEventListener('click',()=>setZoom(zoomNow+Math.max(zoomCap?(zoomCap.step||0.1):0.1,0.5)));
+$('#zOut').addEventListener('click',()=>setZoom(zoomNow-Math.max(zoomCap?(zoomCap.step||0.1):0.1,0.5)));
+
 async function scan(){
-  const cam=$('#cam'), vid=$('#vid');
-  cam.classList.add('on');
+  if(qrRunning) return;
+  $('#cam').classList.add('on');
+  $('#camHint').textContent='스캐너 준비 중...';
+  try{ await loadQrLib(); }
+  catch(e){ stopScan(); return toast('❌ 스캐너를 불러오지 못했습니다. 기본 카메라로 찍어 주세요.'); }
+
   $('#camHint').textContent='카메라를 켜는 중...';
   try{
-    /* 해상도를 높게 요청한다 — 기본(640×480)은 작은 QR이 뭉개져 초점이 맞아도 못 읽는다 */
-    stream=await navigator.mediaDevices.getUserMedia({video:{
-      facingMode:{ideal:'environment'},
-      width:{ideal:1920}, height:{ideal:1080},
-      advanced:[{focusMode:'continuous'}]}});
-    vid.srcObject=stream; await vid.play();
-    await tuneTrack(stream.getVideoTracks()[0]);
+    qrCode=new window.Html5Qrcode('qrbox',{verbose:false});
+    await qrCode.start(
+      {facingMode:'environment'},
+      {fps:10, qrbox:{width:250,height:250}},
+      text=>hit(text),
+      ()=>{}                                   /* 프레임마다 실패 콜백 — 무시 */
+    );
+    qrRunning=true;
+    initZoom();
     $('#camHint').textContent='공정이동표의 QR을 사각형 안에 맞춰 주세요'+(zoomCap?' · 흐리면 ＋로 확대':'');
   }catch(e){
     stopScan();
     return toast('❌ 카메라를 사용할 수 없습니다. 기본 카메라로 찍거나 직접 입력해 주세요.');
   }
-  if('BarcodeDetector' in window){
-    const det=new window.BarcodeDetector({formats:['qr_code']});
-    timer=setInterval(async()=>{
-      try{ const r=await det.detect(vid); if(r&&r.length) hit(r[0].rawValue); }catch(e){}
-    },330);
-    return;
-  }
-  if(!jsQRlib){
-    $('#camHint').textContent='스캐너 준비 중...';
-    try{ await new Promise((ok,ng)=>{ const s=document.createElement('script');
-      s.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'; s.onload=ok; s.onerror=ng;
-      document.head.appendChild(s); }); jsQRlib=window.jsQR; }
-    catch(e){ stopScan(); return toast('❌ 스캐너를 불러오지 못했습니다. 기본 카메라로 찍어 주세요.'); }
-    $('#camHint').textContent='공정이동표의 QR을 사각형 안에 맞춰 주세요';
-  }
-  const cv=document.createElement('canvas'), cx=cv.getContext('2d',{willReadFrequently:true});
-  timer=setInterval(()=>{
-    if(!vid.videoWidth) return;
-    const w=Math.min(vid.videoWidth,960), h=Math.round(vid.videoHeight*(w/vid.videoWidth));
-    cv.width=w; cv.height=h; cx.drawImage(vid,0,0,w,h);
-    const d=cx.getImageData(0,0,w,h);
-    const r=jsQRlib(d.data,w,h,{inversionAttempts:'dontInvert'});
-    if(r&&r.data) hit(r.data);
-  },300);
 }
 function hit(text){
   const tok=tokenOf(text);
-  if(!tok) return;
+  if(!tok) return;                             /* 우리 이동표가 아니면 계속 스캔 */
   stopScan();
   if(navigator.vibrate) try{ navigator.vibrate(70); }catch(e){}
   openTok(tok);
 }
 function stopScan(){
-  if(timer){ clearInterval(timer); timer=null; }
-  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
-  track=null; zoomCap=null; $('#camZ').classList.remove('on');
-  $('#vid').srcObject=null;
   $('#cam').classList.remove('on');
+  $('#camZ').classList.remove('on'); zoomCap=null;
+  if(qrCode){
+    const c=qrCode; qrCode=null; qrRunning=false;
+    Promise.resolve().then(()=>c.stop()).then(()=>c.clear()).catch(()=>{ try{c.clear();}catch(e){} });
+  }
 }
 $('#camX').addEventListener('click',stopScan);
 document.getElementById('meBtn').addEventListener('click',()=>gate());
