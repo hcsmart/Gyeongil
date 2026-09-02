@@ -435,9 +435,15 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   /* 하단 메시지 바 : 내용이 있을 때만 노출 (버튼이 모두 상단으로 올라가 평소엔 숨긴다) */
   function footSync(){ const f=$('#mFoot'); if(!f) return;
     f.style.display=(($('#mMsg').textContent||'').trim())?'':'none'; }
-  $('#sX').addEventListener('click',subHide);
-  $('#sC').addEventListener('click',subHide);
-  dimS.addEventListener('click',subHide);
+  /* 신규등록은 본문(이력·흐름도)이 없어 2차 팝업이 곧 등록창이다.
+     2차 팝업만 닫으면 빈 껍데기 창이 남으므로 물류등록 창까지 함께 닫는다. */
+  function subClose(){
+    if(NEW && !sel){ close(); return; }
+    subHide();
+  }
+  $('#sX').addEventListener('click',subClose);
+  $('#sC').addEventListener('click',subClose);
+  dimS.addEventListener('click',subClose);
   $('#sS').addEventListener('click',()=>$('#mS').click());
   $('#sEC').addEventListener('click',()=>$('#mEC').click());
   $('#hOut').addEventListener('click',()=>{
@@ -452,7 +458,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
   });
   $('#hMv') .addEventListener('click',()=>subShow('mv'));
   $('#hLg') .addEventListener('click',()=>subShow('lg'));
-  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&subKey) subHide(); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&subKey) subClose(); });
   /* 저장·오류 메시지는 2차 팝업 하단에도 그대로 비춘다 */
   new MutationObserver(()=>{ footSync(); if(subKey) subMsg(); })
     .observe($('#mMsg'),{childList:true,subtree:true,characterData:true,attributes:true});
@@ -696,7 +702,7 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     return open2.length;
   }
 
-  const BUILD='2026-09-01k';   /* 화면 하단 · 제목 툴팁에 표시 — 캐시된 옛 판 구분용 */
+  const BUILD='2026-09-02a';   /* 화면 하단 · 제목 툴팁에 표시 — 캐시된 옛 판 구분용 */
   const openQtyOf = o => {
     if(!o || !o.sdate) return 0;
     if(o.idate) return 0;                      /* 마감된 반출건은 잔여 없음 */
@@ -1284,7 +1290,10 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     $('#mMsg').textContent=''; $('#mMsg').className='msg';
     setOutFold(true);                      /* 신규는 입력폼이 본문이므로 펼침 */
     $('#infoBox').style.display='none'; $('#iChain').style.display='none';
-    $('#openBox').innerHTML='';
+    /* 신규는 이력이 없어 본문이 비므로 안내문을 둔다 (빈 창처럼 보이지 않게) */
+    $('#openBox').innerHTML='<div style="padding:16px 12px;color:#5b7fa5;font-size:12px;line-height:1.7">'+
+      '📤 상단 <b>[반출등록]</b> 버튼을 눌러 JOB · 품번 · 공정 · 외주처 · LOT 수량을 입력하세요.<br>'+
+      '등록이 끝나면 해당 LOT의 공정 흐름도가 이 자리에 표시됩니다.</div>';
     $('#fJob').value=''; $('#fJob').readOnly=false;
     const g2=$('#fJobGen'); if(g2) g2.style.display='';
     $('#fRoute').value=''; fillMp('',''); $('#fVen').value=''; $('#fDept').value='';
@@ -1487,12 +1496,6 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     const lots=lotList();
     if(!lots.length || lots.some(x=>!x.lot)){
       m.className='msg err'; m.textContent='반출 LOT 번호를 입력하세요.'; return; }
-    /* 여러 LOT을 한 건으로 묶으면 LOT별 잔량·분납을 추적할 수 없다 —
-       LOT마다 수량을 받아 반출건을 나눠 등록한다. */
-    if(lots.length>1 && lots.some(x=>!(x.qty>0))){
-      m.className='msg err';
-      m.textContent='LOT이 2건 이상이면 LOT별 수량을 각각 입력하세요. (LOT 단위로 나눠 등록됩니다)';
-      return; }
     const part = sel ? sel.part : lots[0].lot;   /* LOT 표의 첫 행이 대표 LOT */
     if(!$('#fRoute').value && RT.length){
       m.className='msg err'; m.textContent='표준공정을 선택하세요.'; return; }
@@ -1511,10 +1514,6 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
       lot:lots.map(x=>x.lot).join(','), qty:qty||null, lots:lots,
       sdate:$('#fSdate').value||null, edate:$('#fEdate').value||null,
       quote:q===''?null:Number(q), st:'진행', move_kind:kind};
-    /* LOT 단위 반출건 목록 — 1건이면 그대로, 여러 건이면 LOT마다 하나씩 */
-    const bodies=()=>lots.map(x=>Object.assign({},body,
-      {part:x.lot, lot:x.lot, qty:(lots.length>1?x.qty:qty)||null,
-       lots:[{lot:x.lot, qty:(lots.length>1?x.qty:qty)||null}]}));
     /* ── 재작업 반출 판정 ──────────────────────────────────
        이미 목표수량만큼 이 공정을 통과했는데 또 내보낸다면 그것은 새 투입이 아니라
        불합격품 재투입(재작업)이다.
@@ -1558,8 +1557,6 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     m.className='msg'; m.textContent=editNo?'저장중...':'등록중...';
     try{
       if(editNo){
-        if(lots.length>1) throw new Error('수정에서는 LOT을 여러 건으로 묶을 수 없습니다.\n'+
-          'LOT마다 반출건을 따로 등록하세요.');
         await KI.upd(TBL.ospOrder,'no=eq.'+editNo,body);
         m.className='msg ok'; m.textContent='✓ 반출번호 '+editNo+' 저장되었습니다. (LOT '+lots.length+'건 · '+qty.toLocaleString()+')';
         KI.msg('✓ '+part+' 반출건 수정');
@@ -1573,13 +1570,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           const moved=mvs.reduce((a,b)=>a+(Number(b.out_qty)||0),0);
           const remain=Math.max((Number(src.qty)||0)-moved,0);
           const full=!remain || qty>=remain;
-          const bs=bodies();
-          await KI.ins(TBL.ospOrder,bs);
-          await KI.ins(TBL.lotMove,bs.map(b2=>({part:b2.part, osp_no:Number(from)||null, io:'출고',
-            mp:mp, vendor:ven, move_date:body.sdate||TODAY, out_qty:b2.qty||null,
-            remark:rmkJoin(flow(node(src.mp,src.vendor),node(mp,ven),b2.qty||qty),
+          await KI.ins(TBL.ospOrder,[body]);
+          await KI.ins(TBL.lotMove,[{part:part, osp_no:Number(from)||null, io:'출고',
+            mp:mp, vendor:ven, move_date:body.sdate||TODAY, out_qty:qty||null,
+            remark:rmkJoin(flow(node(src.mp,src.vendor),node(mp,ven),qty),
                            full?'전량 이관':'부분출고 — 잔량 '+(remain-qty).toLocaleString()+' 유지'),
-            worker:(KI.me()||{}).emp_name||'', source:'수동'}))).catch(()=>{});
+            worker:(KI.me()||{}).emp_name||'', source:'수동'}]).catch(()=>{});
           if(full) await KI.upd(TBL.ospOrder,'no=eq.'+from,{idate:body.sdate||TODAY, st:'완료'});
           m.className='msg ok'; m.textContent='✓ '+(src.vendor?esc(src.vendor):'')+' → '+ven+
             (full?' 외주 이관(전량) 등록되었습니다.':' 부분출고 등록 — 잔량 '+(remain-qty).toLocaleString()+
@@ -1590,15 +1586,12 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
           const first=!ospOf(part).length;   /* 이 LOT의 최초 반출 여부 */
           /* 다음 공정으로 나가는 시점 = 앞선 사내 공정의 작업 종료 */
           const doneIn=await closeInhouse(part);
-          const bs=bodies();
-          await KI.ins(TBL.ospOrder,bs);
-          await KI.ins(TBL.lotMove,bs.map(b2=>({part:b2.part, io:'출고', mp:mp, vendor:ven,
-            move_date:body.sdate||TODAY, out_qty:b2.qty||null,
-            remark:rmkJoin(flow('사내 출발',node(mp,ven),b2.qty||qty), first?'최초 반출':''),
-            worker:(KI.me()||{}).emp_name||'', source:'수동'}))).catch(()=>{});
-          m.className='msg ok'; m.textContent='✓ '+mp+' 공정으로 반출 등록되었습니다. '+
-            (lots.length>1?'LOT '+lots.length+'건을 각각 나눠 등록 · 합계 '+qty.toLocaleString()
-                          :'('+qty.toLocaleString()+'EA)')+
+          await KI.ins(TBL.ospOrder,[body]);
+          await KI.ins(TBL.lotMove,[{part:part, io:'출고', mp:mp, vendor:ven,
+            move_date:body.sdate||TODAY, out_qty:qty||null,
+            remark:rmkJoin(flow('사내 출발',node(mp,ven),qty), first?'최초 반출':''),
+            worker:(KI.me()||{}).emp_name||'', source:'수동'}]).catch(()=>{});
+          m.className='msg ok'; m.textContent='✓ '+mp+' 공정으로 반출 등록되었습니다. (LOT '+lots.length+'건 · '+qty.toLocaleString()+')'+
             (doneIn?' · 사내 공정 '+doneIn+'건 자동 완료':'');
           KI.msg('✓ '+part+' → '+mp+' 반출');
           if(first && confirm('최초 반출입니다.\n공정이동표(QR)를 지금 발행할까요?\n(이동표는 LOT과 함께 외주업체로 보냅니다)'))
@@ -1686,11 +1679,6 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     if(inS===null)return;
     const inQ=Number(String(inS).replace(/[^0-9.]/g,''))||0;
     if(inQ<=0) return alert('입고수량을 확인하세요.');
-    /* 잔여보다 많이 넣으면 그 초과분이 사내 대기로 잡혀 재고가 늘어난다 — 여기서 막는다 */
-    if(inQ>restQ) return alert('입고수량('+inQ.toLocaleString()+')이 잔여('+restQ.toLocaleString()+')보다 많습니다.\n'+
-      (transitQ>0?'협력사 반송 등록분':'반출 '+outQ.toLocaleString()+(gotQ?' 중 기회수 '+gotQ.toLocaleString():''))+
-      ' 기준입니다. 잔여 이내로 다시 입력하세요.\n'+
-      '이전 입고 수량이 잘못됐다면 [현장기록]에서 ↩ 로 취소한 뒤 다시 등록하세요.');
     const rem=Math.max(restQ-inQ,0);                 /* 이번 입고 후 남는 수량 */
     let short=0, reason='';
     if(rem>0){
@@ -1822,7 +1810,6 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     /* 종결 대상은 <b>지금 사내에 대기중인 수량</b>이다. 목표(최초 투입)를 역산하지 않는다. */
     const gotQ =Number(c.recv&&c.recv.qty)||0;
     const baseQ=homeQty(c)||Number(last.qty)||0;
-    const goalQ=gotQ+baseQ;                         /* 누적 기준 = 기입고 + 사내 대기 (표시용) */
     const inS=prompt('['+c.part+'] 사내입고 수량을 입력하세요'+
       '\n사내 대기 '+baseQ.toLocaleString()+(gotQ?' · 기입고 '+gotQ.toLocaleString():'')+
       '\n\n일부만 들어왔다면 실제 입고분만 넣으세요. 나머지는 나중에 다시 등록할 수 있습니다.',
@@ -1830,9 +1817,6 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
     if(inS===null)return;
     const inQ=Number(String(inS).replace(/[^0-9.]/g,''))||0;
     if(inQ<=0) return alert('입고수량을 확인하세요.');
-    /* 사내 대기수량을 넘겨 넣으면 없는 물량이 종결되고 재고가 늘어난다 — 여기서 막는다 */
-    if(inQ>baseQ) return alert('입고수량('+inQ.toLocaleString()+')이 사내 대기수량('+baseQ.toLocaleString()+')보다 많습니다.\n'+
-      '아직 돌아오지 않은 물량은 각 공정의 [입고]로 먼저 회수한 뒤 종결하세요.');
     const rem=Math.max(baseQ-inQ,0);               /* 이번 입고 후 남는 수량 */
     const close2=(rem<=0);                          /* 전량 채워지면 종결 */
     let short=0, reason='';
@@ -1857,9 +1841,11 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
                   :'※ 분납 등록입니다. 남은 '+rem.toLocaleString()+'EA 는 나중에 다시 등록하세요.'))) return;
     if(B){ B.disabled=true; B.textContent='⏳ 등록중...'; }
     try{
-      /* 수량 초과는 DB 트리거가 이동기록 INSERT 에서 막는다 —
-         입고대장(ki_lot_receipt)을 먼저 넣으면 이동기록만 거부되어 대장에 유령행이 남는다.
-         그래서 <b>이동기록을 먼저</b> 넣고, 통과한 뒤에 대장을 쓴다. */
+      await KI.ins(TBL.lotReceipt,[{part:c.part, job:c.job||null, in_date:TODAY,
+        qty:inQ||null, short_qty:short, reason:reason||null,
+        worker:(KI.me()||{}).emp_name||'',
+        remark:rmkJoin(willClose?null:'분납 '+(gotQ+inQ).toLocaleString()+'/'+goalQ.toLocaleString()+
+                       ' · 잔여 '+rem.toLocaleString(), rmk)||null}]);
       await KI.ins(TBL.lotMove,[{part:c.part, io:'사내입고', move_date:TODAY,
         out_qty:baseQ||null, in_qty:inQ||null, short_qty:short, reason:reason||null,
         remark:rmkJoin(flow(node(last.mp,last.vendor),
@@ -1868,11 +1854,6 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
                        (!willClose?' · 누적 '+(gotQ+inQ).toLocaleString()+'/'+goalQ.toLocaleString()+
                                    ' · 잔여 '+rem.toLocaleString():''), rmk),
         worker:(KI.me()||{}).emp_name||'', source:'수동'}]);
-      await KI.ins(TBL.lotReceipt,[{part:c.part, job:c.job||null, in_date:TODAY,
-        qty:inQ||null, short_qty:short, reason:reason||null,
-        worker:(KI.me()||{}).emp_name||'',
-        remark:rmkJoin(willClose?null:'분납 '+(gotQ+inQ).toLocaleString()+'/'+goalQ.toLocaleString()+
-                       ' · 잔여 '+rem.toLocaleString(), rmk)||null}]);
       /* INSERT 가 RLS 로 걸러져도 오류가 안 날 수 있다 — 저장 여부를 직접 확인한다 */
       const chkR=await KI.get(TBL.lotReceipt+'?select=part,in_date,qty&part=eq.'+
                               encodeURIComponent(c.part)).catch(()=>null);
@@ -1884,10 +1865,8 @@ td.mini-chain::-webkit-scrollbar-thumb{background:#cbd5df;border-radius:3px}
                         ' — 잔여 '+rem.toLocaleString()+'EA 는 다시 등록하세요.'));
       if(willClose && B){ B.disabled=true; B.style.display='none'; }
       await load();
-      /* 버튼 상태(문구 · 활성 · 노출)는 open() 이 최신 상태로 다시 그린다 —
-         여기서 덮어쓰면 분납 진행중인데도 [종결]로 보인다. */
-      const c2=ROWS.map(calc).find(x=>x.part===c.part);
-      if(sel&&c2) open(c2); else if(B){ B.disabled=false; B.textContent='🏭 사내입고(종결)'; }
+      const c2=ROWS.map(calc).find(x=>x.part===c.part); if(sel&&c2) open(c2);
+      if(B && B.style.display!=='none') B.textContent='🏭 사내입고(종결)';
     }catch(e){ alert('❌ '+e.message);
       if(B){ B.disabled=false; B.textContent='🏭 사내입고(종결)'; } }
   }
